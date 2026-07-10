@@ -1,0 +1,1318 @@
+     1→"use client";
+     2→
+     3→import { useEffect, useMemo, useState } from "react";
+     4→import { useMutation, useQueryClient } from "@tanstack/react-query";
+     5→import { useAppStore, getActiveBrand, type Brand } from "@/lib/store";
+     6→import { api } from "@/lib/api";
+     7→import { useToast } from "@/hooks/use-toast";
+     8→import { PageHeader, SectionCard, EmptyState } from "@/components/nw/primitives";
+     9→import { Button } from "@/components/ui/button";
+    10→import { Badge } from "@/components/ui/badge";
+    11→import { Input } from "@/components/ui/input";
+    12→import { Textarea } from "@/components/ui/textarea";
+    13→import { Label } from "@/components/ui/label";
+    14→import { Switch } from "@/components/ui/switch";
+    15→import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+    16→import { Separator } from "@/components/ui/separator";
+    17→import { Skeleton } from "@/components/ui/skeleton";
+    18→import {
+    19→  Tabs,
+    20→  TabsContent,
+    21→  TabsList,
+    22→  TabsTrigger,
+    23→} from "@/components/ui/tabs";
+    24→import {
+    25→  Select,
+    26→  SelectContent,
+    27→  SelectItem,
+    28→  SelectTrigger,
+    29→  SelectValue,
+    30→} from "@/components/ui/select";
+    31→import {
+    32→  Dialog,
+    33→  DialogContent,
+    34→  DialogDescription,
+    35→  DialogFooter,
+    36→  DialogHeader,
+    37→  DialogTitle,
+    38→} from "@/components/ui/dialog";
+    39→import {
+    40→  AlertDialog,
+    41→  AlertDialogAction,
+    42→  AlertDialogCancel,
+    43→  AlertDialogContent,
+    44→  AlertDialogDescription,
+    45→  AlertDialogFooter,
+    46→  AlertDialogHeader,
+    47→  AlertDialogTitle,
+    48→  AlertDialogTrigger,
+    49→} from "@/components/ui/alert-dialog";
+    50→import {
+    51→  Store,
+    52→  Plus,
+    53→  Edit,
+    54→  Trash2,
+    55→  User,
+    56→  Palette,
+    57→  Bell,
+    58→  Check,
+    59→  Crown,
+    60→  Save,
+    61→  Globe,
+    62→  Sparkles,
+    63→  Mail,
+    64→  Hash,
+    65→  Loader2,
+    66→  AlertTriangle,
+    67→  Database,
+    68→} from "lucide-react";
+    69→import {
+    70→  CATEGORIES,
+    71→  TONES,
+    72→  slugify,
+    73→  type ToneKey,
+    74→} from "@/lib/constants";
+    75→import { cn } from "@/lib/utils";
+    76→import { startTour } from "@/components/nw/onboarding-tour";
+    77→
+    78→// ─────────────────────────────────────────────────────────────────────────────
+    79→// Per-tone example snippets (static, for preview)
+    80→// ─────────────────────────────────────────────────────────────────────────────
+    81→const TONE_EXAMPLES: Record<ToneKey, string> = {
+    82→  santai_ramah:
+    83→    "Hai sobat! Lagi nyari cemilan buat nemenin ngopi sore? Cobain Keripik Pedas kami — renyah, lumer, dijamin nagih! Yuk mampir 🙌",
+    84→  profesional:
+    85→    "Keripik Singkong Premium kami diproduksi dari singkong pilihan dengan standar higienitas tinggi. Cocok untuk camilan keluarga maupun hidangan tamu.",
+    86→  energik:
+    87→    "SIAP PEDIAS MAK NYUSSS! 🔥 Keripik pedas level dewa, sekali makan langsung nangih! Stok terbatas, buruan checkout sekarang sebelum kehabisan!",
+    88→  hangat:
+    89→    "Tiap keripik yang kami goreng adalah cerita. Dari dapur kecil Ibu Ani, dibuat pelan dengan resep keluarga — semoga bisa menghangati harimu.",
+    90→  humoris:
+    91→    "Yakin skip keripik ini? Katanya temen kamu kemarin nagihin terus sampe ilang. 😂 Sekali cobain, dijamin gak bisa berhenti. Buruan checkout!",
+    92→  edukatif:
+    93→    "Tahukah kamu? Singkong tinggi serat dan rendah lemak. Keripik kami diolah dengan teknik goreng terkontrol untuk menjaga nutrisi — camilan enak tanpa rasa bersalah.",
+    94→};
+    95→
+    96→// ─────────────────────────────────────────────────────────────────────────────
+    97→// Tab 1: Brand management
+    98→// ─────────────────────────────────────────────────────────────────────────────
+    99→function BrandTab() {
+   100→  const { brands, activeBrandId, setActiveBrand, addBrand, updateBrand, user, setSession } =
+   101→    useAppStore();
+   102→  const { toast } = useToast();
+   103→  const [addOpen, setAddOpen] = useState(false);
+   104→  const [editingId, setEditingId] = useState<string | null>(activeBrandId);
+   105→  const [deleteOpen, setDeleteOpen] = useState(false);
+   106→  const [deleting, setDeleting] = useState(false);
+   107→
+   108→  // Edit form state (for active brand)
+   109→  const [eName, setEName] = useState("");
+   110→  const [eCategory, setECategory] = useState<string>(CATEGORIES[0]);
+   111→  const [eDesc, setEDesc] = useState("");
+   112→  const [eLogo, setELogo] = useState("");
+   113→  const [saving, setSaving] = useState(false);
+   114→
+   115→  // Add form state
+   116→  const [aName, setAName] = useState("");
+   117→  const [aCategory, setACategory] = useState<string>(CATEGORIES[0]);
+   118→  const [aDesc, setADesc] = useState("");
+   119→  const [aLogo, setALogo] = useState("");
+   120→  const [aTone, setATone] = useState<ToneKey>("santai_ramah");
+   121→  const [creating, setCreating] = useState(false);
+   122→
+   123→  // Sync edit form whenever active brand changes
+   124→  useEffect(() => {
+   125→    const b = brands.find((x) => x.id === activeBrandId);
+   126→    if (b) {
+   127→      setEditingId(b.id);
+   128→      setEName(b.name);
+   129→      setECategory(b.category);
+   130→      setEDesc(b.description ?? "");
+   131→      setELogo(b.logoUrl ?? "");
+   132→    }
+   133→  }, [activeBrandId, brands]);
+   134→
+   135→  async function saveEdit() {
+   136→    if (!editingId) return;
+   137→    if (!eName.trim()) {
+   138→      toast({ title: "Nama brand wajib diisi", variant: "destructive" });
+   139→      return;
+   140→    }
+   141→    setSaving(true);
+   142→    try {
+   143→      const r = await api<{ brand: Brand }>(`/api/brands/${editingId}`, {
+   144→        method: "PATCH",
+   145→        json: {
+   146→          name: eName.trim(),
+   147→          category: eCategory,
+   148→          description: eDesc.trim(),
+   149→          logoUrl: eLogo.trim(),
+   150→        },
+   151→      });
+   152→      updateBrand(r.brand);
+   153→      toast({ title: "Brand diperbarui", description: r.brand.name });
+   154→    } catch (e) {
+   155→      const msg = e instanceof Error ? e.message : "Gagal menyimpan";
+   156→      toast({ title: "Gagal menyimpan", description: msg, variant: "destructive" });
+   157→    } finally {
+   158→      setSaving(false);
+   159→    }
+   160→  }
+   161→
+   162→  async function createBrand() {
+   163→    if (!aName.trim()) {
+   164→      toast({ title: "Nama brand wajib diisi", variant: "destructive" });
+   165→      return;
+   166→    }
+   167→    setCreating(true);
+   168→    try {
+   169→      const r = await api<{ brand: Brand }>("/api/brands", {
+   170→        method: "POST",
+   171→        json: {
+   172→          name: aName.trim(),
+   173→          category: aCategory,
+   174→          description: aDesc.trim(),
+   175→          logoUrl: aLogo.trim(),
+   176→          toneOfVoice: aTone,
+   177→        },
+   178→      });
+   179→      addBrand(r.brand);
+   180→      toast({ title: "Brand dibuat 🎉", description: r.brand.name });
+   181→      setAddOpen(false);
+   182→      setAName("");
+   183→      setADesc("");
+   184→      setALogo("");
+   185→      setACategory(CATEGORIES[0]);
+   186→      setATone("santai_ramah");
+   187→    } catch (e) {
+   188→      const msg = e instanceof Error ? e.message : "Gagal membuat brand";
+   189→      toast({ title: "Gagal membuat brand", description: msg, variant: "destructive" });
+   190→    } finally {
+   191→      setCreating(false);
+   192→    }
+   193→  }
+   194→
+   195→  // Soft-delete the currently-edited brand via DELETE /api/brands/[id].
+   196→  // API refuses to delete the user's last active brand; we surface that error
+   197→  // to the user as a toast and keep the dialog open.
+   198→  async function confirmDelete() {
+   199→    if (!editingId) return;
+   200→    setDeleting(true);
+   201→    try {
+   202→      await api(`/api/brands/${editingId}`, { method: "DELETE" });
+   203→      const remaining = brands.filter((b) => b.id !== editingId);
+   204→      const wasActive = editingId === activeBrandId;
+   205→      const newActiveId = wasActive ? remaining[0]?.id ?? null : activeBrandId;
+   206→      if (user) {
+   207→        // setSession is the only store action that can replace the brands array
+   208→        // in one shot — we re-use it here to drop the deleted brand.
+   209→        setSession({
+   210→          user,
+   211→          brands: remaining,
+   212→          activeBrandId: newActiveId,
+   213→        });
+   214→      } else if (newActiveId) {
+   215→        setActiveBrand(newActiveId);
+   216→      }
+   217→      toast({
+   218→        title: "Brand dihapus",
+   219→        description: "Brand berhasil diarsipkan bersama data terkait.",
+   220→      });
+   221→      setDeleteOpen(false);
+   222→    } catch (e) {
+   223→      const msg = e instanceof Error ? e.message : "Gagal menghapus brand";
+   224→      toast({ title: "Gagal menghapus brand", description: msg, variant: "destructive" });
+   225→    } finally {
+   226→      setDeleting(false);
+   227→    }
+   228→  }
+   229→
+   230→  const editingBrand = brands.find((b) => b.id === editingId);
+   231→  const slugPreview = eName.trim() ? slugify(eName) : editingBrand?.slug ?? "";
+   232→
+   233→  return (
+   234→    <div className="space-y-4">
+   235→      <SectionCard
+   236→        title="Daftar Brand"
+   237→        desc="Pilih brand aktif atau tambah brand baru"
+   238→        right={
+   239→          <Button
+   240→            size="sm"
+   241→            className="bg-teal hover:bg-teal-600 text-white gap-1.5"
+   242→            onClick={() => setAddOpen(true)}
+   243→          >
+   244→            <Plus className="size-3.5" /> Tambah Brand
+   245→          </Button>
+   246→        }
+   247→        bodyClassName="p-0"
+   248→      >
+   249→        {brands.length === 0 ? (
+   250→          <div className="p-8">
+   251→            <EmptyState
+   252→              icon={<Store className="size-6 text-stone" />}
+   253→              title="Belum ada brand"
+   254→              desc="Buat brand pertama kamu untuk mulai menggunakan The Next Whiz."
+   255→              action={
+   256→                <Button className="bg-teal hover:bg-teal-600" onClick={() => setAddOpen(true)}>
+   257→                  <Plus className="size-4 mr-1" /> Buat Brand Pertama
+   258→                </Button>
+   259→              }
+   260→            />
+   261→          </div>
+   262→        ) : (
+   263→          <div className="divide-y divide-border">
+   264→            {brands.map((b) => {
+   265→              const active = b.id === activeBrandId;
+   266→              return (
+   267→                <button
+   268→                  key={b.id}
+   269→                  onClick={() => setActiveBrand(b.id)}
+   270→                  className={cn(
+   271→                    "w-full px-5 py-4 flex items-center gap-3 text-left transition-colors",
+   272→                    active ? "bg-teal-100/40" : "hover:bg-cream-100/50"
+   273→                  )}
+   274→                >
+   275→                  <div
+   276→                    className={cn(
+   277→                      "size-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0",
+   278→                      active
+   279→                        ? "bg-teal text-white"
+   280→                        : "bg-cream-200 text-ink-700"
+   281→                    )}
+   282→                  >
+   283→                    {b.name[0]?.toUpperCase()}
+   284→                  </div>
+   285→                  <div className="flex-1 min-w-0">
+   286→                    <div className="flex items-center gap-2">
+   287→                      <span className="font-bold text-ink truncate">{b.name}</span>
+   288→                      {active && (
+   289→                        <Badge className="bg-teal text-white border-teal gap-1 text-[10px]">
+   290→                          <Check className="size-2.5" /> Aktif
+   291→                        </Badge>
+   292→                      )}
+   293→                    </div>
+   294→                    <div className="text-xs text-stone mt-0.5 flex items-center gap-2">
+   295→                      <Badge variant="outline" className="text-[10px] py-0 h-4">
+   296→                        {b.category}
+   297→                      </Badge>
+   298→                      <span className="truncate font-mono">tokoku.nextwhiz.id/{b.slug}</span>
+   299→                    </div>
+   300→                  </div>
+   301→                  {active && (
+   302→                    <Edit
+   303→                      className="size-4 text-teal shrink-0"
+   304→                      onClick={(e) => {
+   305→                        e.stopPropagation();
+   306→                        document
+   307→                          .getElementById("edit-brand")
+   308→                          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+   309→                      }}
+   310→                    />
+   311→                  )}
+   312→                </button>
+   313→              );
+   314→            })}
+   315→          </div>
+   316→        )}
+   317→      </SectionCard>
+   318→
+   319→      {/* Edit active brand */}
+   320→      {editingBrand && (
+   321→        <div id="edit-brand" className="scroll-mt-4">
+   322→          <SectionCard
+   323→            title={`Edit Brand — ${editingBrand.name}`}
+   324→            desc="Perubahan tersimpan ke brand aktif"
+   325→            right={
+   326→              <Badge variant="outline" className="text-[10px] gap-1 border-teal/30 text-teal">
+   327→                <Crown className="size-3" /> Brand Aktif
+   328→              </Badge>
+   329→            }
+   330→          >
+   331→            <div className="space-y-4">
+   332→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   333→                <div>
+   334→                  <Label className="mb-1.5">Nama Brand</Label>
+   335→                  <Input
+   336→                    value={eName}
+   337→                    onChange={(e) => setEName(e.target.value)}
+   338→                    className="bg-cream-100"
+   339→                    placeholder="Keripik Mbak Ani"
+   340→                  />
+   341→                </div>
+   342→                <div>
+   343→                  <Label className="mb-1.5">Kategori</Label>
+   344→                  <Select value={eCategory} onValueChange={setECategory}>
+   345→                    <SelectTrigger className="w-full bg-cream-100">
+   346→                      <SelectValue />
+   347→                    </SelectTrigger>
+   348→                    <SelectContent>
+   349→                      {CATEGORIES.map((c) => (
+   350→                        <SelectItem key={c} value={c}>
+   351→                          {c}
+   352→                        </SelectItem>
+   353→                      ))}
+   354→                    </SelectContent>
+   355→                  </Select>
+   356→                </div>
+   357→              </div>
+   358→
+   359→              <div>
+   360→                <Label className="mb-1.5">Deskripsi singkat</Label>
+   361→                <Textarea
+   362→                  value={eDesc}
+   363→                  onChange={(e) => setEDesc(e.target.value)}
+   364→                  rows={2}
+   365→                  placeholder="Keripik pedas rumahan dengan resep keluarga..."
+   366→                  className="bg-cream-100 resize-none"
+   367→                />
+   368→              </div>
+   369→
+   370→              <div>
+   371→                <Label className="mb-1.5">URL Logo (opsional)</Label>
+   372→                <Input
+   373→                  value={eLogo}
+   374→                  onChange={(e) => setELogo(e.target.value)}
+   375→                  className="bg-cream-100"
+   376→                  placeholder="https://…/logo.png"
+   377→                />
+   378→              </div>
+   379→
+   380→              {/* Slug preview */}
+   381→              <div className="rounded-lg bg-cream-100 border border-border px-3 py-2.5 flex items-center gap-2">
+   382→                <Globe className="size-4 text-teal shrink-0" />
+   383→                <div className="flex-1 min-w-0">
+   384→                  <div className="text-[10px] uppercase tracking-wider text-stone font-bold">
+   385→                    URL Toko
+   386→                  </div>
+   387→                  <div className="text-sm font-mono text-ink truncate">
+   388→                    tokoku.nextwhiz.id/<span className="text-teal font-bold">{slugPreview || "—"}</span>
+   389→                  </div>
+   390→                </div>
+   391→              </div>
+   392→
+   393→              <div className="flex justify-end gap-2 pt-1">
+   394→                <Button
+   395→                  variant="outline"
+   396→                  onClick={() => {
+   397→                    const b = brands.find((x) => x.id === editingId);
+   398→                    if (b) {
+   399→                      setEName(b.name);
+   400→                      setECategory(b.category);
+   401→                      setEDesc(b.description ?? "");
+   402→                      setELogo(b.logoUrl ?? "");
+   403→                    }
+   404→                  }}
+   405→                >
+   406→                  Reset
+   407→                </Button>
+   408→                <Button
+   409→                  onClick={saveEdit}
+   410→                  disabled={saving || !eName.trim()}
+   411→                  className="bg-teal hover:bg-teal-600 text-white gap-1.5"
+   412→                >
+   413→                  {saving ? (
+   414→                    <span className="size-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+   415→                  ) : (
+   416→                    <Save className="size-3.5" />
+   417→                  )}
+   418→                  {saving ? "Menyimpan…" : "Simpan Perubahan"}
+   419→                </Button>
+   420→              </div>
+   421→
+   422→              {/* Danger zone — soft-delete brand */}
+   423→              <div className="rounded-lg bg-rose-50/60 border border-rose-200 px-3 py-3 flex flex-wrap items-center justify-between gap-2">
+   424→                <div className="flex items-center gap-2 text-xs text-rose-700">
+   425→                  <Trash2 className="size-3.5 shrink-0" />
+   426→                  <span>
+   427→                    Hapus brand — brand &amp; semua data terkait (produk, riset, konten, transaksi)
+   428→                    akan diarsipkan. Aksi ini tidak bisa dibatalkan.
+   429→                  </span>
+   430→                </div>
+   431→                <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+   432→                  <AlertDialogTrigger asChild>
+   433→                    <Button
+   434→                      size="sm"
+   435→                      variant="destructive"
+   436→                      className="gap-1.5 shrink-0"
+   437→                      disabled={brands.length <= 1}
+   438→                    >
+   439→                      <Trash2 className="size-3.5" /> Hapus Brand
+   440→                    </Button>
+   441→                  </AlertDialogTrigger>
+   442→                  <AlertDialogContent>
+   443→                    <AlertDialogHeader>
+   444→                      <AlertDialogTitle>Yakin hapus {editingBrand?.name}?</AlertDialogTitle>
+   445→                      <AlertDialogDescription>
+   446→                        Brand akan diarsipkan bersama semua data terkait (produk, riset, konten,
+   447→                        transaksi). Aksi ini tidak bisa dibatalkan.
+   448→                      </AlertDialogDescription>
+   449→                    </AlertDialogHeader>
+   450→                    <AlertDialogFooter>
+   451→                      <AlertDialogCancel disabled={deleting}>Batal</AlertDialogCancel>
+   452→                      <AlertDialogAction
+   453→                        onClick={(e) => {
+   454→                          e.preventDefault();
+   455→                          confirmDelete();
+   456→                        }}
+   457→                        disabled={deleting}
+   458→                        className="bg-rose-600 hover:bg-rose-700 text-white gap-1.5"
+   459→                      >
+   460→                        {deleting ? (
+   461→                          <span className="size-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+   462→                        ) : (
+   463→                          <Trash2 className="size-3.5" />
+   464→                        )}
+   465→                        {deleting ? "Menghapus…" : "Ya, Hapus"}
+   466→                      </AlertDialogAction>
+   467→                    </AlertDialogFooter>
+   468→                  </AlertDialogContent>
+   469→                </AlertDialog>
+   470→              </div>
+   471→            </div>
+   472→          </SectionCard>
+   473→        </div>
+   474→      )}
+   475→
+   476→      {/* Add brand dialog */}
+   477→      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+   478→        <DialogContent className="max-w-lg">
+   479→          <DialogHeader>
+   480→            <DialogTitle className="flex items-center gap-2">
+   481→              <Store className="size-5 text-teal" /> Tambah Brand Baru
+   482→            </DialogTitle>
+   483→            <DialogDescription>
+   484→              Brand baru akan otomatis jadi brand aktif. Tone of voice default bisa diganti
+   485→              nanti di tab Tone of Voice.
+   486→            </DialogDescription>
+   487→          </DialogHeader>
+   488→
+   489→          <div className="space-y-4">
+   490→            <div>
+   491→              <Label className="mb-1.5">Nama Brand *</Label>
+   492→              <Input
+   493→                value={aName}
+   494→                onChange={(e) => setAName(e.target.value)}
+   495→                placeholder="Keripik Mbak Ani"
+   496→                className="bg-cream-100"
+   497→              />
+   498→              {aName.trim() && (
+   499→                <div className="text-[11px] text-stone mt-1.5 flex items-center gap-1">
+   500→                  <Globe className="size-3 text-teal" />
+   501→                  URL: <span className="font-mono text-teal">tokoku.nextwhiz.id/{slugify(aName)}</span>
+   502→                </div>
+   503→              )}
+   504→            </div>
+   505→            <div>
+   506→              <Label className="mb-1.5">Kategori *</Label>
+   507→              <Select value={aCategory} onValueChange={setACategory}>
+   508→                <SelectTrigger className="w-full bg-cream-100">
+   509→                  <SelectValue />
+   510→                </SelectTrigger>
+   511→                <SelectContent>
+   512→                  {CATEGORIES.map((c) => (
+   513→                    <SelectItem key={c} value={c}>
+   514→                      {c}
+   515→                    </SelectItem>
+   516→                  ))}
+   517→                </SelectContent>
+   518→              </Select>
+   519→            </div>
+   520→            <div>
+   521→              <Label className="mb-1.5">Deskripsi singkat (opsional)</Label>
+   522→              <Textarea
+   523→                value={aDesc}
+   524→                onChange={(e) => setADesc(e.target.value)}
+   525→                rows={2}
+   526→                placeholder="Keripik pedas rumahan dengan resep keluarga..."
+   527→                className="bg-cream-100 resize-none"
+   528→              />
+   529→            </div>
+   530→            <div>
+   531→              <Label className="mb-1.5">URL Logo (opsional)</Label>
+   532→              <Input
+   533→                value={aLogo}
+   534→                onChange={(e) => setALogo(e.target.value)}
+   535→                placeholder="https://…/logo.png"
+   536→                className="bg-cream-100"
+   537→              />
+   538→            </div>
+   539→            <div>
+   540→              <Label className="mb-1.5">Tone of Voice default</Label>
+   541→              <Select value={aTone} onValueChange={(v) => setATone(v as ToneKey)}>
+   542→                <SelectTrigger className="w-full bg-cream-100">
+   543→                  <SelectValue />
+   544→                </SelectTrigger>
+   545→                <SelectContent>
+   546→                  {TONES.map((t) => (
+   547→                    <SelectItem key={t.key} value={t.key}>
+   548→                      {t.icon} {t.label}
+   549→                    </SelectItem>
+   550→                  ))}
+   551→                </SelectContent>
+   552→              </Select>
+   553→            </div>
+   554→          </div>
+   555→
+   556→          <DialogFooter>
+   557→            <Button variant="ghost" onClick={() => setAddOpen(false)}>
+   558→              Batal
+   559→            </Button>
+   560→            <Button
+   561→              onClick={createBrand}
+   562→              disabled={creating || !aName.trim()}
+   563→              className="bg-teal hover:bg-teal-600 text-white gap-1.5"
+   564→            >
+   565→              {creating ? (
+   566→                <span className="size-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+   567→              ) : (
+   568→                <Plus className="size-3.5" />
+   569→              )}
+   570→              {creating ? "Membuat…" : "Buat Brand"}
+   571→            </Button>
+   572→          </DialogFooter>
+   573→        </DialogContent>
+   574→      </Dialog>
+   575→    </div>
+   576→  );
+   577→}
+   578→
+   579→// ─────────────────────────────────────────────────────────────────────────────
+   580→// Tab 2: Profil
+   581→// ─────────────────────────────────────────────────────────────────────────────
+   582→function ProfilTab() {
+   583→  const { user } = useAppStore();
+   584→  const { toast } = useToast();
+   585→  const [name, setName] = useState(user?.name ?? "");
+   586→  const [saving, setSaving] = useState(false);
+   587→
+   588→  useEffect(() => {
+   589→    if (user) setName(user.name);
+   590→  }, [user]);
+   591→
+   592→  const initials = useMemo(() => {
+   593→    if (!user?.name) return "?";
+   594→    return user.name
+   595→      .split(" ")
+   596→      .slice(0, 2)
+   597→      .map((s) => s[0]?.toUpperCase())
+   598→      .join("");
+   599→  }, [user?.name]);
+   600→
+   601→  async function saveName() {
+   602→    if (!name.trim()) {
+   603→      toast({ title: "Nama tidak boleh kosong", variant: "destructive" });
+   604→      return;
+   605→    }
+   606→    if (name.trim() === user?.name) {
+   607→      toast({ title: "Tidak ada perubahan" });
+   608→      return;
+   609→    }
+   610→    setSaving(true);
+   611→    try {
+   612→      const r = await api<{ user: { id: string; name: string; email: string; creditBalance: number; toneOfVoice: string } }>(
+   613→        "/api/user",
+   614→        { method: "PATCH", json: { name: name.trim() } }
+   615→      );
+   616→      // Update user in store directly (no dedicated action — use setState)
+   617→      useAppStore.setState((st) =>
+   618→        st.user ? { user: { ...st.user, name: r.user.name } } : {}
+   619→      );
+   620→      toast({ title: "Profil diperbarui", description: r.user.name });
+   621→    } catch (e) {
+   622→      const msg = e instanceof Error ? e.message : "Gagal menyimpan";
+   623→      toast({ title: "Gagal menyimpan", description: msg, variant: "destructive" });
+   624→    } finally {
+   625→      setSaving(false);
+   626→    }
+   627→  }
+   628→
+   629→  if (!user) {
+   630→    return (
+   631→      <SectionCard title="Profil">
+   632→        <Skeleton className="h-32 w-full" />
+   633→      </SectionCard>
+   634→    );
+   635→  }
+   636→
+   637→  return (
+   638→    <div className="space-y-4">
+   639→      <SectionCard title="Identitas" desc="Info dasar akun kamu">
+   640→        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+   641→          <Avatar className="size-16 rounded-2xl">
+   642→            <AvatarFallback className="bg-teal text-white text-xl font-bold rounded-2xl">
+   643→              {initials}
+   644→            </AvatarFallback>
+   645→          </Avatar>
+   646→          <div className="flex-1">
+   647→            <div className="text-lg font-extrabold text-ink">{user.name}</div>
+   648→            <div className="text-sm text-stone flex items-center gap-1.5 mt-0.5">
+   649→              <Mail className="size-3.5" /> {user.email}
+   650→            </div>
+   651→            <div className="flex flex-wrap gap-2 mt-2">
+   652→              <Badge variant="outline" className="text-[10px] gap-1 border-teal/30 text-teal">
+   653→                <Sparkles className="size-3" /> {user.creditBalance} credit
+   654→              </Badge>
+   655→              <Badge variant="outline" className="text-[10px] gap-1">
+   656→                <Palette className="size-3" /> Default tone: {user.toneOfVoice.replace("_", " ")}
+   657→              </Badge>
+   658→            </div>
+   659→          </div>
+   660→        </div>
+   661→      </SectionCard>
+   662→
+   663→      <SectionCard
+   664→        title="Edit Nama"
+   665→        desc="Nama ini dipakai untuk sapaan & profil. Email tidak bisa diubah (terhubung ke mwxmarket.ai SSO)."
+   666→      >
+   667→        <div className="space-y-3">
+   668→          <div>
+   669→            <Label className="mb-1.5">Nama Lengkap</Label>
+   670→            <Input
+   671→              value={name}
+   672→              onChange={(e) => setName(e.target.value)}
+   673→              className="bg-cream-100"
+   674→              placeholder="Nama kamu"
+   675→              maxLength={100}
+   676→            />
+   677→            <div className="text-[11px] text-stone mt-1">
+   678→              {name.trim().length}/100 karakter
+   679→            </div>
+   680→          </div>
+   681→          <div>
+   682→            <Label className="mb-1.5">Email</Label>
+   683→            <Input
+   684→              value={user.email}
+   685→              disabled
+   686→              className="bg-cream-100/60 text-stone"
+   687→            />
+   688→            <div className="text-[11px] text-stone-300 mt-1 flex items-center gap-1">
+   689→              <Mail className="size-3" /> Email dikelola via mwxmarket.ai
+   690→            </div>
+   691→          </div>
+   692→          <div className="flex justify-end pt-1">
+   693→            <Button
+   694→              onClick={saveName}
+   695→              disabled={saving || !name.trim() || name.trim() === user.name}
+   696→              className="bg-teal hover:bg-teal-600 text-white gap-1.5"
+   697→            >
+   698→              {saving ? (
+   699→                <span className="size-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+   700→              ) : (
+   701→                <Save className="size-3.5" />
+   702→              )}
+   703→              {saving ? "Menyimpan…" : "Simpan Nama"}
+   704→            </Button>
+   705→          </div>
+   706→        </div>
+   707→      </SectionCard>
+   708→
+   709→      <div className="rounded-2xl border border-dashed border-border bg-cream-100/40 p-4 flex items-start gap-3">
+   710→        <div className="size-9 rounded-lg bg-cream-200 text-stone flex items-center justify-center shrink-0">
+   711→          <User className="size-4" />
+   712→        </div>
+   713→        <div>
+   714→          <div className="text-sm font-semibold text-ink">Coming soon</div>
+   715→          <p className="text-xs text-stone mt-0.5">
+   716→            Upload foto profil, ganti password, dan 2FA akan hadir di update berikutnya.
+   717→          </p>
+   718→        </div>
+   719→      </div>
+   720→
+   721→      <SectionCard
+   722→        title="Tour Berpanduan"
+   723→        desc="Belum hafal fitur Next Whiz? Jalankan tour 8 langkah untuk kenalan dengan navigasi, brand switcher, credit, command palette, notifikasi, dan theme toggle."
+   724→      >
+   725→        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+   726→          <div className="size-10 rounded-xl bg-teal-100 text-teal flex items-center justify-center text-xl shrink-0">
+   727→            🎯
+   728→          </div>
+   729→          <div className="flex-1">
+   730→            <div className="text-sm font-semibold text-ink">
+   731→              Mulai Tour Berpanduan
+   732→            </div>
+   733→            <p className="text-xs text-stone mt-0.5">
+   734→              8 langkah singkat · ± 1 menit · bisa dilewati kapan saja.
+   735→            </p>
+   736→          </div>
+   737→          <Button
+   738→            onClick={() => startTour()}
+   739→            className="bg-teal hover:bg-teal-600 text-white gap-1.5 shrink-0"
+   740→          >
+   741→            <Sparkles className="size-3.5" /> Mulai Tour
+   742→          </Button>
+   743→        </div>
+   744→      </SectionCard>
+   745→    </div>
+   746→  );
+   747→}
+   748→
+   749→// ─────────────────────────────────────────────────────────────────────────────
+   750→// Tab 3: Tone of Voice
+   751→// ─────────────────────────────────────────────────────────────────────────────
+   752→function ToneTab() {
+   753→  const { brands, activeBrandId, updateBrand } = useAppStore();
+   754→  const { toast } = useToast();
+   755→  const [saving, setSaving] = useState<ToneKey | null>(null);
+   756→
+   757→  const activeBrand = brands.find((b) => b.id === activeBrandId) ?? brands[0] ?? null;
+   758→  const currentTone = activeBrand?.toneOfVoice as ToneKey | undefined;
+   759→
+   760→  async function selectTone(t: ToneKey) {
+   761→    if (!activeBrand || t === currentTone) return;
+   762→    setSaving(t);
+   763→    try {
+   764→      const r = await api<{ brand: Brand }>(`/api/brands/${activeBrand.id}`, {
+   765→        method: "PATCH",
+   766→        json: { toneOfVoice: t },
+   767→      });
+   768→      updateBrand(r.brand);
+   769→      toast({
+   770→        title: "Tone of Voice diperbarui",
+   771→        description: `${TONES.find((x) => x.key === t)?.label} aktif untuk ${r.brand.name}`,
+   772→      });
+   773→    } catch (e) {
+   774→      const msg = e instanceof Error ? e.message : "Gagal menyimpan tone";
+   775→      toast({ title: "Gagal menyimpan", description: msg, variant: "destructive" });
+   776→    } finally {
+   777→      setSaving(null);
+   778→    }
+   779→  }
+   780→
+   781→  if (!activeBrand) {
+   782→    return (
+   783→      <SectionCard title="Tone of Voice">
+   784→        <EmptyState
+   785→          icon={<Palette className="size-6 text-stone" />}
+   786→          title="Belum ada brand aktif"
+   787→          desc="Buat brand dulu di tab Brand untuk mengatur tone of voice."
+   788→        />
+   789→      </SectionCard>
+   790→    );
+   791→  }
+   792→
+   793→  return (
+   794→    <div className="space-y-4">
+   795→      <SectionCard
+   796→        title="Pilih Tone of Voice"
+   797→        desc={`Dipakai saat generate konten untuk ${activeBrand.name}`}
+   798→        right={
+   799→          <Badge variant="outline" className="text-[10px] gap-1 border-teal/30 text-teal">
+   800→            <Hash className="size-3" /> {activeBrand.slug}
+   801→          </Badge>
+   802→        }
+   803→      >
+   804→        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+   805→          {TONES.map((t) => {
+   806→            const active = t.key === currentTone;
+   807→            const isSaving = saving === t.key;
+   808→            return (
+   809→              <button
+   810→                key={t.key}
+   811→                onClick={() => selectTone(t.key)}
+   812→                disabled={!!saving}
+   813→                className={cn(
+   814→                  "relative text-left rounded-2xl border p-4 transition-all",
+   815→                  active
+   816→                    ? "border-teal bg-gradient-to-b from-teal-100/60 to-card shadow-sm"
+   817→                    : "border-border bg-card hover:border-teal/30"
+   818→                )}
+   819→              >
+   820→                {active && (
+   821→                  <div className="absolute top-3 right-3 size-5 rounded-full bg-teal text-white flex items-center justify-center">
+   822→                    <Check className="size-3" />
+   823→                  </div>
+   824→                )}
+   825→                <div className="text-3xl mb-2">{t.icon}</div>
+   826→                <div className="font-bold text-ink text-sm">{t.label}</div>
+   827→                <div className="text-xs text-stone mt-0.5 leading-snug">{t.desc}</div>
+   828→
+   829→                {/* Example snippet */}
+   830→                <div className="mt-3 rounded-lg bg-cream-100/80 border border-border/60 p-2.5">
+   831→                  <div className="text-[10px] uppercase tracking-wider text-stone font-bold mb-1 flex items-center gap-1">
+   832→                    <Sparkles className="size-2.5 text-teal" /> Contoh caption
+   833→                  </div>
+   834→                  <p className="text-[11px] text-ink-700 leading-snug line-clamp-3 italic">
+   835→                    “{TONE_EXAMPLES[t.key]}”
+   836→                  </p>
+   837→                </div>
+   838→
+   839→                {isSaving && (
+   840→                  <div className="absolute inset-0 rounded-2xl bg-card/60 backdrop-blur-sm flex items-center justify-center">
+   841→                    <span className="size-5 border-2 border-teal/40 border-t-teal rounded-full animate-spin" />
+   842→                  </div>
+   843→                )}
+   844→              </button>
+   845→            );
+   846→          })}
+   847→        </div>
+   848→      </SectionCard>
+   849→
+   850→      <div className="rounded-2xl border border-border bg-cream-100/40 p-4 flex items-start gap-3">
+   851→        <div className="size-9 rounded-lg bg-teal-100 text-teal flex items-center justify-center shrink-0">
+   852→          <Palette className="size-4" />
+   853→        </div>
+   854→        <div>
+   855→          <div className="text-sm font-semibold text-ink">Tone dipakai saat generate konten</div>
+   856→          <p className="text-xs text-stone mt-0.5 leading-relaxed">
+   857→            Setiap brand punya tone-nya sendiri. Saat kamu generate caption, video script,
+   858→            atau carousel di modul Konten, AI akan ikut tone yang kamu pilih di sini.
+   859→          </p>
+   860→        </div>
+   861→      </div>
+   862→    </div>
+   863→  );
+   864→}
+   865→
+   866→// ─────────────────────────────────────────────────────────────────────────────
+   867→// Tab 4: Notifikasi (mock, persisted to localStorage)
+   868→// ─────────────────────────────────────────────────────────────────────────────
+   869→interface NotifItem {
+   870→  key: string;
+   871→  label: string;
+   872→  desc: string;
+   873→  icon: "wa" | "mail" | "calendar" | "box" | "stats";
+   874→  defaultOn: boolean;
+   875→}
+   876→
+   877→const NOTIF_ITEMS: NotifItem[] = [
+   878→  {
+   879→    key: "wa_lead",
+   880→    label: "Notif WA lead baru",
+   881→    desc: "Dapat notifikasi WhatsApp setiap ada lead baru masuk ke inbox.",
+   882→    icon: "wa",
+   883→    defaultOn: true,
+   884→  },
+   885→  {
+   886→    key: "email_order",
+   887→    label: "Notif email order baru",
+   888→    desc: "Email ringkasan setiap ada order masuk + detail item.",
+   889→    icon: "mail",
+   890→    defaultOn: true,
+   891→  },
+   892→  {
+   893→    key: "piutang",
+   894→    label: "Reminder piutang jatuh tempo",
+   895→    desc: "Pengingat 1 hari sebelum piutang jatuh tempo.",
+   896→    icon: "calendar",
+   897→    defaultOn: true,
+   898→  },
+   899→  {
+   900→    key: "stok",
+   901→    label: "Alert stok menipis",
+   902→    desc: "Notif saat stok produk di bawah minimum stok.",
+   903→    icon: "box",
+   904→    defaultOn: true,
+   905→  },
+   906→  {
+   907→    key: "weekly",
+   908→    label: "Weekly summary email",
+   909→    desc: "Ringkasan performa mingguan tiap Senin pagi.",
+   910→    icon: "stats",
+   911→    defaultOn: false,
+   912→  },
+   913→];
+   914→
+   915→const NOTIF_LS_KEY = "nw_notif_settings_v1";
+   916→
+   917→function NotifIcon({ kind }: { kind: NotifItem["icon"] }) {
+   918→  const map = {
+   919→    wa: { e: "💬", cls: "bg-emerald-100 text-emerald-700" },
+   920→    mail: { e: "✉️", cls: "bg-sky-100 text-sky-700" },
+   921→    calendar: { e: "📅", cls: "bg-amber-100 text-amber-700" },
+   922→    box: { e: "📦", cls: "bg-orange-100 text-orange-700" },
+   923→    stats: { e: "📊", cls: "bg-violet-100 text-violet-700" },
+   924→  } as const;
+   925→  const m = map[kind];
+   926→  return (
+   927→    <div className={cn("size-9 rounded-lg flex items-center justify-center text-base shrink-0", m.cls)}>
+   928→      {m.e}
+   929→    </div>
+   930→  );
+   931→}
+   932→
+   933→function NotifikasiTab() {
+   934→  const [settings, setSettings] = useState<Record<string, boolean>>({});
+   935→  const [hydrated, setHydrated] = useState(false);
+   936→
+   937→  useEffect(() => {
+   938→    // Hydrate notif settings from localStorage on client mount.
+   939→    // This is a one-shot external store sync — not a cascading render.
+   940→    /* eslint-disable react-hooks/set-state-in-effect */
+   941→    try {
+   942→      const raw = localStorage.getItem(NOTIF_LS_KEY);
+   943→      if (raw) {
+   944→        setSettings(JSON.parse(raw));
+   945→      } else {
+   946→        // defaults
+   947→        const init: Record<string, boolean> = {};
+   948→        for (const it of NOTIF_ITEMS) init[it.key] = it.defaultOn;
+   949→        setSettings(init);
+   950→      }
+   951→    } catch {
+   952→      /* ignore */
+   953→    }
+   954→    setHydrated(true);
+   955→    /* eslint-enable react-hooks/set-state-in-effect */
+   956→  }, []);
+   957→
+   958→  function toggle(key: string, on: boolean) {
+   959→    const next = { ...settings, [key]: on };
+   960→    setSettings(next);
+   961→    try {
+   962→      localStorage.setItem(NOTIF_LS_KEY, JSON.stringify(next));
+   963→    } catch {
+   964→      /* ignore */
+   965→    }
+   966→  }
+   967→
+   968→  const activeCount = NOTIF_ITEMS.filter((it) => settings[it.key]).length;
+   969→
+   970→  return (
+   971→    <div className="space-y-4">
+   972→      <SectionCard
+   973→        title="Preferensi Notifikasi"
+   974→        desc="Atur channel & jenis notifikasi yang mau kamu terima"
+   975→        right={
+   976→          <Badge variant="outline" className="text-[10px] gap-1">
+   977→            <Bell className="size-3" /> {hydrated ? activeCount : "…"} aktif
+   978→          </Badge>
+   979→        }
+   980→        bodyClassName="p-0"
+   981→      >
+   982→        <div className="divide-y divide-border">
+   983→          {NOTIF_ITEMS.map((it) => {
+   984→            const on = hydrated ? !!settings[it.key] : it.defaultOn;
+   985→            return (
+   986→              <div
+   987→                key={it.key}
+   988→                className="px-5 py-4 flex items-start gap-3 hover:bg-cream-100/40 transition-colors"
+   989→              >
+   990→                <NotifIcon kind={it.icon} />
+   991→                <div className="flex-1 min-w-0">
+   992→                  <div className="font-semibold text-ink text-sm">{it.label}</div>
+   993→                  <div className="text-xs text-stone mt-0.5 leading-snug">{it.desc}</div>
+   994→                </div>
+   995→                <div className="shrink-0 pt-1">
+   996→                  <Switch checked={on} onCheckedChange={(v) => toggle(it.key, v)} />
+   997→                </div>
+   998→              </div>
+   999→            );
+  1000→          })}
+  1001→        </div>
+  1002→      </SectionCard>
+  1003→
+  1004→      <div className="rounded-2xl border border-dashed border-border bg-cream-100/40 p-4 flex items-start gap-3">
+  1005→        <div className="size-9 rounded-lg bg-cream-200 text-stone flex items-center justify-center shrink-0">
+  1006→          <Bell className="size-4" />
+  1007→        </div>
+  1008→        <div>
+  1009→          <div className="text-sm font-semibold text-ink">Pengaturan disimpan lokal</div>
+  1010→          <p className="text-xs text-stone mt-0.5">
+  1011→            Preferensi ini disimpan di browser kamu (localStorage). Integrasi WA & email
+  1012→            sebenarnya akan hadir bersama modul Toko v2.
+  1013→          </p>
+  1014→        </div>
+  1015→      </div>
+  1016→    </div>
+  1017→  );
+  1018→}
+  1019→
+  1020→// ─────────────────────────────────────────────────────────────────────────────
+  1021→// Tab 5: Data Demo — load demo data / reset brand data
+  1022→// ─────────────────────────────────────────────────────────────────────────────
+  1023→type SeedResponse = {
+  1024→  seeded?: boolean;
+  1025→  alreadySeeded?: boolean;
+  1026→  counts?: {
+  1027→    products: number;
+  1028→    leads: number;
+  1029→    customers: number;
+  1030→    orders: number;
+  1031→    payments: number;
+  1032→    transactions: number;
+  1033→    content: number;
+  1034→    inbox: number;
+  1035→    research: number;
+  1036→    campaigns: number;
+  1037→  };
+  1038→};
+  1039→
+  1040→function DemoTab() {
+  1041→  const { brands, activeBrandId } = useAppStore();
+  1042→  const activeBrand = brands.find((b) => b.id === activeBrandId) ?? brands[0] ?? null;
+  1043→  const { toast } = useToast();
+  1044→  const qc = useQueryClient();
+  1045→  const [resetOpen, setResetOpen] = useState(false);
+  1046→
+  1047→  // Invalidate ALL queries — demo data touches every module.
+  1048→  function refreshAll() {
+  1049→    qc.invalidateQueries();
+  1050→  }
+  1051→
+  1052→  const seedMutation = useMutation({
+  1053→    mutationFn: () =>
+  1054→      api<SeedResponse>("/api/demo/seed", {
+  1055→        method: "POST",
+  1056→        json: { brandId: activeBrand?.id },
+  1057→      }),
+  1058→    onSuccess: (data) => {
+  1059→      if (data.alreadySeeded) {
+  1060→        toast({
+  1061→          title: "Data demo sudah dimuat",
+  1062→          description: "Brand ini sudah punya data demo. Reset dulu jika ingin muat ulang.",
+  1063→        });
+  1064→        return;
+  1065→      }
+  1066→      const c = data.counts;
+  1067→      toast({
+  1068→        title: "Data demo berhasil dimuat 🎁",
+  1069→        description: c
+  1070→          ? `${c.products} produk · ${c.orders} order · ${c.transactions} transaksi · ${c.leads} leads · ${c.content} konten`
+  1071→          : "Brand sudah terisi data contoh.",
+  1072→      });
+  1073→      refreshAll();
+  1074→    },
+  1075→    onError: (e: unknown) => {
+  1076→      const msg = e instanceof Error ? e.message : "Gagal memuat data demo";
+  1077→      toast({ title: "Gagal memuat data demo", description: msg, variant: "destructive" });
+  1078→    },
+  1079→  });
+  1080→
+  1081→  const resetMutation = useMutation({
+  1082→    mutationFn: () =>
+  1083→      api<{ reset: boolean; deleted: Record<string, number> }>("/api/demo/reset", {
+  1084→        method: "POST",
+  1085→        json: { brandId: activeBrand?.id },
+  1086→      }),
+  1087→    onSuccess: (data) => {
+  1088→      const d = data.deleted;
+  1089→      const total = d
+  1090→        ? Object.values(d).reduce((a, b) => a + b, 0)
+  1091→        : 0;
+  1092→      toast({
+  1093→        title: "Data berhasil direset",
+  1094→        description: `${total} baris dihapus. Brand tetap ada, siap untuk data baru.`,
+  1095→      });
+  1096→      setResetOpen(false);
+  1097→      refreshAll();
+  1098→    },
+  1099→    onError: (e: unknown) => {
+  1100→      const msg = e instanceof Error ? e.message : "Gagal mereset data";
+  1101→      toast({ title: "Gagal mereset data", description: msg, variant: "destructive" });
+  1102→    },
+  1103→  });
+  1104→
+  1105→  if (!activeBrand) {
+  1106→    return (
+  1107→      <SectionCard title="Data Demo">
+  1108→        <EmptyState
+  1109→          icon={<Database className="size-6 text-stone" />}
+  1110→          title="Belum ada brand aktif"
+  1111→          desc="Buat brand dulu di tab Brand untuk memuat data demo."
+  1112→        />
+  1113→      </SectionCard>
+  1114→    );
+  1115→  }
+  1116→
+  1117→  const seeding = seedMutation.isPending;
+  1118→  const resetting = resetMutation.isPending;
+  1119→
+  1120→  return (
+  1121→    <div className="space-y-4">
+  1122→      <SectionCard
+  1123→        title="Data Demo"
+  1124→        desc={`Muat data contoh untuk ${activeBrand.name}, atau reset ke keadaan kosong.`}
+  1125→        right={
+  1126→          <Badge variant="outline" className="text-[10px] gap-1 border-teal/30 text-teal">
+  1127→            <Database className="size-3" /> Demo
+  1128→          </Badge>
+  1129→        }
+  1130→      >
+  1131→        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  1132→          {/* ── Card 1: Muat Data Demo ───────────────────────────────────── */}
+  1133→          <div className="rounded-2xl border border-teal/20 bg-gradient-to-b from-teal-50/60 to-card p-5 flex flex-col gap-3">
+  1134→            <div className="flex items-start gap-3">
+  1135→              <div className="size-11 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center shrink-0">
+  1136→                <Sparkles className="size-5" />
+  1137→              </div>
+  1138→              <div className="flex-1 min-w-0">
+  1139→                <h3 className="font-bold text-ink">Muat Data Demo</h3>
+  1140→                <p className="text-xs text-stone mt-1 leading-snug">
+  1141→                  Isi brand aktif dengan produk, leads, order, pembayaran, transaksi,
+  1142→                  konten, dan riset contoh. Cocok untuk eksplorasi fitur.
+  1143→                </p>
+  1144→              </div>
+  1145→            </div>
+  1146→
+  1147→            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 flex items-start gap-2">
+  1148→              <AlertTriangle className="size-3.5 mt-0.5 shrink-0" />
+  1149→              <span>
+  1150→                Data demo akan <strong>ditambahkan</strong> ke data yang sudah ada.
+  1151→                Untuk hasil terbaik, reset dulu jika sudah ada data.
+  1152→              </span>
+  1153→            </div>
+  1154→
+  1155→            <ul className="text-xs text-stone space-y-1 leading-snug">
+  1156→              <li>• 4 produk (3 barang + 1 jasa) dengan stok & margin</li>
+  1157→              <li>• 5 leads di berbagai stage + 2 customer</li>
+  1158→              <li>• 6 order + 4 pembayaran (verifikasi + transaksi HPP)</li>
+  1159→              <li>• 6 transaksi (3 income + 3 expense) + 3 konten + riset</li>
+  1160→              <li>• 3 inbox message + 1 campaign WA terkirim</li>
+  1161→            </ul>
+  1162→
+  1163→            <Button
+  1164→              className="bg-teal hover:bg-teal-600 text-white gap-1.5 mt-1"
+  1165→              onClick={() => seedMutation.mutate()}
+  1166→              disabled={seeding || resetting}
+  1167→            >
+  1168→              {seeding ? (
+  1169→                <>
+  1170→                  <Loader2 className="size-4 animate-spin" /> Memuat…
+  1171→                </>
+  1172→              ) : (
+  1173→                <>
+  1174→                  <Sparkles className="size-4" /> Muat Data Demo
+  1175→                </>
+  1176→              )}
+  1177→            </Button>
+  1178→          </div>
+  1179→
+  1180→          {/* ── Card 2: Reset Data ───────────────────────────────────────── */}
+  1181→          <div className="rounded-2xl border border-rose-200 bg-gradient-to-b from-rose-50/60 to-card p-5 flex flex-col gap-3">
+  1182→            <div className="flex items-start gap-3">
+  1183→              <div className="size-11 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+  1184→                <Trash2 className="size-5" />
+  1185→              </div>
+  1186→              <div className="flex-1 min-w-0">
+  1187→                <h3 className="font-bold text-ink">Reset Semua Data</h3>
+  1188→                <p className="text-xs text-stone mt-1 leading-snug">
+  1189→                  Hapus SEMUA data untuk brand aktif: produk, leads, order, pembayaran,
+  1190→                  transaksi, konten, riset, campaign. Brand tetap ada.
+  1191→                </p>
+  1192→              </div>
+  1193→            </div>
+  1194→
+  1195→            <ul className="text-xs text-stone space-y-1 leading-snug">
+  1196→              <li>• Produk & inventory dihapus</li>
+  1197→              <li>• Leads, customers, orders, payments dihapus</li>
+  1198→              <li>• Transaksi, piutang, hutang, biaya operasional dihapus</li>
+  1199→              <li>• Konten, riset, contexts, inbox, campaign dihapus</li>
+  1200→            </ul>
+  1201→
+  1202→            <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
+  1203→              <AlertDialogTrigger asChild>
+  1204→                <Button
+  1205→                  variant="destructive"
+  1206→                  className="gap-1.5 mt-1"
+  1207→                  disabled={seeding || resetting}
+  1208→                >
+  1209→                  <Trash2 className="size-4" /> Reset Data
+  1210→                </Button>
+  1211→              </AlertDialogTrigger>
+  1212→              <AlertDialogContent>
+  1213→                <AlertDialogHeader>
+  1214→                  <AlertDialogTitle>Yakin reset semua data?</AlertDialogTitle>
+  1215→                  <AlertDialogDescription>
+  1216→                    Aksi ini <strong>TIDAK BISA dibatalkan</strong>. Semua transaksi, order,
+  1217→                    produk, dan riwayat untuk brand <strong>{activeBrand.name}</strong> akan
+  1218→                    hilang. Brand itu sendiri tetap ada.
+  1219→                  </AlertDialogDescription>
+  1220→                </AlertDialogHeader>
+  1221→                <AlertDialogFooter>
+  1222→                  <AlertDialogCancel disabled={resetting}>Batal</AlertDialogCancel>
+  1223→                  <AlertDialogAction
+  1224→                    onClick={(e) => {
+  1225→                      e.preventDefault();
+  1226→                      resetMutation.mutate();
+  1227→                    }}
+  1228→                    disabled={resetting}
+  1229→                    className="bg-rose-600 hover:bg-rose-700 text-white gap-1.5"
+  1230→                  >
+  1231→                    {resetting ? (
+  1232→                      <>
+  1233→                        <Loader2 className="size-4 animate-spin" /> Mereset…
+  1234→                      </>
+  1235→                    ) : (
+  1236→                      <>
+  1237→                        <Trash2 className="size-4" /> Ya, Reset Semua
+  1238→                      </>
+  1239→                    )}
+  1240→                  </AlertDialogAction>
+  1241→                </AlertDialogFooter>
+  1242→              </AlertDialogContent>
+  1243→            </AlertDialog>
+  1244→          </div>
+  1245→        </div>
+  1246→
+  1247→        <div className="mt-4 rounded-xl border border-dashed border-border bg-cream-100/50 p-4 flex items-start gap-3">
+  1248→          <div className="size-9 rounded-lg bg-cream-200 text-stone flex items-center justify-center shrink-0">
+  1249→            <Database className="size-4" />
+  1250→          </div>
+  1251→          <div className="text-xs text-stone leading-relaxed">
+  1252→            <strong className="text-ink">Tips eksplorasi:</strong> setelah muat data demo,
+  1253→            cek <strong>Beranda</strong> untuk dashboard ringkasan, <strong>Toko</strong>{" "}
+  1254→            untuk inbox/leads/orders/pembayaran, dan <strong>Keuangan</strong> untuk
+  1255→            transaksi & P&amp;L. Data demo ditandai dengan SKU berawalan <code className="px-1 py-0.5 rounded bg-cream-200 text-ink">DEMO-</code> di
+  1256→            produk.
+  1257→          </div>
+  1258→        </div>
+  1259→      </SectionCard>
+  1260→    </div>
+  1261→  );
+  1262→}
+  1263→
+  1264→// ─────────────────────────────────────────────────────────────────────────────
+  1265→// Main section
+  1266→// ─────────────────────────────────────────────────────────────────────────────
+  1267→export function PengaturanSection() {
+  1268→  const activeBrand = getActiveBrand(useAppStore.getState());
+  1269→
+  1270→  return (
+  1271→    <div className="space-y-6">
+  1272→      <PageHeader
+  1273→        title="Pengaturan"
+  1274→        subtitle={`Atur brand, profil, tone of voice & notifikasi${activeBrand ? ` · ${activeBrand.name}` : ""}`}
+  1275→        icon="⚙️"
+  1276→      />
+  1277→
+  1278→      <Tabs defaultValue="brand" className="w-full">
+  1279→        <TabsList className="bg-cream-200/60 h-auto p-1 flex-wrap">
+  1280→          <TabsTrigger value="brand" className="gap-1.5">
+  1281→            <Store className="size-3.5" /> Brand
+  1282→          </TabsTrigger>
+  1283→          <TabsTrigger value="profil" className="gap-1.5">
+  1284→            <User className="size-3.5" /> Profil
+  1285→          </TabsTrigger>
+  1286→          <TabsTrigger value="tone" className="gap-1.5">
+  1287→            <Palette className="size-3.5" /> Tone of Voice
+  1288→          </TabsTrigger>
+  1289→          <TabsTrigger value="notif" className="gap-1.5">
+  1290→            <Bell className="size-3.5" /> Notifikasi
+  1291→          </TabsTrigger>
+  1292→          <TabsTrigger value="demo" className="gap-1.5">
+  1293→            <Database className="size-3.5" /> Data Demo
+  1294→          </TabsTrigger>
+  1295→        </TabsList>
+  1296→
+  1297→        <TabsContent value="brand" className="mt-4">
+  1298→          <BrandTab />
+  1299→        </TabsContent>
+  1300→        <TabsContent value="profil" className="mt-4">
+  1301→          <ProfilTab />
+  1302→        </TabsContent>
+  1303→        <TabsContent value="tone" className="mt-4">
+  1304→          <ToneTab />
+  1305→        </TabsContent>
+  1306→        <TabsContent value="notif" className="mt-4">
+  1307→          <NotifikasiTab />
+  1308→        </TabsContent>
+  1309→        <TabsContent value="demo" className="mt-4">
+  1310→          <DemoTab />
+  1311→        </TabsContent>
+  1312→      </Tabs>
+  1313→    </div>
+  1314→  );
+  1315→}
+  1316→
+  1317→export default PengaturanSection;
+  1318→

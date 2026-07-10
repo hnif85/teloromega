@@ -16,6 +16,7 @@ import { RisetSection } from "@/sections/nw/riset-section";
 import { KontenSection } from "@/sections/nw/konten-section";
 import { TokoSection } from "@/sections/nw/toko-section";
 import { KeuanganSection } from "@/sections/nw/keuangan-section";
+import { KalenderSection } from "@/sections/nw/kalender-section";
 import { CreditSection } from "@/sections/nw/credit-section";
 import { PengaturanSection } from "@/sections/nw/pengaturan-section";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -79,6 +80,7 @@ export default function Home() {
               {section === "konten" && <KontenSection />}
               {section === "toko" && <TokoSection />}
               {section === "keuangan" && <KeuanganSection />}
+              {section === "kalender" && <KalenderSection />}
               {section === "credit" && <CreditSection />}
               {section === "pengaturan" && <PengaturanSection />}
             </SectionTransition>

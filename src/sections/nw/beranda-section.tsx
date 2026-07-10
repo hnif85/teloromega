@@ -20,7 +20,143 @@ import {
   Sparkles,
   AlertTriangle,
   CheckCircle2,
+  Target,
 } from "lucide-react";
+
+// ─── Goal type ────────────────────────────────────────────────
+interface Goal {
+  id: string;
+  brandId: string;
+  type: string; // revenue | orders | products | customers | content | research
+  period: string; // monthly | quarterly | yearly
+  target: number;
+  current: number;
+  startDate: string;
+  endDate: string;
+  status: string; // active | achieved | failed | paused
+  notes: string | null;
+  progress: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const GOAL_TYPE_META: Record<
+  string,
+  { icon: string; label: string; emoji: string }
+> = {
+  revenue: { icon: "💰", label: "Omzet", emoji: "💰" },
+  orders: { icon: "🛒", label: "Order", emoji: "🛒" },
+  products: { icon: "📦", label: "Produk Baru", emoji: "📦" },
+  customers: { icon: "👥", label: "Customer Baru", emoji: "👥" },
+  content: { icon: "📝", label: "Konten", emoji: "📝" },
+  research: { icon: "🔍", label: "Riset", emoji: "🔍" },
+};
+
+function formatGoalValue(type: string, v: number): string {
+  if (type === "revenue") return formatRupiahShort(v);
+  return String(Math.round(v));
+}
+
+// ─── Goals widget (Beranda) ───────────────────────────────────
+function GoalsWidget({ brandId }: { brandId: string }) {
+  const { setSection } = useAppStore();
+  const { data, isLoading } = useQuery<{ goals: Goal[] }>({
+    queryKey: ["goals", brandId, "active"],
+    queryFn: () => api(`/api/goals?brandId=${brandId}&status=active`),
+    enabled: !!brandId,
+    staleTime: 30_000,
+  });
+
+  // Show only goals whose date range includes "today"
+  const now = new Date();
+  const todayGoals = (data?.goals ?? []).filter((g) => {
+    const s = new Date(g.startDate);
+    const e = new Date(g.endDate);
+    return now >= s && now <= e;
+  });
+
+  return (
+    <SectionCard
+      title="🎯 Target Bulan Ini"
+      desc="Pantau progres target bisnis kamu"
+      right={
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-teal"
+          onClick={() => setSection("pengaturan")}
+        >
+          Atur Target <ArrowRight className="size-3.5" />
+        </Button>
+      }
+      bodyClassName="p-0"
+    >
+      {isLoading ? (
+        <div className="p-5 space-y-3">
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
+        </div>
+      ) : todayGoals.length === 0 ? (
+        <div className="p-8 text-center">
+          <div className="size-12 rounded-2xl bg-cream-200 text-stone mx-auto flex items-center justify-center mb-2">
+            <Target className="size-6" />
+          </div>
+          <div className="text-sm font-semibold text-ink">Belum ada target bulan ini</div>
+          <p className="text-xs text-stone mt-1 mb-3 max-w-sm mx-auto">
+            Set target omzet, order, atau produk baru untuk motivasi & lacak progress bisnis kamu.
+          </p>
+          <Button
+            size="sm"
+            className="bg-teal hover:bg-teal-600"
+            onClick={() => setSection("pengaturan")}
+          >
+            <Target className="size-3.5 mr-1" /> Buat Target
+          </Button>
+        </div>
+      ) : (
+        <div className="divide-y divide-border">
+          {todayGoals.slice(0, 4).map((g) => {
+            const meta = GOAL_TYPE_META[g.type] ?? { icon: "🎯", label: g.type };
+            const pct = Math.min(100, g.progress ?? 0);
+            const isAchieved = g.status === "achieved";
+            return (
+              <div key={g.id} className="px-5 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="size-8 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center text-base shrink-0">
+                    {meta.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-semibold text-ink truncate">
+                        {meta.label}
+                      </div>
+                      <div className="text-xs font-bold text-teal tabular-nums">
+                        {pct}%
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-stone mt-0.5 tabular-nums">
+                      {formatGoalValue(g.type, g.current)} / {formatGoalValue(g.type, g.target)}
+                    </div>
+                  </div>
+                  {isAchieved && (
+                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 border text-[10px] gap-1 shrink-0">
+                      <CheckCircle2 className="size-2.5" /> Tercapai
+                    </Badge>
+                  )}
+                </div>
+                <div className="mt-2 h-1.5 rounded-full bg-cream-200 overflow-hidden">
+                  <div
+                    className="h-full bg-teal transition-all duration-500 rounded-full"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
 
 interface DashboardData {
   stats: {
@@ -333,6 +469,11 @@ export function BerandaSection() {
           )}
         </div>
       )}
+
+      {/* Goals widget */}
+      <div className="mt-4">
+        <GoalsWidget brandId={activeBrand.id} />
+      </div>
 
       {/* Cross-module info */}
       {!isLoading && data && data.stats.research > 0 && (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAppStore, getActiveBrand, type Brand } from "@/lib/store";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +48,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Store,
   Plus,
   Edit,
@@ -65,11 +70,21 @@ import {
   Loader2,
   AlertTriangle,
   Database,
+  Target,
+  RefreshCw,
+  Pause,
+  Play,
+  Calendar,
+  Clock,
+  ChevronDown,
+  TrendingUp,
 } from "lucide-react";
 import {
   CATEGORIES,
   TONES,
   slugify,
+  formatRupiah,
+  formatRupiahShort,
   type ToneKey,
 } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -1262,6 +1277,789 @@ function DemoTab() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Tab 6: Target Bisnis (Goals)
+// ─────────────────────────────────────────────────────────────────────────────
+interface Goal {
+  id: string;
+  brandId: string;
+  type: string;
+  period: string;
+  target: number;
+  current: number;
+  startDate: string;
+  endDate: string;
+  status: string;
+  notes: string | null;
+  progress: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const GOAL_TYPES_FULL: { key: string; emoji: string; label: string; hint: string }[] = [
+  { key: "revenue", emoji: "💰", label: "Omzet", hint: "Total pendapatan kotor" },
+  { key: "orders", emoji: "🛒", label: "Jumlah Order", hint: "Order masuk (tanpa dibatalkan)" },
+  { key: "products", emoji: "📦", label: "Produk Baru", hint: "Produk aktif yang dibuat" },
+  { key: "customers", emoji: "👥", label: "Customer Baru", hint: "Customer terdaftar" },
+  { key: "content", emoji: "📝", label: "Konten Dibuat", hint: "Caption, gambar, video" },
+  { key: "research", emoji: "🔍", label: "Riset", hint: "Riset pasar selesai" },
+];
+
+const GOAL_PERIODS_FULL: { key: string; label: string }[] = [
+  { key: "monthly", label: "Bulanan" },
+  { key: "quarterly", label: "Kuartal" },
+  { key: "yearly", label: "Tahunan" },
+];
+
+const GOAL_STATUS_META: Record<
+  string,
+  { label: string; cls: string }
+> = {
+  active: { label: "Aktif", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  achieved: { label: "Tercapai", cls: "bg-teal-100 text-teal-700 border-teal-200" },
+  failed: { label: "Gagal", cls: "bg-rose-100 text-rose-700 border-rose-200" },
+  paused: { label: "Pause", cls: "bg-amber-100 text-amber-700 border-amber-200" },
+};
+
+function formatGoalValue(type: string, v: number): string {
+  if (type === "revenue") return formatRupiah(v);
+  return String(Math.round(v));
+}
+
+function formatGoalValueShort(type: string, v: number): string {
+  if (type === "revenue") return formatRupiahShort(v);
+  return String(Math.round(v));
+}
+
+function daysRemaining(endDate: string): number {
+  const end = new Date(endDate);
+  const now = new Date();
+  const diff = end.getTime() - now.getTime();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
+
+function formatDateRange(s: string, e: string): string {
+  const start = new Date(s);
+  const end = new Date(e);
+  const fmt = (d: Date) => d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+  return `${fmt(start)} → ${fmt(end)}`;
+}
+
+function TargetTab() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const activeBrand = getActiveBrand(useAppStore.getState());
+  const brandId = activeBrand?.id;
+
+  // ─── Fetch goals (all statuses for management view) ───
+  const { data, isLoading } = useQuery<{ goals: Goal[] }>({
+    queryKey: ["goals", brandId, "all"],
+    queryFn: () => api(`/api/goals?brandId=${brandId}&status=all`),
+    enabled: !!brandId,
+    staleTime: 30_000,
+  });
+
+  const goals = data?.goals ?? [];
+  const activeGoals = goals.filter((g) => g.status === "active" || g.status === "paused");
+  const achievedGoals = goals.filter((g) => g.status === "achieved");
+  const failedGoals = goals.filter((g) => g.status === "failed");
+
+  // ─── Dialog state ───
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [fType, setFType] = useState<string>("revenue");
+  const [fPeriod, setFPeriod] = useState<string>("monthly");
+  const [fTarget, setFTarget] = useState<string>("");
+  const [fNotes, setFNotes] = useState<string>("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  function resetForm() {
+    setFType("revenue");
+    setFPeriod("monthly");
+    setFTarget("");
+    setFNotes("");
+    setEditingGoal(null);
+  }
+
+  function openCreate() {
+    resetForm();
+    setDialogOpen(true);
+  }
+
+  function openEdit(g: Goal) {
+    setEditingGoal(g);
+    setFType(g.type);
+    setFPeriod(g.period);
+    setFTarget(String(g.target));
+    setFNotes(g.notes ?? "");
+    setDialogOpen(true);
+  }
+
+  // ─── Mutations ───
+  const createMutation = useMutation({
+    mutationFn: (payload: Record<string, unknown>) =>
+      api<{ goal: Goal }>("/api/goals", { method: "POST", json: payload }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["goals", brandId] });
+      toast({ title: "Target dibuat 🎯", description: "Target baru aktif. Klik Refresh untuk hitung progres awal." });
+      setDialogOpen(false);
+      resetForm();
+    },
+    onError: (e: unknown) => {
+      toast({
+        title: "Gagal membuat target",
+        description: e instanceof Error ? e.message : "Coba lagi",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (args: { id: string; payload: Record<string, unknown> }) =>
+      api<{ goal: Goal }>(`/api/goals/${args.id}`, { method: "PATCH", json: args.payload }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["goals", brandId] });
+      toast({ title: "Target diperbarui" });
+      setDialogOpen(false);
+      resetForm();
+    },
+    onError: (e: unknown) => {
+      toast({
+        title: "Gagal memperbarui",
+        description: e instanceof Error ? e.message : "Coba lagi",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: (args: { id: string; status: string }) =>
+      api<{ goal: Goal }>(`/api/goals/${args.id}`, { method: "PATCH", json: { status: args.status } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["goals", brandId] });
+    },
+    onError: (e: unknown) => {
+      toast({
+        title: "Gagal mengubah status",
+        description: e instanceof Error ? e.message : "Coba lagi",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api(`/api/goals/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["goals", brandId] });
+      toast({ title: "Target dihapus" });
+      setDeleteId(null);
+    },
+    onError: (e: unknown) => {
+      toast({
+        title: "Gagal menghapus",
+        description: e instanceof Error ? e.message : "Coba lagi",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const refreshMutation = useMutation({
+    mutationFn: () =>
+      api<{ goals: Goal[]; refreshedAt: string }>("/api/goals/refresh", {
+        method: "POST",
+        json: { brandId },
+      }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["goals", brandId] });
+      const achieved = data.goals.filter((g) => g.status === "achieved").length;
+      toast({
+        title: `Progres diperbarui · ${data.goals.length} target`,
+        description: achieved > 0 ? `🎉 ${achieved} target tercapai!` : undefined,
+      });
+    },
+    onError: (e: unknown) => {
+      toast({
+        title: "Gagal refresh progres",
+        description: e instanceof Error ? e.message : "Coba lagi",
+        variant: "destructive",
+      });
+    },
+  });
+
+  function handleSave() {
+    const tgt = Number(fTarget);
+    if (!Number.isFinite(tgt) || tgt <= 0) {
+      toast({ title: "Target harus angka > 0", variant: "destructive" });
+      return;
+    }
+    if (!brandId) {
+      toast({ title: "Brand aktif tidak ditemukan", variant: "destructive" });
+      return;
+    }
+    if (editingGoal) {
+      updateMutation.mutate({
+        id: editingGoal.id,
+        payload: { target: tgt, notes: fNotes.trim() || null },
+      });
+    } else {
+      createMutation.mutate({
+        brandId,
+        type: fType,
+        period: fPeriod,
+        target: tgt,
+        notes: fNotes.trim() || null,
+      });
+    }
+  }
+
+  // ─── Period date preview ───
+  const periodPreview = useMemo(() => {
+    const now = new Date();
+    let s: Date;
+    let e: Date;
+    if (fPeriod === "monthly") {
+      s = new Date(now.getFullYear(), now.getMonth(), 1);
+      e = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    } else if (fPeriod === "quarterly") {
+      const q = Math.floor(now.getMonth() / 3);
+      s = new Date(now.getFullYear(), q * 3, 1);
+      e = new Date(now.getFullYear(), q * 3 + 3, 0, 23, 59, 59, 999);
+    } else {
+      s = new Date(now.getFullYear(), 0, 1);
+      e = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+    }
+    return formatDateRange(s.toISOString(), e.toISOString());
+  }, [fPeriod]);
+
+  if (!activeBrand) {
+    return (
+      <SectionCard title="Target Bisnis">
+        <EmptyState
+          icon={<Target className="size-6 text-stone" />}
+          title="Belum ada brand aktif"
+          desc="Buat brand dulu di tab Brand untuk mulai melacak target bisnis."
+        />
+      </SectionCard>
+    );
+  }
+
+  const saving = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <div className="space-y-4">
+      <SectionCard
+        title="Target Bisnis"
+        desc={`Atur & pantau target bisnis untuk ${activeBrand.name}`}
+        right={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => refreshMutation.mutate()}
+              disabled={refreshMutation.isPending || activeGoals.length === 0}
+            >
+              {refreshMutation.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
+              Refresh
+            </Button>
+            <Button
+              size="sm"
+              className="bg-teal hover:bg-teal-600 text-white gap-1.5"
+              onClick={openCreate}
+            >
+              <Plus className="size-3.5" /> Buat Target
+            </Button>
+          </div>
+        }
+      >
+        {/* ─── Empty state ─── */}
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2].map((i) => <Skeleton key={i} className="h-32 w-full" />)}
+          </div>
+        ) : goals.length === 0 ? (
+          <EmptyState
+            icon={<Target className="size-6 text-stone" />}
+            title="Belum ada target"
+            desc="Bikin target pertama untuk mulai lacak progress bisnis kamu — omzet, order, produk, customer, konten, atau riset."
+            action={
+              <Button
+                className="bg-teal hover:bg-teal-600 gap-1.5"
+                onClick={openCreate}
+              >
+                <Plus className="size-4" /> Buat Target Pertama
+              </Button>
+            }
+          />
+        ) : (
+          <div className="space-y-3">
+            {/* ─── Active + Paused goals ─── */}
+            {activeGoals.length > 0 && (
+              <div className="space-y-3">
+                {activeGoals.map((g) => (
+                  <GoalCard
+                    key={g.id}
+                    goal={g}
+                    onEdit={() => openEdit(g)}
+                    onTogglePause={() =>
+                      statusMutation.mutate({
+                        id: g.id,
+                        status: g.status === "paused" ? "active" : "paused",
+                      })
+                    }
+                    onDelete={() => setDeleteId(g.id)}
+                    busy={statusMutation.isPending || deleteMutation.isPending}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* ─── Failed goals (compact list) ─── */}
+            {failedGoals.length > 0 && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50/40 p-3">
+                <div className="text-xs font-semibold text-rose-800 mb-2 flex items-center gap-1.5">
+                  <AlertTriangle className="size-3.5" />
+                  {failedGoals.length} target tidak tercapai
+                </div>
+                <ul className="space-y-1">
+                  {failedGoals.map((g) => {
+                    const meta = GOAL_TYPES_FULL.find((t) => t.key === g.type);
+                    return (
+                      <li
+                        key={g.id}
+                        className="text-xs text-rose-700 flex items-center gap-2"
+                      >
+                        <span>{meta?.emoji ?? "🎯"}</span>
+                        <span className="font-medium">{meta?.label ?? g.type}</span>
+                        <span className="text-rose-500">
+                          {formatGoalValueShort(g.type, g.current)} / {formatGoalValueShort(g.type, g.target)}
+                        </span>
+                        <button
+                          className="ml-auto text-rose-600 underline hover:no-underline"
+                          onClick={() => setDeleteId(g.id)}
+                        >
+                          Hapus
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+
+            {/* ─── Achieved goals (collapsed) ─── */}
+            {achievedGoals.length > 0 && (
+              <Collapsible defaultOpen={false}>
+                <CollapsibleTrigger asChild>
+                  <button className="w-full flex items-center justify-between rounded-xl border border-teal/20 bg-teal-50/40 px-4 py-3 hover:bg-teal-50/70 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <div className="size-7 rounded-lg bg-teal text-white flex items-center justify-center">
+                        <Check className="size-3.5" />
+                      </div>
+                      <div className="text-left">
+                        <div className="text-sm font-semibold text-ink">
+                          {achievedGoals.length} Target Tercapai 🎉
+                        </div>
+                        <div className="text-[11px] text-stone">
+                          Historis pencapaian target bisnis
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronDown className="size-4 text-stone [[data-state=open]_&]:rotate-180 transition-transform" />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mt-2 space-y-2">
+                    {achievedGoals.map((g) => {
+                      const meta = GOAL_TYPES_FULL.find((t) => t.key === g.type);
+                      return (
+                        <div
+                          key={g.id}
+                          className="rounded-lg border border-border bg-card px-3 py-2 flex items-center gap-3"
+                        >
+                          <span className="text-lg">{meta?.emoji ?? "🎯"}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-ink">
+                              {meta?.label ?? g.type}
+                            </div>
+                            <div className="text-[11px] text-stone tabular-nums">
+                              {formatGoalValueShort(g.type, g.current)} / {formatGoalValueShort(g.type, g.target)} · {formatDateRange(g.startDate, g.endDate)}
+                            </div>
+                          </div>
+                          <Badge className="bg-teal-100 text-teal-700 border-teal-200 border text-[10px]">
+                            Tercapai
+                          </Badge>
+                          <button
+                            className="text-stone hover:text-rose-600"
+                            onClick={() => setDeleteId(g.id)}
+                            aria-label="Hapus target"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+          </div>
+        )}
+      </SectionCard>
+
+      {/* ─── Create/Edit Dialog ─── */}
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(o) => {
+          setDialogOpen(o);
+          if (!o) resetForm();
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Target className="size-4 text-teal" />
+              {editingGoal ? "Edit Target" : "Buat Target Baru"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingGoal
+                ? "Ubah target, atau pause/resume dari kartu."
+                : "Set target bisnis kamu — sistem akan hitung progres otomatis dari data kamu."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Type */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Tipe Target</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {GOAL_TYPES_FULL.map((t) => {
+                  const sel = fType === t.key;
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      disabled={!!editingGoal}
+                      onClick={() => setFType(t.key)}
+                      className={cn(
+                        "rounded-xl border p-3 text-left transition-all disabled:opacity-60 disabled:cursor-not-allowed",
+                        sel
+                          ? "border-teal bg-teal-50 ring-1 ring-teal/30"
+                          : "border-border hover:border-teal/40 hover:bg-cream-100/50"
+                      )}
+                    >
+                      <div className="text-base mb-0.5">{t.emoji}</div>
+                      <div className="text-xs font-semibold text-ink leading-tight">
+                        {t.label}
+                      </div>
+                      <div className="text-[10px] text-stone leading-tight mt-0.5">
+                        {t.hint}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Period */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Periode</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {GOAL_PERIODS_FULL.map((p) => {
+                  const sel = fPeriod === p.key;
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      disabled={!!editingGoal}
+                      onClick={() => setFPeriod(p.key)}
+                      className={cn(
+                        "rounded-lg border py-2 text-xs font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed",
+                        sel
+                          ? "border-teal bg-teal-50 text-teal-700 ring-1 ring-teal/30"
+                          : "border-border text-ink hover:border-teal/40 hover:bg-cream-100/50"
+                      )}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px] text-stone">
+                <Calendar className="size-3" />
+                <span>{periodPreview}</span>
+              </div>
+            </div>
+
+            {/* Target value */}
+            <div className="space-y-1.5">
+              <Label htmlFor="goal-target" className="text-xs font-semibold">
+                Target {fType === "revenue" ? "(Rp)" : "(jumlah)"}
+              </Label>
+              <div className="relative">
+                {fType === "revenue" && (
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-stone pointer-events-none">
+                    Rp
+                  </span>
+                )}
+                <Input
+                  id="goal-target"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  value={fTarget}
+                  onChange={(e) => setFTarget(e.target.value)}
+                  placeholder={fType === "revenue" ? "5000000" : "50"}
+                  className={cn(fType === "revenue" && "pl-9")}
+                />
+              </div>
+              {fType === "revenue" && Number(fTarget) > 0 && (
+                <div className="text-[11px] text-stone">
+                  ≈ {formatRupiahShort(Number(fTarget))}
+                </div>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-1.5">
+              <Label htmlFor="goal-notes" className="text-xs font-semibold">
+                Catatan <span className="text-stone font-normal">(opsional)</span>
+              </Label>
+              <Textarea
+                id="goal-notes"
+                value={fNotes}
+                onChange={(e) => setFNotes(e.target.value)}
+                placeholder="Mis. target khusus Lebaran, sumber utama dari TikTok Shop…"
+                rows={2}
+                className="resize-none text-sm"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDialogOpen(false)}
+              disabled={saving}
+            >
+              Batal
+            </Button>
+            <Button
+              className="bg-teal hover:bg-teal-600 text-white gap-1.5"
+              onClick={handleSave}
+              disabled={saving || !fTarget || Number(fTarget) <= 0}
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Menyimpan…
+                </>
+              ) : editingGoal ? (
+                <>
+                  <Save className="size-4" /> Simpan Perubahan
+                </>
+              ) : (
+                <>
+                  <Plus className="size-4" /> Buat Target
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Delete confirmation ─── */}
+      <AlertDialog
+        open={!!deleteId}
+        onOpenChange={(o) => !o && setDeleteId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus target ini?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Target akan dihapus permanen. Progress historis tidak bisa dikembalikan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteId) deleteMutation.mutate(deleteId);
+              }}
+              disabled={deleteMutation.isPending}
+              className="bg-rose-600 hover:bg-rose-700 text-white gap-1.5"
+            >
+              {deleteMutation.isPending ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Menghapus…
+                </>
+              ) : (
+                <>
+                  <Trash2 className="size-4" /> Ya, Hapus
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+// ─── Single goal card ─────────────────────────────────────────
+function GoalCard({
+  goal,
+  onEdit,
+  onTogglePause,
+  onDelete,
+  busy,
+}: {
+  goal: Goal;
+  onEdit: () => void;
+  onTogglePause: () => void;
+  onDelete: () => void;
+  busy: boolean;
+}) {
+  const meta = GOAL_TYPES_FULL.find((t) => t.key === goal.type);
+  const periodLabel =
+    GOAL_PERIODS_FULL.find((p) => p.key === goal.period)?.label ?? goal.period;
+  const status = GOAL_STATUS_META[goal.status] ?? GOAL_STATUS_META.active;
+  const pct = Math.min(100, goal.progress ?? 0);
+  const days = daysRemaining(goal.endDate);
+  const isPaused = goal.status === "paused";
+  const isAchieved = goal.status === "achieved";
+  const isOver = days === 0 && !isAchieved;
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border p-4 transition-colors",
+        isPaused
+          ? "border-amber-200 bg-amber-50/30"
+          : "border-border bg-card hover:border-teal/30"
+      )}
+    >
+      {/* Header row */}
+      <div className="flex items-start gap-3">
+        <div className="size-10 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center text-lg shrink-0">
+          {meta?.emoji ?? "🎯"}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-ink text-sm">
+              {meta?.label ?? goal.type}
+            </span>
+            <Badge variant="outline" className="text-[10px] h-4 py-0">
+              {periodLabel}
+            </Badge>
+            <Badge className={cn("text-[10px] h-4 py-0 border", status.cls)}>
+              {status.label}
+            </Badge>
+          </div>
+          <div className="text-[11px] text-stone mt-0.5 flex items-center gap-1.5">
+            <Calendar className="size-3" />
+            {formatDateRange(goal.startDate, goal.endDate)}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="size-8 p-0 text-stone hover:text-teal"
+            onClick={onEdit}
+            disabled={busy}
+            aria-label="Edit target"
+          >
+            <Edit className="size-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="size-8 p-0 text-stone hover:text-amber-600"
+            onClick={onTogglePause}
+            disabled={busy}
+            aria-label={isPaused ? "Resume target" : "Pause target"}
+          >
+            {isPaused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="size-8 p-0 text-stone hover:text-rose-600"
+            onClick={onDelete}
+            disabled={busy}
+            aria-label="Hapus target"
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Current vs Target */}
+      <div className="mt-3 flex items-end justify-between gap-2">
+        <div>
+          <div className="text-[11px] text-stone mb-0.5">Progres saat ini</div>
+          <div className="text-xl font-extrabold text-ink tabular-nums leading-none">
+            {formatGoalValue(goal.type, goal.current)}
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-[11px] text-stone mb-0.5">Target</div>
+          <div className="text-sm font-bold text-stone tabular-nums leading-none">
+            {formatGoalValue(goal.type, goal.target)}
+          </div>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="mt-2">
+        <div className="flex items-center justify-between text-[11px] mb-1">
+          <span className={cn("font-bold", isAchieved ? "text-teal-700" : "text-ink")}>
+            {pct}%
+          </span>
+          {!isAchieved && (
+            <span
+              className={cn(
+                "flex items-center gap-1 tabular-nums",
+                isOver ? "text-rose-600" : "text-stone"
+              )}
+            >
+              <Clock className="size-3" />
+              {isOver
+                ? "Waktu habis"
+                : days === 1
+                ? "1 hari lagi"
+                : `${days} hari lagi`}
+            </span>
+          )}
+        </div>
+        <div className="h-2 rounded-full bg-cream-200 overflow-hidden">
+          <div
+            className={cn(
+              "h-full rounded-full transition-all duration-500",
+              isAchieved ? "bg-teal" : isOver ? "bg-rose-500" : "bg-teal"
+            )}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Notes */}
+      {goal.notes && (
+        <div className="mt-2 rounded-md bg-cream-100/60 px-2.5 py-1.5 text-[11px] text-stone italic">
+          “{goal.notes}”
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main section
 // ─────────────────────────────────────────────────────────────────────────────
 export function PengaturanSection() {
@@ -1271,7 +2069,7 @@ export function PengaturanSection() {
     <div className="space-y-6">
       <PageHeader
         title="Pengaturan"
-        subtitle={`Atur brand, profil, tone of voice & notifikasi${activeBrand ? ` · ${activeBrand.name}` : ""}`}
+        subtitle={`Atur brand, profil, tone of voice, target & notifikasi${activeBrand ? ` · ${activeBrand.name}` : ""}`}
         icon="⚙️"
       />
 
@@ -1292,6 +2090,9 @@ export function PengaturanSection() {
           <TabsTrigger value="demo" className="gap-1.5">
             <Database className="size-3.5" /> Data Demo
           </TabsTrigger>
+          <TabsTrigger value="target" className="gap-1.5">
+            <Target className="size-3.5" /> Target
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="brand" className="mt-4">
@@ -1308,6 +2109,9 @@ export function PengaturanSection() {
         </TabsContent>
         <TabsContent value="demo" className="mt-4">
           <DemoTab />
+        </TabsContent>
+        <TabsContent value="target" className="mt-4">
+          <TargetTab />
         </TabsContent>
       </Tabs>
     </div>

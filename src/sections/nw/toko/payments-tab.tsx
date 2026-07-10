@@ -36,7 +36,7 @@ import {
 import { SectionCard, EmptyState } from "@/components/nw/primitives";
 import { useToast } from "@/hooks/use-toast";
 import { PAYMENT_STATUS, formatRupiah, timeAgo } from "@/lib/constants";
-import { CheckCircle2, XCircle, Plus, CreditCard } from "lucide-react";
+import { CheckCircle2, XCircle, Plus, CreditCard, CheckCheck } from "lucide-react";
 import type { Payment, Order, Customer } from "@/sections/nw/toko/types";
 
 interface PaymentRow extends Payment {
@@ -116,13 +116,51 @@ export function PaymentsTab({
     onError: (e: Error) => toast({ title: "Gagal", description: e.message, variant: "destructive" }),
   });
 
+  // Bulk verify all pending payments
+  const bulkVerifyMutation = useMutation({
+    mutationFn: async () => {
+      const pending = payments.filter((p) => p.status === "Menunggu");
+      const results = await Promise.allSettled(
+        pending.map((p) =>
+          api(`/api/payments/${p.id}/verify`, { method: "POST", json: { status: "Diterima" } })
+        )
+      );
+      return { total: pending.length, succeeded: results.filter((r) => r.status === "fulfilled").length };
+    },
+    onSuccess: ({ total, succeeded }) => {
+      queryClient.invalidateQueries({ queryKey: ["payments", brandId] });
+      queryClient.invalidateQueries({ queryKey: ["orders", brandId] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard", brandId] });
+      queryClient.invalidateQueries({ queryKey: ["customers", brandId] });
+      toast({
+        title: `${succeeded} dari ${total} pembayaran diverifikasi ✅`,
+        description: succeeded < total ? `${total - succeeded} gagal diverifikasi` : "Income tercatat di Keuangan.",
+      });
+    },
+    onError: (e: Error) => toast({ title: "Gagal bulk verify", description: e.message, variant: "destructive" }),
+  });
+
+  const pendingCount = payments.filter((p) => p.status === "Menunggu").length;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <div className="text-sm text-stone">
           Total <span className="font-bold text-ink">{payments.length}</span> pembayaran ·{" "}
-          {payments.filter((p) => p.status === "Menunggu").length} menunggu verifikasi
+          {pendingCount} menunggu verifikasi
         </div>
+        {pendingCount > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+            disabled={bulkVerifyMutation.isPending}
+            onClick={() => bulkVerifyMutation.mutate()}
+          >
+            <CheckCheck className="size-3.5" />
+            {bulkVerifyMutation.isPending ? "Memverifikasi..." : `Terima Semua (${pendingCount})`}
+          </Button>
+        )}
       </div>
 
       {isLoading ? (

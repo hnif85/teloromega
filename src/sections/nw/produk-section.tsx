@@ -59,6 +59,7 @@ import {
   Loader2,
   Eye,
   Download,
+  CheckSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -146,6 +147,11 @@ export function ProdukSection() {
   // Delete state
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Bulk select state
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   // Detail dialog state
   const [detailProductId, setDetailProductId] = useState<string | null>(null);
@@ -245,6 +251,33 @@ export function ProdukSection() {
     onSettled: () => setDeleting(false),
   });
 
+  // Bulk delete mutation
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const results = await Promise.allSettled(
+        ids.map((id) => api(`/api/products/${id}`, { method: "DELETE" }))
+      );
+      return {
+        total: ids.length,
+        succeeded: results.filter((r) => r.status === "fulfilled").length,
+      };
+    },
+    onSuccess: ({ total, succeeded }) => {
+      toast({
+        title: `${succeeded} produk diarsipkan`,
+        description: succeeded < total ? `${total - succeeded} gagal` : "Semua produk terpilih disembunyikan.",
+      });
+      qc.invalidateQueries({ queryKey: ["products", activeBrand?.id] });
+      qc.invalidateQueries({ queryKey: ["dashboard", activeBrand?.id] });
+      setSelectedIds(new Set());
+      setSelectMode(false);
+      setBulkDeleteOpen(false);
+    },
+    onError: (e: Error) => {
+      toast({ title: "Gagal bulk hapus", description: e.message, variant: "destructive" });
+    },
+  });
+
   // Handlers
   function openCreate() {
     setEditing(null);
@@ -323,51 +356,102 @@ export function ProdukSection() {
         icon="📦"
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={products.length === 0}
-              onClick={() => {
-                if (products.length === 0) return;
-                exportToCsv(
-                  products.map((p) => ({
-                    nama: p.name,
-                    tipe: p.type,
-                    harga_jual: p.price,
-                    harga_modal: p.costPrice ?? 0,
-                    margin: p.costPrice ? p.price - p.costPrice : 0,
-                    margin_persen: p.costPrice ? Math.round(((p.price - p.costPrice) / p.price) * 100) : 0,
-                    stok: p.stock ?? "",
-                    stok_min: p.minStock ?? "",
-                    sku: p.sku ?? "",
-                    deskripsi: p.description ?? "",
-                    status: p.isActive ? "Aktif" : "Nonaktif",
-                    dibuat: new Date(p.createdAt).toLocaleDateString("id-ID"),
-                  })),
-                  [
-                    { key: "nama", label: "Nama" },
-                    { key: "tipe", label: "Tipe" },
-                    { key: "harga_jual", label: "Harga Jual (Rp)" },
-                    { key: "harga_modal", label: "Harga Modal (Rp)" },
-                    { key: "margin", label: "Margin (Rp)" },
-                    { key: "margin_persen", label: "Margin (%)" },
-                    { key: "stok", label: "Stok" },
-                    { key: "stok_min", label: "Stok Min" },
-                    { key: "sku", label: "SKU" },
-                    { key: "deskripsi", label: "Deskripsi" },
-                    { key: "status", label: "Status" },
-                    { key: "dibuat", label: "Dibuat" },
-                  ],
-                  `produk-${new Date().toISOString().slice(0, 10)}`
-                );
-                toast({ title: `${products.length} produk diekspor ke CSV` });
-              }}
-            >
-              <Download className="size-3.5" /> CSV
-            </Button>
-            <Button className="bg-teal hover:bg-teal-600 gap-1.5" onClick={openCreate}>
-              <Plus className="size-4" /> Tambah Produk
-            </Button>
+            {selectMode ? (
+              <>
+                <span className="text-xs text-stone">{selectedIds.size} terpilih</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedIds(new Set());
+                    setSelectMode(false);
+                  }}
+                >
+                  Batal
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (filtered.length > 0) {
+                      const allIds = new Set(filtered.map((p) => p.id));
+                      setSelectedIds(
+                        allIds.size === selectedIds.size ? new Set() : allIds
+                      );
+                    }
+                  }}
+                >
+                  {filtered.length > 0 && filtered.every((p) => selectedIds.has(p.id))
+                    ? "Kosongkan"
+                    : "Pilih Semua"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={selectedIds.size === 0 || bulkDeleteMutation.isPending}
+                  onClick={() => setBulkDeleteOpen(true)}
+                >
+                  <Trash2 className="size-3.5" />
+                  {bulkDeleteMutation.isPending ? "Menghapus..." : `Hapus (${selectedIds.size})`}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={products.length === 0}
+                  onClick={() => setSelectMode(true)}
+                >
+                  <CheckSquare className="size-3.5" /> Pilih
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={products.length === 0}
+                  onClick={() => {
+                    if (products.length === 0) return;
+                    exportToCsv(
+                      products.map((p) => ({
+                        nama: p.name,
+                        tipe: p.type,
+                        harga_jual: p.price,
+                        harga_modal: p.costPrice ?? 0,
+                        margin: p.costPrice ? p.price - p.costPrice : 0,
+                        margin_persen: p.costPrice ? Math.round(((p.price - p.costPrice) / p.price) * 100) : 0,
+                        stok: p.stock ?? "",
+                        stok_min: p.minStock ?? "",
+                        sku: p.sku ?? "",
+                        deskripsi: p.description ?? "",
+                        status: p.isActive ? "Aktif" : "Nonaktif",
+                        dibuat: new Date(p.createdAt).toLocaleDateString("id-ID"),
+                      })),
+                      [
+                        { key: "nama", label: "Nama" },
+                        { key: "tipe", label: "Tipe" },
+                        { key: "harga_jual", label: "Harga Jual (Rp)" },
+                        { key: "harga_modal", label: "Harga Modal (Rp)" },
+                        { key: "margin", label: "Margin (Rp)" },
+                        { key: "margin_persen", label: "Margin (%)" },
+                        { key: "stok", label: "Stok" },
+                        { key: "stok_min", label: "Stok Min" },
+                        { key: "sku", label: "SKU" },
+                        { key: "deskripsi", label: "Deskripsi" },
+                        { key: "status", label: "Status" },
+                        { key: "dibuat", label: "Dibuat" },
+                      ],
+                      `produk-${new Date().toISOString().slice(0, 10)}`
+                    );
+                    toast({ title: `${products.length} produk diekspor ke CSV` });
+                  }}
+                >
+                  <Download className="size-3.5" /> CSV
+                </Button>
+                <Button className="bg-teal hover:bg-teal-600 gap-1.5" onClick={openCreate}>
+                  <Plus className="size-4" /> Tambah Produk
+                </Button>
+              </>
+            )}
           </div>
         }
       />
@@ -493,6 +577,16 @@ export function ProdukSection() {
               onEdit={() => openEdit(p)}
               onDelete={() => setDeleteTarget(p)}
               onDetail={() => setDetailProductId(p.id)}
+              selectMode={selectMode}
+              selected={selectedIds.has(p.id)}
+              onToggleSelect={() => {
+                setSelectedIds((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(p.id)) next.delete(p.id);
+                  else next.add(p.id);
+                  return next;
+                });
+              }}
             />
           ))}
         </div>
@@ -729,6 +823,36 @@ export function ProdukSection() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Delete Confirmation */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus {selectedIds.size} produk terpilih?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Produk yang dipilih akan diarsipkan (disembunyikan dari katalog). Aksi ini bisa dibatalkan dengan menambah ulang produk.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+              onClick={(e) => {
+                e.preventDefault();
+                bulkDeleteMutation.mutate(Array.from(selectedIds));
+              }}
+            >
+              {bulkDeleteMutation.isPending ? (
+                <>
+                  <Loader2 className="size-4 mr-1 animate-spin" /> Menghapus...
+                </>
+              ) : (
+                `Ya, Hapus ${selectedIds.size} Produk`
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -775,11 +899,17 @@ function ProductCard({
   onEdit,
   onDelete,
   onDetail,
+  selectMode,
+  selected,
+  onToggleSelect,
 }: {
   product: Product;
   onEdit: () => void;
   onDelete: () => void;
   onDetail: () => void;
+  selectMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }) {
   const margin =
     product.costPrice != null && product.price > 0
@@ -793,8 +923,10 @@ function ProductCard({
 
   return (
     <Card
-      className="overflow-hidden group hover:border-teal/30 hover:shadow-md transition-all flex flex-col cursor-pointer"
-      onClick={onDetail}
+      className={`overflow-hidden group hover:border-teal/30 hover:shadow-md transition-all flex flex-col ${
+        selectMode ? "cursor-pointer" : "cursor-pointer"
+      } ${selected ? "ring-2 ring-teal border-teal" : ""}`}
+      onClick={selectMode ? onToggleSelect : onDetail}
     >
       {/* Image */}
       <div className="relative bg-cream-100">
@@ -814,11 +946,21 @@ function ProductCard({
             </div>
           )}
         </AspectRatio>
-        <div className="absolute inset-0 bg-ink/0 group-hover:bg-ink/5 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-          <span className="bg-card/90 backdrop-blur px-2.5 py-1 rounded-full text-xs font-semibold text-teal-700 flex items-center gap-1 shadow-sm">
-            <Eye className="size-3" /> Lihat Detail
-          </span>
-        </div>
+        {/* Select mode checkbox */}
+        {selectMode && (
+          <div className={`absolute top-2 left-2 size-6 rounded-md border-2 flex items-center justify-center transition-colors ${
+            selected ? "bg-teal border-teal text-white" : "bg-card/80 border-cream-400"
+          }`}>
+            {selected && <CheckSquare className="size-4" />}
+          </div>
+        )}
+        {!selectMode && (
+          <div className="absolute inset-0 bg-ink/0 group-hover:bg-ink/5 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+            <span className="bg-card/90 backdrop-blur px-2.5 py-1 rounded-full text-xs font-semibold text-teal-700 flex items-center gap-1 shadow-sm">
+              <Eye className="size-3" /> Lihat Detail
+            </span>
+          </div>
+        )}
         <div className="absolute top-2 left-2">
           <Badge
             className={

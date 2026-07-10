@@ -27,6 +27,7 @@ model User {
   operationalCosts OperationalCost[]
   creditUsageLog CreditUsageLog[]
   inboxMessages  InboxMessage[]
+  goals          Goal[]
 }
 
 // ─── Brand & Product ────────────────────────────────────────────────────────
@@ -59,6 +60,7 @@ model Brand {
   payables     Payable[]
   operationalCosts OperationalCost[]
   creditUsageLog CreditUsageLog[]
+  goals          Goal[]
 
   @@index([userId])
 }
@@ -380,6 +382,28 @@ model OperationalCost {
   brand     Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
   @@index([brandId])
+}
+
+model Goal {
+  id          String   @id @default(cuid())
+  brandId     String
+  userId      String
+  type        String   // revenue | orders | products | customers | content | research
+  period      String   // monthly | quarterly | yearly
+  target      Float    // target value (e.g., 5000000 for revenue, 50 for orders)
+  current     Float    @default(0) // current progress (updated periodically)
+  startDate   DateTime
+  endDate     DateTime
+  status      String   @default("active") // active | achieved | failed | paused
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  brand       Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([brandId])
+  @@index([status])
 }
 
 // ─── Credit (Next Whiz side; balance otoritatif di mwxmarket.ai — mocked) ────

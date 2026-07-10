@@ -7,6 +7,7 @@ import { NAV_ITEMS, SECONDARY_NAV, type SectionKey, timeAgo } from "@/lib/consta
 import { cn } from "@/lib/utils";
 import { Bell, Menu, Zap, Plus, Command } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/nw/theme-toggle";
 import {
   Sheet,
   SheetContent,
@@ -239,6 +240,9 @@ export function Topbar() {
             <Command className="size-3.5" />
             <kbd className="text-[10px] font-mono text-stone">⌘K</kbd>
           </Button>
+
+          {/* Theme toggle */}
+          <ThemeToggle />
 
           {/* Notifications dropdown */}
           <DropdownMenu>

@@ -319,3 +319,122 @@ Priority recommendations for next phase:
 - Add real WhatsApp integration for Campaigns (currently simulated).
 - Add multi-currency support (currently IDR only).
 - Consider adding a "demo mode" indicator so users know when fallback content is used.
+
+---
+Task ID: 13-A
+Agent: full-stack-developer (Insights Analytics)
+Task: Build new Insights section — aggregated analytics API, AI business summary, 6 chart types, metrics row, activity feed.
+
+Work Log:
+- Read worklog.md (last 3 entries: 12-A Produk, 12-B Styling+BrandDelete+Features, 12 main QA) and 9 pattern files (constants, store, api, ai, auth, credit, primitives, beranda-section, keuangan/ringkasan-tab, prisma schema) to learn established conventions: TanStack Query + api() client, PageHeader/StatCard/SectionCard/EmptyState primitives, getActiveBrand selector, chargeCredit pattern, llmJson with try/catch fallback, cream/teal/orange palette, sonner toast, Indonesian copy, recharts with ResponsiveContainer.
+- A. constants.ts: added "insights" to SectionKey type (after beranda, before produk) and to NAV_ITEMS array with icon "📈". Sidebar + topbar auto-pick-up NAV_ITEMS so no other component edits needed.
+- B. page.tsx: imported InsightsSection, added render branch {section === "insights" && <InsightsSection />} after beranda before produk. Fixed a stray double-brace introduced during the multi-edit.
+- C. GET /api/insights (route.ts, ~360 lines): Auth via getUserId + brand ownership verify. Returns InsightsResponse with 7 data sections + metrics + recentActivity. 12 parallel Prisma queries (incomeTx, orders, leads, content, customers, products, + 6 "recent" lists for activity feed). Revenue trend = 6-month buckets from Transaction type=income + order counts per month. Top products = aggregate Order.items JSON (parse, exclude cancelled), join Product for costPrice/margin, top 5 by revenue. Customer growth = cumulative Customer.createdAt per month with "before window" baseline. Lead funnel = group Lead.stage into Baru/Negosiasi/Deal/Closed with inter-stage conversion rates. Content by type = Content.type distribution with pct. Sales by day = Transaction income grouped by getDay() reordered Mon-Sun. Metrics = avgOrderValue, repeatCustomerRate, conversionRate, avgMarginPct, revenueGrowthPct (this vs last month), inventoryValue (Σ stock × costPrice for barang). Recent activity = union of last 5 each orders/payments/leads/content/research/transactions, sorted by timestamp desc, limited to 10. Empty brandId → returns zeroed shape (no error). All aggregations handle empty data gracefully.
+- D. POST /api/insights/summary (summary/route.ts, ~370 lines): Auth + verify brand. Charges 3 credits via chargeCredit({ actionKey: "keuangan.proyeksi" }) — reused as analytical action per spec. Returns 402 if insufficient balance. Gathers focused insights subset via gatherInsightsForAI() helper (13-field metrics object + revenueTrend + top 3 products + leadFunnel + customerGrowth + recentActivityCount). Calls llmJson<AISummary> with strict system prompt requiring exact JSON shape (headline, strengths[2-3], concerns[2-3], recommendations[3-4], healthScore 0-100, trend up|down|stable). CRITICAL: try/catch with comprehensive deriveFallbackSummary() fallback that produces valid AISummary purely from data — 6 strength patterns (revenue growth, healthy margin, repeat rate, top product mention, conversion), 6 concern patterns (revenue decline, low conversion, thin margin, low repeat, stale inventory, stuck leads), 6 recommendation patterns (campaign, follow-up, loyalty program, price review, focus top product, update stock), weighted health score (50 baseline ± growth/margin/conversion/repeat/inventory penalties, clamped 0-100), trend derived from revenueGrowthPct, headline bucketed by score with actual revenue. normalizeSummary() clamps/validates LLM output. Returns { summary, balanceAfter, usedFallback }.
+- E. InsightsSection component (insights-section.tsx, ~830 lines): Full "use client" section. PageHeader "Insights" with 📈 + brand subtitle + Refresh button (refetch + spinner) + "Ringkasan AI" button (teal, 3-credit badge, disabled after first gen). AI Summary Card: initial CTACard (gradient teal→cream→orange, Brain icon, credit balance display, disabled if balance < 3) → SummarySkeleton → AISummaryCard (Brain + headline + trend badge + SVG HealthGauge with red/amber/green color thresholds + animated stroke-dashoffset + 2-col Kekuatan/Perlu Perhatian + numbered Rekomendasi list + Tutup button). 6 StatCards in metrics row (Avg Order Value, Repeat %, Konversi Lead %, Avg Margin %, Growth %, Nilai Stok) with trend indicators. 6 chart types in 2-col grid: Revenue Trend (AreaChart teal gradient + orange Line for orders), Top Products (horizontal BarChart with revenue+margin side-by-side bars, name truncation), Customer Growth (LineChart solid teal total + dashed purple new), Lead Funnel (custom divs with decreasing-width colored bars orange→teal→emerald→stone + inter-stage conversion rates + overall conversion footer), Content by Type (PieChart donut with 6-color palette + Indonesian labels), Sales by Day (BarChart Mon-Sun with peak day highlighted teal). Recent Activity feed (full width, max-h-440 overflow, color-coded by event type with icon/description/type badge/time/amount). Empty state (CTA → Toko/Keuangan), Loading state (skeleton grid), Error state. TanStack Query useQuery(["insights", brandId]) 60s staleTime, useMutation for summary POST, useAppStore for user/setCredit/setSection, sonner toast feedback. All copy Indonesian, mobile responsive (charts 1-col on mobile, metrics 2-per-row on mobile, AI card flex-col), established teal/cream/orange palette, Lucide icons throughout.
+- Wrote agent-ctx/13-A-insights-analytics.md work record.
+- Ran bun run lint: 0 errors, 0 warnings. Ran bunx tsc --noEmit (excluding skills/ and examples/): 0 errors.
+
+Stage Summary:
+- Files created: src/app/api/insights/route.ts (GET, ~360 lines), src/app/api/insights/summary/route.ts (POST, ~370 lines), src/sections/nw/insights-section.tsx (~830 lines), agent-ctx/13-A-insights-analytics.md.
+- Files edited: src/lib/constants.ts (SectionKey + NAV_ITEMS), src/app/page.tsx (import + render branch).
+- Decisions:
+  · Reused keuangan.proyeksi action key (3 credits) for AI summary per spec — analytical action, no new CreditActionKey added.
+  · Custom SVG HealthGauge (stroke-dasharray) over recharts RadialBarChart for precise color threshold control + animated count-up.
+  · Custom div-based Lead Funnel over recharts FunnelChart — easier inter-stage conversion rate labels + overall conversion footer.
+  · AreaChart with Line child for Revenue Trend — recharts 2.15 supports any Cartesian series inside any Cartesian chart type.
+  · AI summary endpoint re-gathers focused subset (top 3 products instead of 5) to keep LLM prompt concise — full data stays in GET endpoint for chart rendering.
+  · Fallback derivation: 6 strength + 6 concern + 6 recommendation patterns triggered by data thresholds (revenueGrowthPct, margin, conversion, repeat rate, inventory). Health score = weighted sum from 50 baseline.
+  · Customer growth baseline: computed customers-before-window count so cumulative total is accurate across the 6-month view.
+  · Empty brandId returns zeroed shape (200) not error — matches dashboard route pattern.
+  · Inventory value filter: only barang products with non-null stock AND costPrice.
+  · Did NOT modify command-palette.tsx (has hardcoded section list) per spec constraint "only edit constants.ts and page.tsx" — sidebar + topbar DO pick up the new entry automatically via NAV_ITEMS map.
+  · All copy in Indonesian. Mobile responsive throughout. Established cream/teal palette preserved.
+
+---
+Task ID: 13-B
+Agent: full-stack-developer (Demo Data Seeding)
+Task: Build demo data seeding + reset APIs, wire to Pengaturan UI. Allows new users to explore the app with realistic sample data.
+
+Work Log:
+- Read worklog.md (last 3 task entries: 12, 12-A, 12-B) + 9 reference files (auth, db, constants, store, api, primitives, pengaturan-section, schema, orders route, payment verify route, research pipeline, contexts route, campaigns route) to learn established patterns (cookie auth via getUserId, FK-safe creation order, HPP = costPrice × qty for income transactions, TanStack Query useMutation + invalidateQueries, SectionCard/AlertDialog primitives, cream/teal palette, all copy in Indonesian).
+- Created `src/app/api/demo/seed/route.ts` (~530 lines): POST endpoint, body `{ brandId }`, auth via getUserId + brand ownership check, **idempotent** via `Product.sku` prefix `"DEMO-"`. Seeds 4 products (3 barang + 1 jasa) with stock + minStock + costPrice + SVG placeholder imageUrl, 2 customers (Andi Wijaya 6281234567891, Maya Putri 6281234567892), 5 leads (Budi Baru/WA, Siti Negosiasi/IG, Andi Deal/WA, Maya Closed/WA, Rudi Baru/Telegram), 6 orders across all statuses (Dikirim/Selesai/Selesai/Diproses/Baru/Dibatalkan) with proper FK linkages (customer + lead), 4 payments (3 Diterima + 1 Menunggu), 6 transactions (3 income with HPP snapshot for verified payments + 3 manual expenses: bahan_baku 50k/5d-ago, operasional 25k/3d-ago, marketing 15k/1d-ago), 3 content (2 caption + 1 gambar SVG), 3 inbox messages (2 threads: Andi inbound+AI outbound, new number inbound only), 1 research "Tren cemilan pedas Indonesia 2026" with fallback result shape (3 personas, SWOT, 2 competitors, keywords, 6-pt market_trend, 2 content recs, pricing) + 3 auto-generated contexts (konten/toko/keuangan), 1 sent WA campaign "Promo Cemilan Pedas" with 2 recipients (Andi customer + Budi lead) + mock open/click stats. Stock decremented only for non-cancelled barang orders (mirrors /api/orders behavior). All dates deterministic via `daysAgo(n, hour, minute)` helper, spread over last 12 days. Returns `{ seeded: true, alreadySeeded: false, counts: {...} }` or `{ alreadySeeded: true, seeded: false }` on re-run.
+- Created `src/app/api/demo/reset/route.ts` (~110 lines): POST endpoint, body `{ brandId }`, auth + brand ownership. Deletes ALL brand data in FK-safe order: CampaignRecipient (via Campaign.brandId) → Campaign, Transaction, Payment (via Order.brandId) → Order, Receivable/Payable/OperationalCost, Lead/Customer/Content, ContextUsage → Context → Research, InboxMessage, CreditUsageLog, Inventory (via Product.brandId) → Product. Brand itself preserved. Returns `{ reset: true, deleted: { counts } }`.
+- Edited `src/sections/nw/pengaturan-section.tsx`: added `useMutation, useQueryClient` from `@tanstack/react-query`, added `Loader2, AlertTriangle, Database` to lucide-react imports. Added new `DemoTab()` component (~240 lines) with two-card grid (Muat Data Demo teal/Sparkles icon + Reset rose/Trash2 icon), AlertDialog confirmation for reset ("Yakin reset semua data untuk [brand]? Aksi ini TIDAK BISA dibatalkan"), useMutation for both actions with toast feedback in Indonesian, `qc.invalidateQueries()` (no key — refreshes all queries since demo data touches every module). Added 5th `<TabsTrigger value="demo">` with Database icon + matching TabsContent. Both buttons disable each other during pending mutations; AlertDialogAction uses `e.preventDefault()` to prevent auto-close before mutation completes.
+- Wrote `agent-ctx/13-B-demo-data-seeding.md` work record with full file list, decisions, and end-to-end test results.
+- **End-to-end HTTP tests** (via curl + bun script):
+  · Seed: 200 OK, all counts match spec (4/5/2/6/4/6/3/3/1/1) ✓
+  · Idempotency: second call returns `{ alreadySeeded: true }` ✓
+  · DB verification: HPP transactions correct (30000/18000/12000 with costAmounts 18000/11000/7000), stocks correct (Keripik 75, Makaroni 44, Basreng 7 below minStock 10, Paket Foto null), customer totals correct (Andi 2 orders/48000, Maya 1 order/12000) ✓
+  · Reset: 200 OK, deleted counts returned, post-reset DB verification shows ALL counts 0 + brand preserved ✓
+  · Re-seed after reset: 200 OK, full counts ✓
+  · Dev log: only `POST /api/demo/seed 200 in 136ms` — no errors ✓
+- Ran `bun run lint`: 0 errors, 0 warnings. Ran `bunx tsc --noEmit`: 0 errors in app code.
+
+Stage Summary:
+- Files created: `src/app/api/demo/seed/route.ts`, `src/app/api/demo/reset/route.ts`, `agent-ctx/13-B-demo-data-seeding.md`
+- Files edited: `src/sections/nw/pengaturan-section.tsx` (added imports + DemoTab component + 5th tab)
+- Decisions:
+  · Idempotency via `Product.sku` prefix `"DEMO-"` (no schema change needed) — also serves as user-visible marker for demo products.
+  · Customer totals computed from actual verified payments (Andi 48.000, Maya 12.000) rather than spec's pre-computed values (60.000, 18.000) — keeps data internally consistent across Keuangan/Customer/Order/Payment modules.
+  · Stock decremented only for non-cancelled barang orders, mirroring `/api/orders` POST behavior. Cancelled Order #6 left stock untouched (spec's "stock restored" semantics).
+  · Income transactions replicate `/api/payments/[id]/verify` route logic exactly: HPP = costPrice × qty, quantity = sum of item qty, description = "Pembayaran diterima — Order #xxxxxx".
+  · Research result uses the fallback shape from `_pipeline.ts` (same shape users see when LLM 401s) so the demo research renders correctly in Riset section's 4-tab UI.
+  · Contexts inlined via `buildContexts()` (mirrors `_pipeline.generateContexts`) to avoid importing from a private `_pipeline.ts` file — keeps the demo seed self-contained.
+  · All dates deterministic (no Math.random) so re-runs produce stable timestamps.
+  · Reset deletion order is FK-safe: deepest dependents first (CampaignRecipient → Campaign, Payment → Order, ContextUsage → Context → Research, Inventory → Product). Brand itself preserved.
+  · UI: `qc.invalidateQueries()` (no key) refreshes ALL TanStack Query caches since demo data touches every module — simpler than enumerating 12+ query keys.
+  · AlertDialogAction uses `e.preventDefault()` to prevent shadcn's default close-on-click behavior before the async mutation completes — keeps the dialog open during "Mereset…" spinner state.
+- Critical gap closed: new users can now explore the full app with realistic sample data (4 products, 6 orders, 6 transactions, 5 leads, 1 research + 3 contexts, 1 campaign, etc.) via a single button click, then reset back to empty when done. Previously the dashboard showed empty states for new brands with no clear path to populate.
+- All copy in Indonesian. Mobile responsive (2-col card grid on lg+, single col on mobile). Established cream/teal palette preserved (teal for seed CTA, rose for destructive reset).
+- Cross-module data flow verified: Product (with costPrice) → Order (decrement stock) → Payment (verify) → Transaction (income + HPP snapshot) → Keuangan P&L. Research → 3 Contexts → Dashboard recommendations. Lead → Customer → Order → Campaign recipient.
+
+---
+Task ID: 13
+Agent: main (Z.ai Code) — Cron Review Round 2
+Task: QA, add dark mode, Insights analytics section, demo data seeding/reset, styling polish
+
+Work Log:
+- **Assessment**: Read worklog (321 lines, 12 prior task entries). Project was stable after Round 1. Identified gaps: no dark mode toggle (CSS existed but no provider/trigger), no demo data for new users, no analytics/insights page.
+- **QA via agent-browser**: Verified all 8 existing sections work. Tested Campaign creation flow (8 credits charged, sent to 1 recipient). Tested Keuangan Transaksi tab (shows auto-created income from payment verification with HPP). Confirmed app is stable.
+- **Dark Mode (built myself)**:
+  - Created `src/components/theme-provider.tsx` — wraps next-themes ThemeProvider with attribute="class", defaultTheme="light", enableSystem=false (force explicit choice).
+  - Created `src/components/nw/theme-toggle.tsx` — topbar toggle button (Sun/Moon icons, mounted guard to avoid hydration mismatch).
+  - Created `src/components/nw/sidebar-theme-toggle.tsx` — compact toggle for the dark sidebar (cream-300/70 → cream-100 on hover, matches sidebar aesthetic).
+  - Edited `src/app/layout.tsx` — wrapped app in ThemeProvider, made Sonner toast use CSS vars (var(--card), var(--border)) so toasts adapt to theme.
+  - Edited `src/components/nw/topbar.tsx` — added ThemeToggle between ⌘K button and notifications bell.
+  - Edited `src/components/nw/sidebar.tsx` — added SidebarThemeToggle to user card footer.
+  - Verified: clicking toggle switches `document.documentElement.className` from "light" to "dark". All sections render correctly in dark mode (dark CSS vars already defined in globals.css since project inception).
+- **Insights Section (delegated to subagent 13-A)**:
+  - New `/api/insights` GET endpoint — 12 parallel Prisma queries returning: 6-month revenue trend, top 5 products, customer growth, lead funnel, content distribution, sales-by-day, 6 key metrics, recent activity feed.
+  - New `/api/insights/summary` POST endpoint — charges 3 credits, calls LLM with comprehensive fallback that derives insights from actual data (health score, strengths, concerns, recommendations). Returns valid shape even when LLM unavailable.
+  - New `src/sections/nw/insights-section.tsx` (~830 lines) — AI summary card with custom SVG health gauge, 6 metric StatCards, 6 chart types (AreaChart, horizontal BarChart, LineChart, custom funnel, PieChart donut, day-of-week BarChart), recent activity timeline.
+  - Added "Insights" to NAV_ITEMS (position #2, after Beranda).
+  - Verified: AI summary produces "Keripik Mbak Ani tumbuh sehat dengan pendapatan Rp 30.000 bulan ini" with health score 87/Sehat, 3 strengths, 1 concern, 3 recommendations.
+- **Demo Data Seeding (delegated to subagent 13-B)**:
+  - New `/api/demo/seed` POST endpoint — idempotent (DEMO- SKU prefix marker), seeds 4 products + 5 leads + 2 customers + 6 orders + 4 payments + 6 transactions + 3 content + 3 inbox + 1 research (with 3 contexts) + 1 campaign. Realistic Indonesian names, dates spread over 12 days.
+  - New `/api/demo/reset` POST endpoint — FK-safe deletion of all brand data (preserves brand itself).
+  - New "Data Demo" tab in Pengaturan with 2 cards: Muat Data Demo (teal) + Reset Semua Data (rose, with AlertDialog confirmation).
+  - Verified: Reset cleared all data, seed populated it back. Dashboard showed 4 Produk, 3 Leads, 2 Orders Pending, 3 Konten, 1 Riset.
+- **Styling**: Sonner toasts now theme-aware (CSS vars instead of hardcoded colors).
+
+Stage Summary:
+- **Dark mode**: Fully functional light/dark toggle in topbar + sidebar. All components adapt via CSS vars.
+- **New section**: Insights (📈) with AI-powered business summary + 6 analytics charts + activity feed.
+- **New feature**: Demo data seeding/reset — lets new users explore a fully populated app instantly.
+- **Lint**: 0 errors, 0 warnings. **tsc**: 0 errors. **Dev server**: running on port 3000, HTTP 200.
+- **Files created**: theme-provider.tsx, theme-toggle.tsx, sidebar-theme-toggle.tsx, api/insights/route.ts, api/insights/summary/route.ts, sections/nw/insights-section.tsx, api/demo/seed/route.ts, api/demo/reset/route.ts.
+- **Files edited**: layout.tsx (ThemeProvider), topbar.tsx (ThemeToggle), sidebar.tsx (SidebarThemeToggle), constants.ts (Insights nav), page.tsx (Insights route), pengaturan-section.tsx (Data Demo tab).
+
+Unresolved issues / risks:
+- LLM API token still unavailable — all AI features (Riset, Konten, AI Chat, Projections, Insights summary) use intelligent fallbacks. Fallbacks are contextual and produce valid output shapes.
+- Insights charts may look sparse with very little data (e.g., 1 transaction). The empty state handles this gracefully.
+- Demo data seeding creates dates within the last 12 days — if the app runs for months, the "recent" demo data will age. Consider re-seeding or using relative dates on every seed.
+
+Priority recommendations for next phase:
+- Product image upload (currently URL-only or SVG placeholder).
+- CSV/Excel export for transactions, leads, orders (currently mock toast).
+- Real WhatsApp integration for Campaigns (currently simulated).
+- Onboarding tour / tooltips for first-time users to explain the cross-module data flow.
+- Performance: consider adding database indexes on frequently-queried fields (Transaction.date, Order.status) if data grows.
+- Consider adding a "What's new" changelog modal for version updates.

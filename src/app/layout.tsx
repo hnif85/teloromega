@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryProvider } from "@/lib/query-provider";
+import { ThemeProvider } from "@/components/theme-provider";
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -35,14 +36,16 @@ export default function RootLayout({
       <body
         className={`${manrope.variable} ${geistMono.variable} font-sans antialiased bg-background text-foreground`}
       >
-        <QueryProvider>
-          <TooltipProvider delayDuration={150}>{children}</TooltipProvider>
-          <Toaster />
-          <Sonner
-            position="top-right"
-            toastOptions={{ style: { background: "#FCFBF9", border: "1px solid #E7E3DC" } }}
-          />
-        </QueryProvider>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+          <QueryProvider>
+            <TooltipProvider delayDuration={150}>{children}</TooltipProvider>
+            <Toaster />
+            <Sonner
+              position="top-right"
+              toastOptions={{ style: { background: "var(--card)", border: "1px solid var(--border)" } }}
+            />
+          </QueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

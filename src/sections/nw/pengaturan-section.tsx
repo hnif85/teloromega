@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore, getActiveBrand, type Brand } from "@/lib/store";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -61,6 +62,9 @@ import {
   Sparkles,
   Mail,
   Hash,
+  Loader2,
+  AlertTriangle,
+  Database,
 } from "lucide-react";
 import {
   CATEGORIES,
@@ -988,6 +992,250 @@ function NotifikasiTab() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Tab 5: Data Demo — load demo data / reset brand data
+// ─────────────────────────────────────────────────────────────────────────────
+type SeedResponse = {
+  seeded?: boolean;
+  alreadySeeded?: boolean;
+  counts?: {
+    products: number;
+    leads: number;
+    customers: number;
+    orders: number;
+    payments: number;
+    transactions: number;
+    content: number;
+    inbox: number;
+    research: number;
+    campaigns: number;
+  };
+};
+
+function DemoTab() {
+  const { brands, activeBrandId } = useAppStore();
+  const activeBrand = brands.find((b) => b.id === activeBrandId) ?? brands[0] ?? null;
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [resetOpen, setResetOpen] = useState(false);
+
+  // Invalidate ALL queries — demo data touches every module.
+  function refreshAll() {
+    qc.invalidateQueries();
+  }
+
+  const seedMutation = useMutation({
+    mutationFn: () =>
+      api<SeedResponse>("/api/demo/seed", {
+        method: "POST",
+        json: { brandId: activeBrand?.id },
+      }),
+    onSuccess: (data) => {
+      if (data.alreadySeeded) {
+        toast({
+          title: "Data demo sudah dimuat",
+          description: "Brand ini sudah punya data demo. Reset dulu jika ingin muat ulang.",
+        });
+        return;
+      }
+      const c = data.counts;
+      toast({
+        title: "Data demo berhasil dimuat 🎁",
+        description: c
+          ? `${c.products} produk · ${c.orders} order · ${c.transactions} transaksi · ${c.leads} leads · ${c.content} konten`
+          : "Brand sudah terisi data contoh.",
+      });
+      refreshAll();
+    },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "Gagal memuat data demo";
+      toast({ title: "Gagal memuat data demo", description: msg, variant: "destructive" });
+    },
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: () =>
+      api<{ reset: boolean; deleted: Record<string, number> }>("/api/demo/reset", {
+        method: "POST",
+        json: { brandId: activeBrand?.id },
+      }),
+    onSuccess: (data) => {
+      const d = data.deleted;
+      const total = d
+        ? Object.values(d).reduce((a, b) => a + b, 0)
+        : 0;
+      toast({
+        title: "Data berhasil direset",
+        description: `${total} baris dihapus. Brand tetap ada, siap untuk data baru.`,
+      });
+      setResetOpen(false);
+      refreshAll();
+    },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "Gagal mereset data";
+      toast({ title: "Gagal mereset data", description: msg, variant: "destructive" });
+    },
+  });
+
+  if (!activeBrand) {
+    return (
+      <SectionCard title="Data Demo">
+        <EmptyState
+          icon={<Database className="size-6 text-stone" />}
+          title="Belum ada brand aktif"
+          desc="Buat brand dulu di tab Brand untuk memuat data demo."
+        />
+      </SectionCard>
+    );
+  }
+
+  const seeding = seedMutation.isPending;
+  const resetting = resetMutation.isPending;
+
+  return (
+    <div className="space-y-4">
+      <SectionCard
+        title="Data Demo"
+        desc={`Muat data contoh untuk ${activeBrand.name}, atau reset ke keadaan kosong.`}
+        right={
+          <Badge variant="outline" className="text-[10px] gap-1 border-teal/30 text-teal">
+            <Database className="size-3" /> Demo
+          </Badge>
+        }
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* ── Card 1: Muat Data Demo ───────────────────────────────────── */}
+          <div className="rounded-2xl border border-teal/20 bg-gradient-to-b from-teal-50/60 to-card p-5 flex flex-col gap-3">
+            <div className="flex items-start gap-3">
+              <div className="size-11 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center shrink-0">
+                <Sparkles className="size-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-ink">Muat Data Demo</h3>
+                <p className="text-xs text-stone mt-1 leading-snug">
+                  Isi brand aktif dengan produk, leads, order, pembayaran, transaksi,
+                  konten, dan riset contoh. Cocok untuk eksplorasi fitur.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 flex items-start gap-2">
+              <AlertTriangle className="size-3.5 mt-0.5 shrink-0" />
+              <span>
+                Data demo akan <strong>ditambahkan</strong> ke data yang sudah ada.
+                Untuk hasil terbaik, reset dulu jika sudah ada data.
+              </span>
+            </div>
+
+            <ul className="text-xs text-stone space-y-1 leading-snug">
+              <li>• 4 produk (3 barang + 1 jasa) dengan stok & margin</li>
+              <li>• 5 leads di berbagai stage + 2 customer</li>
+              <li>• 6 order + 4 pembayaran (verifikasi + transaksi HPP)</li>
+              <li>• 6 transaksi (3 income + 3 expense) + 3 konten + riset</li>
+              <li>• 3 inbox message + 1 campaign WA terkirim</li>
+            </ul>
+
+            <Button
+              className="bg-teal hover:bg-teal-600 text-white gap-1.5 mt-1"
+              onClick={() => seedMutation.mutate()}
+              disabled={seeding || resetting}
+            >
+              {seeding ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Memuat…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="size-4" /> Muat Data Demo
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* ── Card 2: Reset Data ───────────────────────────────────────── */}
+          <div className="rounded-2xl border border-rose-200 bg-gradient-to-b from-rose-50/60 to-card p-5 flex flex-col gap-3">
+            <div className="flex items-start gap-3">
+              <div className="size-11 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="size-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-ink">Reset Semua Data</h3>
+                <p className="text-xs text-stone mt-1 leading-snug">
+                  Hapus SEMUA data untuk brand aktif: produk, leads, order, pembayaran,
+                  transaksi, konten, riset, campaign. Brand tetap ada.
+                </p>
+              </div>
+            </div>
+
+            <ul className="text-xs text-stone space-y-1 leading-snug">
+              <li>• Produk & inventory dihapus</li>
+              <li>• Leads, customers, orders, payments dihapus</li>
+              <li>• Transaksi, piutang, hutang, biaya operasional dihapus</li>
+              <li>• Konten, riset, contexts, inbox, campaign dihapus</li>
+            </ul>
+
+            <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  className="gap-1.5 mt-1"
+                  disabled={seeding || resetting}
+                >
+                  <Trash2 className="size-4" /> Reset Data
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Yakin reset semua data?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Aksi ini <strong>TIDAK BISA dibatalkan</strong>. Semua transaksi, order,
+                    produk, dan riwayat untuk brand <strong>{activeBrand.name}</strong> akan
+                    hilang. Brand itu sendiri tetap ada.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={resetting}>Batal</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(e) => {
+                      e.preventDefault();
+                      resetMutation.mutate();
+                    }}
+                    disabled={resetting}
+                    className="bg-rose-600 hover:bg-rose-700 text-white gap-1.5"
+                  >
+                    {resetting ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" /> Mereset…
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="size-4" /> Ya, Reset Semua
+                      </>
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-dashed border-border bg-cream-100/50 p-4 flex items-start gap-3">
+          <div className="size-9 rounded-lg bg-cream-200 text-stone flex items-center justify-center shrink-0">
+            <Database className="size-4" />
+          </div>
+          <div className="text-xs text-stone leading-relaxed">
+            <strong className="text-ink">Tips eksplorasi:</strong> setelah muat data demo,
+            cek <strong>Beranda</strong> untuk dashboard ringkasan, <strong>Toko</strong>{" "}
+            untuk inbox/leads/orders/pembayaran, dan <strong>Keuangan</strong> untuk
+            transaksi & P&amp;L. Data demo ditandai dengan SKU berawalan <code className="px-1 py-0.5 rounded bg-cream-200 text-ink">DEMO-</code> di
+            produk.
+          </div>
+        </div>
+      </SectionCard>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main section
 // ─────────────────────────────────────────────────────────────────────────────
 export function PengaturanSection() {
@@ -1015,6 +1263,9 @@ export function PengaturanSection() {
           <TabsTrigger value="notif" className="gap-1.5">
             <Bell className="size-3.5" /> Notifikasi
           </TabsTrigger>
+          <TabsTrigger value="demo" className="gap-1.5">
+            <Database className="size-3.5" /> Data Demo
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="brand" className="mt-4">
@@ -1028,6 +1279,9 @@ export function PengaturanSection() {
         </TabsContent>
         <TabsContent value="notif" className="mt-4">
           <NotifikasiTab />
+        </TabsContent>
+        <TabsContent value="demo" className="mt-4">
+          <DemoTab />
         </TabsContent>
       </Tabs>
     </div>

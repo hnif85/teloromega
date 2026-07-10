@@ -9,6 +9,7 @@ import { OnboardingDialog } from "@/components/nw/onboarding";
 import { SectionTransition } from "@/components/nw/section-transition";
 import { CommandPalette } from "@/components/nw/command-palette";
 import { BerandaSection } from "@/sections/nw/beranda-section";
+import { InsightsSection } from "@/sections/nw/insights-section";
 import { ProdukSection } from "@/sections/nw/produk-section";
 import { RisetSection } from "@/sections/nw/riset-section";
 import { KontenSection } from "@/sections/nw/konten-section";
@@ -71,6 +72,7 @@ export default function Home() {
           <main className="flex-1 px-4 md:px-6 py-6 max-w-[1400px] w-full mx-auto">
             <SectionTransition sectionKey={section}>
               {section === "beranda" && <BerandaSection />}
+              {section === "insights" && <InsightsSection />}
               {section === "produk" && <ProdukSection />}
               {section === "riset" && <RisetSection />}
               {section === "konten" && <KontenSection />}

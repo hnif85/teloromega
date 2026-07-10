@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { AnimatedNumber } from "@/components/nw/animated-number";
 
 export function PageHeader({
   title,
@@ -53,8 +54,10 @@ export function StatCard({
     warning: "bg-amber-100 text-amber-700",
     stone: "bg-stone-200 text-stone-700",
   };
+  // If value is a plain number, animate the count-up.
+  const isNumeric = typeof value === "number";
   return (
-    <div className="rounded-2xl bg-card border border-border p-4 hover:border-teal/30 transition-colors">
+    <div className="card-hover rounded-2xl bg-card border border-border p-4 hover:border-teal/30">
       <div className="flex items-center justify-between mb-2">
         <div className={cn("size-9 rounded-lg flex items-center justify-center text-lg", accents[accent])}>
           {icon}
@@ -70,7 +73,9 @@ export function StatCard({
           </span>
         )}
       </div>
-      <div className="text-2xl font-extrabold text-ink tabular-nums">{value}</div>
+      <div className="text-2xl font-extrabold text-ink tabular-nums">
+        {isNumeric ? <AnimatedNumber value={value as number} /> : value}
+      </div>
       <div className="text-xs text-stone mt-0.5">{label}</div>
     </div>
   );
@@ -115,7 +120,7 @@ export function SectionCard({
   bodyClassName?: string;
 }) {
   return (
-    <div className={cn("rounded-2xl bg-card border border-border", className)}>
+    <div className={cn("card-hover rounded-2xl bg-card border border-border", className)}>
       {(title || right) && (
         <div className="flex items-center justify-between gap-2 px-5 pt-4 pb-3 border-b border-border">
           <div>

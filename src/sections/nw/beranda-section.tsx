@@ -105,12 +105,19 @@ export function BerandaSection() {
           icon={<Search className="size-4" />}
           accent="teal"
         />
-        <StatCard
-          label="Produk Aktif"
-          value={isLoading ? "…" : data?.stats.products ?? 0}
-          icon={<Package className="size-4" />}
-          accent="orange"
-        />
+        <button
+          type="button"
+          onClick={() => setSection("produk")}
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-teal/40 rounded-2xl"
+          aria-label="Lihat detail Produk Aktif"
+        >
+          <StatCard
+            label="Produk Aktif"
+            value={isLoading ? "…" : data?.stats.products ?? 0}
+            icon={<Package className="size-4" />}
+            accent="orange"
+          />
+        </button>
         <StatCard
           label="Penjualan Bln Ini"
           value={isLoading ? "…" : formatRupiahShort(data?.stats.salesMonth ?? 0)}
@@ -154,9 +161,12 @@ export function BerandaSection() {
             title="Yuk mulai dari riset atau produk"
             desc="Dashboard kosong dulu. Tambahkan produk atau jalankan riset pasar pertama kamu — rekomendasi aksi akan otomatis muncul di sini."
             action={
-              <div className="flex gap-2 justify-center">
+              <div className="flex flex-wrap gap-2 justify-center">
                 <Button className="bg-teal hover:bg-teal-600" onClick={() => setSection("riset")}>
                   🔍 Mulai Riset
+                </Button>
+                <Button variant="outline" onClick={() => setSection("produk")}>
+                  📦 Tambah Produk
                 </Button>
                 <Button variant="outline" onClick={() => setSection("toko")}>
                   🛒 Atur Toko

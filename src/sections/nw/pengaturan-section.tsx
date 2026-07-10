@@ -36,6 +36,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Store,
   Plus,
   Edit,
@@ -81,10 +92,13 @@ const TONE_EXAMPLES: Record<ToneKey, string> = {
 // Tab 1: Brand management
 // ─────────────────────────────────────────────────────────────────────────────
 function BrandTab() {
-  const { brands, activeBrandId, setActiveBrand, addBrand, updateBrand } = useAppStore();
+  const { brands, activeBrandId, setActiveBrand, addBrand, updateBrand, user, setSession } =
+    useAppStore();
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(activeBrandId);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Edit form state (for active brand)
   const [eName, setEName] = useState("");
@@ -170,6 +184,41 @@ function BrandTab() {
       toast({ title: "Gagal membuat brand", description: msg, variant: "destructive" });
     } finally {
       setCreating(false);
+    }
+  }
+
+  // Soft-delete the currently-edited brand via DELETE /api/brands/[id].
+  // API refuses to delete the user's last active brand; we surface that error
+  // to the user as a toast and keep the dialog open.
+  async function confirmDelete() {
+    if (!editingId) return;
+    setDeleting(true);
+    try {
+      await api(`/api/brands/${editingId}`, { method: "DELETE" });
+      const remaining = brands.filter((b) => b.id !== editingId);
+      const wasActive = editingId === activeBrandId;
+      const newActiveId = wasActive ? remaining[0]?.id ?? null : activeBrandId;
+      if (user) {
+        // setSession is the only store action that can replace the brands array
+        // in one shot — we re-use it here to drop the deleted brand.
+        setSession({
+          user,
+          brands: remaining,
+          activeBrandId: newActiveId,
+        });
+      } else if (newActiveId) {
+        setActiveBrand(newActiveId);
+      }
+      toast({
+        title: "Brand dihapus",
+        description: "Brand berhasil diarsipkan bersama data terkait.",
+      });
+      setDeleteOpen(false);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Gagal menghapus brand";
+      toast({ title: "Gagal menghapus brand", description: msg, variant: "destructive" });
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -365,12 +414,54 @@ function BrandTab() {
                 </Button>
               </div>
 
-              <div className="rounded-lg bg-rose-50/60 border border-rose-200 px-3 py-2 flex items-center gap-2 text-xs text-rose-700">
-                <Trash2 className="size-3.5 shrink-0" />
-                <span>
-                  Hapus brand belum tersedia (data terkait akan ikut terhapus). Fitur ini akan
-                  hadir di versi berikutnya.
-                </span>
+              {/* Danger zone — soft-delete brand */}
+              <div className="rounded-lg bg-rose-50/60 border border-rose-200 px-3 py-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs text-rose-700">
+                  <Trash2 className="size-3.5 shrink-0" />
+                  <span>
+                    Hapus brand — brand &amp; semua data terkait (produk, riset, konten, transaksi)
+                    akan diarsipkan. Aksi ini tidak bisa dibatalkan.
+                  </span>
+                </div>
+                <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="gap-1.5 shrink-0"
+                      disabled={brands.length <= 1}
+                    >
+                      <Trash2 className="size-3.5" /> Hapus Brand
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Yakin hapus {editingBrand?.name}?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Brand akan diarsipkan bersama semua data terkait (produk, riset, konten,
+                        transaksi). Aksi ini tidak bisa dibatalkan.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={deleting}>Batal</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={(e) => {
+                          e.preventDefault();
+                          confirmDelete();
+                        }}
+                        disabled={deleting}
+                        className="bg-rose-600 hover:bg-rose-700 text-white gap-1.5"
+                      >
+                        {deleting ? (
+                          <span className="size-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <Trash2 className="size-3.5" />
+                        )}
+                        {deleting ? "Menghapus…" : "Ya, Hapus"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
           </SectionCard>

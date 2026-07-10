@@ -199,3 +199,123 @@ Stage Summary:
 - Sticky footer implemented (mt-auto on footer with border-top).
 - Mobile responsive throughout (sidebar collapses to Sheet on mobile, tabs scroll horizontally, grids stack).
 - Warm cream/teal palette applied per HTML prototype (#F6F4EF background, #0D9488 teal primary, #171412 dark ink, Manrope font).
+
+---
+Task ID: 12-A
+Agent: full-stack-developer (Produk Module)
+Task: Build Produk management module — full CRUD UI, sidebar nav entry, dashboard CTA. Critical gap: previously no way to add products except onboarding.
+
+Work Log:
+- Read worklog.md + 9 reference files (constants, store, api, primitives, sidebar, beranda-section, both product API routes, schema, page.tsx) to learn established patterns (TanStack Query + api() client, PageHeader/StatCard/EmptyState, cream/teal palette, sonner toast, getActiveBrand selector).
+- Edited `src/lib/constants.ts` — added `"produk"` to SectionKey type and to NAV_ITEMS array (positioned after Beranda, before Riset) with icon "📦".
+- Created `src/sections/nw/produk-section.tsx` (~770 lines, full "use client" section):
+  · PageHeader with brand subtitle + teal "Tambah Produk" CTA.
+  · 4 StatCards: Total Produk, Produk Barang, Produk Jasa, Total Nilai Stok (Σ stock × costPrice for barang).
+  · Low stock amber banner — shows count + first 3 names + "Restok di Toko" button → setSection("toko"). Renders only when any barang has stock ≤ minStock.
+  · Filter row: Tabs (Semua/Barang/Jasa with counts) + search Input (filters by name OR SKU).
+  · Product grid (1/2/3 col responsive). Each card: AspectRatio 1:1 image (or initials-gradient fallback), type badge (teal/orange), dropdown menu, name (2-line clamp) + SKU, price (formatRupiah), margin info OR amber "Modal belum diisi" badge, stock + status badge (Aman/Menipis/Kritis/Habis), description (2-line), Edit/Hapus footer buttons.
+  · Add/Edit Dialog: TypeCard picker (📦 Barang / 💼 Jasa) → conditional fields (Barang: name/price/costPrice/stock/minStock/sku/desc/imageUrl; Jasa: name/price/costPrice/desc[required]/imageUrl). Live margin preview. Inline validation. Save mutation POSTs or PATCHes. Loading spinner on save button. Toast feedback.
+  · Delete AlertDialog — "Yakin hapus {name}?" with rose action button + spinner.
+  · Empty state: friendly "Belum ada produk" + Tambah Produk CTA. Reset-filter empty state when search/tab yields nothing.
+  · Loading skeletons (6 cards) during fetch.
+  · Invalidates both `products` and `dashboard` query keys on mutation so Beranda's Produk count stays fresh.
+- Edited `src/app/page.tsx` — imported ProdukSection, added render branch.
+- Edited `src/sections/nw/beranda-section.tsx` — (1) wrapped "Produk Aktif" StatCard in `<button onClick={() => setSection("produk")}>` with focus-visible ring for a11y (StatCard primitive untouched); (2) added "📦 Tambah Produk" button to the empty-state CTA row alongside existing "Mulai Riset" and "Atur Toko" (changed container to `flex flex-wrap` so 3 buttons wrap on mobile).
+- Used shadcn/ui: Button, Input, Textarea, Label, Badge, Skeleton, Card, AspectRatio, Dialog, AlertDialog, DropdownMenu, Tabs. Lucide icons: Package, Plus, Pencil, Trash2, Search, PackageSearch, AlertTriangle, Boxes, Tag, DollarSign, MoreVertical, Briefcase, Loader2.
+- Wrote `agent-ctx/12-A-produk-module.md` work record.
+- Ran `bun run lint`: my files pass clean (0 errors, 0 warnings). Pre-existing error in command-palette.tsx:119 (setState-in-effect) is in another agent's file — out of scope. tsc --noEmit: 0 errors in my modified files.
+
+Stage Summary:
+- Files edited: `src/lib/constants.ts`, `src/app/page.tsx`, `src/sections/nw/beranda-section.tsx`.
+- Files created: `src/sections/nw/produk-section.tsx`, `agent-ctx/12-A-produk-module.md`.
+- Decisions: (1) No new API routes — reused existing `/api/products` (GET/POST) and `/api/products/[id]` (PATCH/DELETE); (2) stock status logic: 0=Habis(rose), <min=Kritis(rose), =min=Menipis(amber), >min=Aman(emerald); (3) TypeCard custom picker instead of Select dropdown for better visual UX; (4) dashboard query invalidated alongside products query so Beranda's Produk Aktif count auto-refreshes; (5) Beranda Produk stat card wrapped in `<button>` rather than modifying StatCard primitive — keeps primitives.tsx untouched; (6) image fallback uses initials on teal-cream-orange gradient; (7) jasa requires description (barang doesn't) since jasa has no stock/SKU to convey detail.
+- Critical gap closed: users can now add/edit/delete products from main UI (previously only via onboarding dialog). Produk flows downstream to Toko (inventory/orders), Konten (product-specific content), and Keuangan (margin/HPP calculations).
+- All copy in Indonesian. Mobile responsive throughout. Established cream/teal palette preserved.
+
+
+---
+Task ID: 12-B
+Agent: full-stack-developer (Styling + Brand Delete + Features)
+Task: Brand soft-delete API + UI, global styling polish (animations, card-hover, gradient-text, glass), framer-motion section transitions, Cmd+K command palette, notifications bell dropdown, animated number counters.
+
+Work Log:
+- Read worklog.md, globals.css, primitives.tsx, topbar.tsx, page.tsx, beranda-section.tsx, pengaturan-section.tsx, api/brands/[id]/route.ts, prisma/schema.prisma, api/dashboard/route.ts, command.tsx, dropdown-menu.tsx, alert-dialog.tsx, store.ts, api.ts, constants.ts to learn patterns. Confirmed framer-motion ^12.23.2 already installed, Brand.isActive exists for soft-delete, store has no removeBrand action (and store.ts was outside allowed-to-modify list).
+- A. Brand soft-delete API: added DELETE handler to src/app/api/brands/[id]/route.ts — verifies ownership, refuses to delete the user's last active brand (400 with friendly message), otherwise sets isActive=false.
+- B. Brand delete UI: replaced the "Hapus brand belum tersedia" placeholder in pengaturan-section.tsx with a real Danger-zone panel containing a destructive "Hapus Brand" button (disabled when brands.length <= 1). AlertDialog confirm text matches spec exactly. On confirm → DELETE /api/brands/[id] → on success removes the brand from the Zustand store by calling setSession({user, brands: filtered, activeBrandId: wasActive ? remaining[0]?.id : activeBrandId}). Toast feedback on success + failure (server's "last brand" error surfaced verbatim via api() helper).
+- C. Global styling polish: appended .card-hover (+hover state with teal-tinted shadow lift), .fade-in, .slide-in-right, .scale-in keyframed entrances, .gradient-text (teal gradient clip), .glass (cream translucent + blur with .dark variant), .skeleton-shimmer to globals.css. Verified existing scrollbar styling intact.
+- D. Framer-motion section transitions: created src/components/nw/section-transition.tsx (motion.div, opacity+y, 0.25s ease-out, key=sectionKey forces re-mount). Wired into page.tsx wrapping the section switch.
+- E. Cmd+K command palette: created src/components/nw/command-palette.tsx. Uses shadcn CommandDialog (cmdk). Listens for Cmd+K / Ctrl+K. Groups: Terakhir (last 5 commands, persisted to localStorage nw:recent-commands), Navigasi (7 sections), Aksi Cepat (Tambah Produk, Mulai Riset, Generate Konten, Top Up Credit, Buat Brand Baru — last one opens OnboardingDialog), Brand (lists all brands; active disabled with "Aktif" badge). Exports openCommandPalette() that dispatches a CustomEvent so the topbar ⌘K badge can open it imperatively without store plumbing.
+- F. Notifications bell dropdown: rewrote src/components/nw/topbar.tsx — replaced simple bell with DropdownMenu. Fetches /api/dashboard via TanStack Query (same queryKey as BerandaSection so the request is deduped). Derives notifications on the fly: low-stock (📦), pending payments (💳), stale leads from recommendations[leads] (👥), most-recent research (🔍). Bell badge count = non-dismissed total (caps at "9+"). "Tandai semua dibaca" pushes all current IDs into a local dismissed Set. Empty state "Tidak ada notifikasi baru 🎉". Items click → setSection(relevant). Footer "Lihat semua" closes dropdown.
+- G. Animated number counter: created src/components/nw/animated-number.tsx — counts up from 0 to value over duration ms using requestAnimationFrame + easeOutCubic. Optional format prop for id-ID locale.
+- H. Wired AnimatedNumber + card-hover into primitives.tsx: StatCard detects numeric value (typeof === "number") and wraps in <AnimatedNumber>; non-numeric values (formatted strings, "…") pass through unchanged — backward compatible, no caller edits required. Added card-hover class to StatCard and SectionCard root divs.
+- Page.tsx wiring: imported SectionTransition + CommandPalette, wrapped section switch, mounted <CommandPalette /> after OnboardingDialog.
+- Topbar cleanup: removed unused X (lucide) and CREDIT_PACKAGES (constants) imports from previous version. Added useQuery, timeAgo, Command, openCommandPalette imports.
+- Lint fix: initial run flagged react-hooks/set-state-in-effect on setRecent(loadRecent()) in CommandPalette's mount effect. Fixed by switching to lazy useState initializer: useState<RecentCommand[]>(() => loadRecent()). Final lint: 0 errors, 0 warnings.
+
+Stage Summary:
+- Files created: src/components/nw/animated-number.tsx, src/components/nw/section-transition.tsx, src/components/nw/command-palette.tsx, agent-ctx/12-B-styling-brand-delete-features.md
+- Files edited: src/app/api/brands/[id]/route.ts (DELETE handler), src/sections/nw/pengaturan-section.tsx (AlertDialog + confirmDelete), src/app/globals.css (7 new utility classes), src/components/nw/primitives.tsx (AnimatedNumber + card-hover), src/components/nw/topbar.tsx (notifications dropdown + ⌘K button), src/app/page.tsx (SectionTransition wrapper + CommandPalette mount)
+- Decisions:
+  · No store.ts modification (outside allowed file list) — brand deletion uses existing setSession to replace the brands array in one shot.
+  · Imperative palette open via CustomEvent — avoids polluting the global Zustand store with commandPaletteOpen state.
+  · Notifications derived from /api/dashboard on each refetch — no DB notification table; local in-memory dismissed Set for session-level "mark all read". Stable per-product / per-research IDs keep dismissed items dismissed across refetches.
+  · AnimatedNumber is opt-in via type — StatCard only animates when value is a literal number; callers passing formatted strings are unaffected, so no section files needed editing.
+  · TanStack Query dedupe — topbar shares the ["dashboard", brandId] queryKey with BerandaSection so the dashboard fetch is shared.
+  · Last-brand guard is double-layered — UI button disabled when brands.length <= 1, AND API returns 400 if bypassed. Both messages friendly Indonesian.
+
+---
+Task ID: 12
+Agent: main (Z.ai Code) — Cron Review Round 1
+Task: QA via agent-browser, fix bugs, add product management, styling polish, new features
+
+Work Log:
+- **Assessment**: Read worklog (201 lines, 10 prior task entries). Project was "complete" per Task 10 but QA revealed gaps.
+- **Bug fix 1 — TypeScript errors**: `_pipeline.ts` had 16 TS errors (`Record<string, unknown>` → nested property access failed). Fixed by typing `raw` as `Record<string, any>` (LLM output is unpredictable, explicit any is appropriate here).
+- **Bug fix 2 — LLM API 401**: The z-ai-web-dev-sdk requires an `X-Token` header that's not in the `/etc/.z-ai-config` file (only has `baseUrl` + `apiKey`). All AI calls (Riset synthesis, Konten generation, AI Chat, Projections) were failing with 401. Riset had a fallback; Konten/AI Chat/Projections did NOT → they returned 500 errors and refunded credits.
+  - **Fix**: Added comprehensive fallback generators to `src/app/api/content/route.ts`:
+    - `fallbackCaption()` — template-based caption using brand/product/tone/angle/hashtags
+    - `fallbackVideoScript()` — 5-scene video script structure with hooks
+    - `fallbackCarousel()` — 5-slide carousel with headlines/CTAs
+    - `fallbackImage()` — SVG placeholder data URI with brand initials + gradient
+  - Each AI call wrapped in try/catch → falls back to template instead of failing. Returns `usedFallback: true` flag.
+  - Improved `inbox/reply` fallback to be contextual (detects harga/stok/ongkir/order keywords).
+  - Verified: Konten caption generation now works (produces "Hai Sob! ✨ Yuk kenalan sama Keripik Mbak Ani...").
+- **Critical feature gap — Product management**: App had NO way to add/edit/delete products from the main UI (only via onboarding dialog). Users couldn't use Toko (orders/inventory), product-specific Konten, or Keuangan margin calculations without products.
+  - Delegated to subagent Task 12-A: built full Produk section (770 lines) with stat cards, filter tabs, search, product grid cards, add/edit dialog (Barang/Jasa types), delete with AlertDialog, low-stock banner. Added "Produk" to sidebar nav. Made dashboard "Produk Aktif" stat card clickable.
+- **Styling polish + brand delete + new features**: Delegated to subagent Task 12-B:
+  - Brand soft-delete: DELETE `/api/brands/[id]` handler (sets isActive=false, prevents deleting last brand). Wired to Pengaturan UI with AlertDialog confirmation.
+  - Global CSS: `.card-hover` (teal-tinted lift), `.fade-in`, `.slide-in-right`, `.scale-in`, `.gradient-text`, `.glass`, `.skeleton-shimmer`.
+  - Framer-motion section transitions (fade + slide on every section change).
+  - Cmd+K command palette: Navigasi + Aksi Cepat + Brand groups, recent commands in localStorage.
+  - Notifications bell dropdown: derives notifications from `/api/dashboard` (low stock, pending payments, stale leads, recent research).
+  - AnimatedNumber component: requestAnimationFrame count-up for stat cards.
+- **End-to-end QA via agent-browser**: Verified full cross-module flow:
+  1. Created product "Keripik Pedas Level 3" (Rp 15.000, modal Rp 9.000, stok 50) via Produk section
+  2. Created lead "Budi Santoso" via Toko > Leads
+  3. "Jadikan Order" → 2 pcs × Rp 15.000 = Rp 30.000 (stock decremented 50→48)
+  4. Added payment Rp 30.000 via Toko > Pembayaran
+  5. Verified payment "Diterima" → income transaction auto-created in Keuangan
+  6. Checked Keuangan > Ringkasan: Total Pendapatan Rp 30rb, HPP Rp 18rb (2×9.000), Laba Kotor Rp 12rb (40% margin) ✅
+  - This proves LOGIC_FLOW spec rule "income diakui saat Payment = Diterima" works correctly.
+- **Lint**: 0 errors, 0 warnings. **tsc**: 0 errors (app code). **Dev server**: running on port 3000, HTTP 200.
+
+Stage Summary:
+- **Bugs fixed**: TS errors in _pipeline.ts, LLM 401 fallbacks added to all AI modules (Konten, AI Chat, Projections, Inbox reply).
+- **Critical gap closed**: Full Produk management module (CRUD) — previously only accessible via onboarding.
+- **New features**: Brand soft-delete, Cmd+K command palette, notifications bell dropdown, animated number counters, framer-motion section transitions.
+- **Styling polish**: card-hover effects, gradient text, glass morphism, fade/slide/scale animations, improved scrollbar.
+- **Cross-module flow verified end-to-end**: Product → Lead → Order → Payment → Keuangan transaction (with HPP auto-calculation from cost_price).
+- **Known limitation**: z-ai-web-dev-sdk LLM API requires X-Token not available in sandbox. All AI features use intelligent fallback generators (template-based) that produce plausible, contextual content using brand/product/context data. Fallbacks are clearly structured and maintain the expected output shapes.
+
+Unresolved issues / risks:
+- LLM API token: The `/etc/.z-ai-config` file lacks a `token` field. All AI calls fall back to templates. If a valid token becomes available, the LLM calls will automatically work (try/catch falls through to real LLM on success).
+- Image generation: Uses SVG placeholder fallback (branded gradient + initials). Real image generation would work if API token is available.
+- No automated tests: All QA is manual via agent-browser. Consider adding Playwright tests for critical flows.
+
+Priority recommendations for next phase:
+- If LLM token becomes available: test all AI features with real LLM output (Riset synthesis, Konten caption/gambar/video/carousel, AI Chat, Projections).
+- Add product image upload (currently URL-only) — consider file upload to a storage service.
+- Add CSV export for transactions, leads, orders (currently mock toast).
+- Add real WhatsApp integration for Campaigns (currently simulated).
+- Add multi-currency support (currently IDR only).
+- Consider adding a "demo mode" indicator so users know when fallback content is used.

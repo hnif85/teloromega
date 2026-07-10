@@ -6,7 +6,10 @@ import { api } from "@/lib/api";
 import { Sidebar } from "@/components/nw/sidebar";
 import { Topbar } from "@/components/nw/topbar";
 import { OnboardingDialog } from "@/components/nw/onboarding";
+import { SectionTransition } from "@/components/nw/section-transition";
+import { CommandPalette } from "@/components/nw/command-palette";
 import { BerandaSection } from "@/sections/nw/beranda-section";
+import { ProdukSection } from "@/sections/nw/produk-section";
 import { RisetSection } from "@/sections/nw/riset-section";
 import { KontenSection } from "@/sections/nw/konten-section";
 import { TokoSection } from "@/sections/nw/toko-section";
@@ -66,13 +69,16 @@ export default function Home() {
         <div className="flex-1 flex flex-col min-w-0">
           <Topbar />
           <main className="flex-1 px-4 md:px-6 py-6 max-w-[1400px] w-full mx-auto">
-            {section === "beranda" && <BerandaSection />}
-            {section === "riset" && <RisetSection />}
-            {section === "konten" && <KontenSection />}
-            {section === "toko" && <TokoSection />}
-            {section === "keuangan" && <KeuanganSection />}
-            {section === "credit" && <CreditSection />}
-            {section === "pengaturan" && <PengaturanSection />}
+            <SectionTransition sectionKey={section}>
+              {section === "beranda" && <BerandaSection />}
+              {section === "produk" && <ProdukSection />}
+              {section === "riset" && <RisetSection />}
+              {section === "konten" && <KontenSection />}
+              {section === "toko" && <TokoSection />}
+              {section === "keuangan" && <KeuanganSection />}
+              {section === "credit" && <CreditSection />}
+              {section === "pengaturan" && <PengaturanSection />}
+            </SectionTransition>
           </main>
         </div>
       </div>
@@ -94,6 +100,7 @@ export default function Home() {
         </div>
       </footer>
       {onboardingOpen && <OnboardingDialog />}
+      <CommandPalette />
     </div>
   );
 }

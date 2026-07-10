@@ -182,9 +182,9 @@ Balas HANYA JSON dengan shape PERSIS ini:
 
 Berikan minimal 3 target_audience, 3-5 items di setiap array SWOT, 3-5 competitors, 5-8 hot keywords, 5-8 stable keywords, 3-4 content_recommendations.`;
 
-  let raw: Record<string, unknown> = {};
+  let raw: Record<string, any> = {};
   try {
-    raw = await llmJson<Record<string, unknown>>(
+    raw = await llmJson<Record<string, any>>(
       [
         { role: "system", content: "Kamu AI riset pasar UMKM Indonesia. Output JSON valid saja. Tidak boleh ada teks di luar JSON." },
         { role: "user", content: prompt },

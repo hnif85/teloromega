@@ -1,11 +1,12 @@
 "use client";
 
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAppStore, getActiveBrand } from "@/lib/store";
-import { NAV_ITEMS, SECONDARY_NAV, type SectionKey, CREDIT_PACKAGES } from "@/lib/constants";
+import { NAV_ITEMS, SECONDARY_NAV, type SectionKey, timeAgo } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { Bell, Menu, Zap, X, Plus } from "lucide-react";
+import { Bell, Menu, Zap, Plus, Command } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Sheet,
   SheetContent,
@@ -13,16 +14,115 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { useState } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { openCommandPalette } from "@/components/nw/command-palette";
+
+// Shape returned by /api/dashboard — only the fields the topbar needs.
+interface DashboardData {
+  lowStock: { id: string; name: string; stock: number | null; minStock: number | null }[];
+  pendingPaymentsCount: number;
+  recentResearch: { id: string; query: string; createdAt: string }[];
+  recommendations: { id: string; source: string; title: string; used: boolean }[];
+}
+
+interface NotificationItem {
+  id: string;
+  icon: string;
+  title: string;
+  time: string;
+  section: SectionKey;
+}
 
 export function Topbar() {
-  const { section, setSection, user, brands, activeBrandId, setActiveBrand, setOnboardingOpen, addBrand, setCredit } =
-    useAppStore();
+  const {
+    section,
+    setSection,
+    user,
+    brands,
+    activeBrandId,
+    setActiveBrand,
+    setOnboardingOpen,
+    setCredit,
+  } = useAppStore();
   const activeBrand = getActiveBrand(useAppStore.getState());
   const [open, setOpen] = useState(false);
+  // Track dismissed notification IDs for this session — "Tandai semua dibaca"
+  // pushes every current notification id into this set so the badge count drops
+  // to 0 until the next dashboard refetch surfaces new items.
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+
+  const { data } = useQuery<DashboardData>({
+    queryKey: ["dashboard", activeBrand?.id],
+    queryFn: () => api<DashboardData>(`/api/dashboard?brandId=${activeBrand?.id}`),
+    enabled: !!activeBrand?.id,
+    refetchInterval: 60_000,
+  });
+
+  // Derive notifications from dashboard data — no DB notification table, so we
+  // build them on the fly from low stock, pending payments, stale leads, and
+  // recently-completed research.
+  const notifications: NotificationItem[] = [];
+  if (data) {
+    for (const p of data.lowStock.slice(0, 5)) {
+      notifications.push({
+        id: `lowstock-${p.id}`,
+        icon: "📦",
+        title: `Stok ${p.name} menipis (sisa ${p.stock ?? 0} pcs)`,
+        time: "baru saja",
+        section: "toko",
+      });
+    }
+    if (data.pendingPaymentsCount > 0) {
+      notifications.push({
+        id: `pending-payments-${data.pendingPaymentsCount}`,
+        icon: "💳",
+        title: `${data.pendingPaymentsCount} pembayaran menunggu verifikasi`,
+        time: "baru saja",
+        section: "toko",
+      });
+    }
+    // Stale leads → surfaced via recommendations with source === "leads".
+    const staleLeadRec = data.recommendations.find(
+      (r) => r.source === "leads" && /3 hari/i.test(r.title)
+    );
+    if (staleLeadRec) {
+      notifications.push({
+        id: `stale-leads-${staleLeadRec.id}`,
+        icon: "👥",
+        title: staleLeadRec.title.replace(/^Follow-up\s*/i, "") + " belum di-follow-up",
+        time: "baru saja",
+        section: "toko",
+      });
+    }
+    // Most-recent research completed.
+    const lastResearch = data.recentResearch[0];
+    if (lastResearch) {
+      notifications.push({
+        id: `research-${lastResearch.id}`,
+        icon: "🔍",
+        title: `Riset "${lastResearch.query}" selesai`,
+        time: timeAgo(lastResearch.createdAt),
+        section: "riset",
+      });
+    }
+  }
+
+  const visibleNotifications = notifications.filter((n) => !dismissed.has(n.id));
+  const unread = visibleNotifications.length;
+
+  function dismissAll() {
+    setDismissed(new Set(notifications.map((n) => n.id)));
+  }
 
   async function quickTopup() {
     try {
@@ -32,8 +132,9 @@ export function Topbar() {
       });
       setCredit(r.balance);
       toast({ title: "Top-up berhasil", description: "+120 credit ditambahkan" });
-    } catch (e: any) {
-      toast({ title: "Gagal top-up", description: e.message, variant: "destructive" });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Gagal top-up";
+      toast({ title: "Gagal top-up", description: msg, variant: "destructive" });
     }
   }
 
@@ -127,15 +228,86 @@ export function Topbar() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Command palette trigger — ⌘K badge */}
           <Button
-            variant="ghost"
-            size="icon"
-            className="relative"
-            onClick={() => setSection("credit")}
+            variant="outline"
+            size="sm"
+            className="hidden sm:flex gap-1.5 border-border text-stone hover:text-ink hover:bg-cream-100 px-2 h-8"
+            onClick={() => openCommandPalette()}
+            aria-label="Buka command palette (Cmd+K)"
           >
-            <Bell className="size-4" />
-            <span className="absolute top-1.5 right-1.5 size-1.5 bg-danger rounded-full" />
+            <Command className="size-3.5" />
+            <kbd className="text-[10px] font-mono text-stone">⌘K</kbd>
           </Button>
+
+          {/* Notifications dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative"
+                aria-label="Notifikasi"
+              >
+                <Bell className="size-4" />
+                {unread > 0 && (
+                  <span className="absolute -top-0 -right-0 min-w-[16px] h-4 px-1 bg-danger text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80 p-0">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <DropdownMenuLabel className="p-0 text-sm font-bold text-ink">
+                  Notifikasi
+                </DropdownMenuLabel>
+                {unread > 0 && (
+                  <button
+                    type="button"
+                    onClick={dismissAll}
+                    className="text-[11px] text-teal hover:underline font-medium"
+                  >
+                    Tandai semua dibaca
+                  </button>
+                )}
+              </div>
+
+              <div className="max-h-96 overflow-y-auto">
+                {visibleNotifications.length === 0 ? (
+                  <div className="px-3 py-8 text-center text-sm text-stone">
+                    Tidak ada notifikasi baru 🎉
+                  </div>
+                ) : (
+                  visibleNotifications.map((n) => (
+                    <DropdownMenuItem
+                      key={n.id}
+                      onSelect={() => setSection(n.section)}
+                      className="items-start gap-2 py-2.5 px-3 cursor-pointer"
+                    >
+                      <span className="text-lg shrink-0 leading-none">{n.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-ink leading-snug">
+                          {n.title}
+                        </div>
+                        <div className="text-[10px] text-stone mt-0.5">{n.time}</div>
+                      </div>
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </div>
+
+              <DropdownMenuSeparator className="m-0" />
+              <div className="px-3 py-2">
+                <button
+                  type="button"
+                  className="w-full text-center text-[11px] text-teal hover:underline font-medium"
+                >
+                  Lihat semua
+                </button>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <Button
             size="sm"

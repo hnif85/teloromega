@@ -1,0 +1,947 @@
+     1→"use client";
+     2→
+     3→import { useEffect, useMemo, useState } from "react";
+     4→import { useAppStore, getActiveBrand, type Brand } from "@/lib/store";
+     5→import { api } from "@/lib/api";
+     6→import { useToast } from "@/hooks/use-toast";
+     7→import { PageHeader, SectionCard, EmptyState } from "@/components/nw/primitives";
+     8→import { Button } from "@/components/ui/button";
+     9→import { Badge } from "@/components/ui/badge";
+    10→import { Input } from "@/components/ui/input";
+    11→import { Textarea } from "@/components/ui/textarea";
+    12→import { Label } from "@/components/ui/label";
+    13→import { Switch } from "@/components/ui/switch";
+    14→import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+    15→import { Separator } from "@/components/ui/separator";
+    16→import { Skeleton } from "@/components/ui/skeleton";
+    17→import {
+    18→  Tabs,
+    19→  TabsContent,
+    20→  TabsList,
+    21→  TabsTrigger,
+    22→} from "@/components/ui/tabs";
+    23→import {
+    24→  Select,
+    25→  SelectContent,
+    26→  SelectItem,
+    27→  SelectTrigger,
+    28→  SelectValue,
+    29→} from "@/components/ui/select";
+    30→import {
+    31→  Dialog,
+    32→  DialogContent,
+    33→  DialogDescription,
+    34→  DialogFooter,
+    35→  DialogHeader,
+    36→  DialogTitle,
+    37→} from "@/components/ui/dialog";
+    38→import {
+    39→  Store,
+    40→  Plus,
+    41→  Edit,
+    42→  Trash2,
+    43→  User,
+    44→  Palette,
+    45→  Bell,
+    46→  Check,
+    47→  Crown,
+    48→  Save,
+    49→  Globe,
+    50→  Sparkles,
+    51→  Mail,
+    52→  Hash,
+    53→} from "lucide-react";
+    54→import {
+    55→  CATEGORIES,
+    56→  TONES,
+    57→  slugify,
+    58→  type ToneKey,
+    59→} from "@/lib/constants";
+    60→import { cn } from "@/lib/utils";
+    61→
+    62→// ─────────────────────────────────────────────────────────────────────────────
+    63→// Per-tone example snippets (static, for preview)
+    64→// ─────────────────────────────────────────────────────────────────────────────
+    65→const TONE_EXAMPLES: Record<ToneKey, string> = {
+    66→  santai_ramah:
+    67→    "Hai sobat! Lagi nyari cemilan buat nemenin ngopi sore? Cobain Keripik Pedas kami — renyah, lumer, dijamin nagih! Yuk mampir 🙌",
+    68→  profesional:
+    69→    "Keripik Singkong Premium kami diproduksi dari singkong pilihan dengan standar higienitas tinggi. Cocok untuk camilan keluarga maupun hidangan tamu.",
+    70→  energik:
+    71→    "SIAP PEDIAS MAK NYUSSS! 🔥 Keripik pedas level dewa, sekali makan langsung nangih! Stok terbatas, buruan checkout sekarang sebelum kehabisan!",
+    72→  hangat:
+    73→    "Tiap keripik yang kami goreng adalah cerita. Dari dapur kecil Ibu Ani, dibuat pelan dengan resep keluarga — semoga bisa menghangati harimu.",
+    74→  humoris:
+    75→    "Yakin skip keripik ini? Katanya temen kamu kemarin nagihin terus sampe ilang. 😂 Sekali cobain, dijamin gak bisa berhenti. Buruan checkout!",
+    76→  edukatif:
+    77→    "Tahukah kamu? Singkong tinggi serat dan rendah lemak. Keripik kami diolah dengan teknik goreng terkontrol untuk menjaga nutrisi — camilan enak tanpa rasa bersalah.",
+    78→};
+    79→
+    80→// ─────────────────────────────────────────────────────────────────────────────
+    81→// Tab 1: Brand management
+    82→// ─────────────────────────────────────────────────────────────────────────────
+    83→function BrandTab() {
+    84→  const { brands, activeBrandId, setActiveBrand, addBrand, updateBrand } = useAppStore();
+    85→  const { toast } = useToast();
+    86→  const [addOpen, setAddOpen] = useState(false);
+    87→  const [editingId, setEditingId] = useState<string | null>(activeBrandId);
+    88→
+    89→  // Edit form state (for active brand)
+    90→  const [eName, setEName] = useState("");
+    91→  const [eCategory, setECategory] = useState<string>(CATEGORIES[0]);
+    92→  const [eDesc, setEDesc] = useState("");
+    93→  const [eLogo, setELogo] = useState("");
+    94→  const [saving, setSaving] = useState(false);
+    95→
+    96→  // Add form state
+    97→  const [aName, setAName] = useState("");
+    98→  const [aCategory, setACategory] = useState<string>(CATEGORIES[0]);
+    99→  const [aDesc, setADesc] = useState("");
+   100→  const [aLogo, setALogo] = useState("");
+   101→  const [aTone, setATone] = useState<ToneKey>("santai_ramah");
+   102→  const [creating, setCreating] = useState(false);
+   103→
+   104→  // Sync edit form whenever active brand changes
+   105→  useEffect(() => {
+   106→    const b = brands.find((x) => x.id === activeBrandId);
+   107→    if (b) {
+   108→      setEditingId(b.id);
+   109→      setEName(b.name);
+   110→      setECategory(b.category);
+   111→      setEDesc(b.description ?? "");
+   112→      setELogo(b.logoUrl ?? "");
+   113→    }
+   114→  }, [activeBrandId, brands]);
+   115→
+   116→  async function saveEdit() {
+   117→    if (!editingId) return;
+   118→    if (!eName.trim()) {
+   119→      toast({ title: "Nama brand wajib diisi", variant: "destructive" });
+   120→      return;
+   121→    }
+   122→    setSaving(true);
+   123→    try {
+   124→      const r = await api<{ brand: Brand }>(`/api/brands/${editingId}`, {
+   125→        method: "PATCH",
+   126→        json: {
+   127→          name: eName.trim(),
+   128→          category: eCategory,
+   129→          description: eDesc.trim(),
+   130→          logoUrl: eLogo.trim(),
+   131→        },
+   132→      });
+   133→      updateBrand(r.brand);
+   134→      toast({ title: "Brand diperbarui", description: r.brand.name });
+   135→    } catch (e) {
+   136→      const msg = e instanceof Error ? e.message : "Gagal menyimpan";
+   137→      toast({ title: "Gagal menyimpan", description: msg, variant: "destructive" });
+   138→    } finally {
+   139→      setSaving(false);
+   140→    }
+   141→  }
+   142→
+   143→  async function createBrand() {
+   144→    if (!aName.trim()) {
+   145→      toast({ title: "Nama brand wajib diisi", variant: "destructive" });
+   146→      return;
+   147→    }
+   148→    setCreating(true);
+   149→    try {
+   150→      const r = await api<{ brand: Brand }>("/api/brands", {
+   151→        method: "POST",
+   152→        json: {
+   153→          name: aName.trim(),
+   154→          category: aCategory,
+   155→          description: aDesc.trim(),
+   156→          logoUrl: aLogo.trim(),
+   157→          toneOfVoice: aTone,
+   158→        },
+   159→      });
+   160→      addBrand(r.brand);
+   161→      toast({ title: "Brand dibuat 🎉", description: r.brand.name });
+   162→      setAddOpen(false);
+   163→      setAName("");
+   164→      setADesc("");
+   165→      setALogo("");
+   166→      setACategory(CATEGORIES[0]);
+   167→      setATone("santai_ramah");
+   168→    } catch (e) {
+   169→      const msg = e instanceof Error ? e.message : "Gagal membuat brand";
+   170→      toast({ title: "Gagal membuat brand", description: msg, variant: "destructive" });
+   171→    } finally {
+   172→      setCreating(false);
+   173→    }
+   174→  }
+   175→
+   176→  const editingBrand = brands.find((b) => b.id === editingId);
+   177→  const slugPreview = eName.trim() ? slugify(eName) : editingBrand?.slug ?? "";
+   178→
+   179→  return (
+   180→    <div className="space-y-4">
+   181→      <SectionCard
+   182→        title="Daftar Brand"
+   183→        desc="Pilih brand aktif atau tambah brand baru"
+   184→        right={
+   185→          <Button
+   186→            size="sm"
+   187→            className="bg-teal hover:bg-teal-600 text-white gap-1.5"
+   188→            onClick={() => setAddOpen(true)}
+   189→          >
+   190→            <Plus className="size-3.5" /> Tambah Brand
+   191→          </Button>
+   192→        }
+   193→        bodyClassName="p-0"
+   194→      >
+   195→        {brands.length === 0 ? (
+   196→          <div className="p-8">
+   197→            <EmptyState
+   198→              icon={<Store className="size-6 text-stone" />}
+   199→              title="Belum ada brand"
+   200→              desc="Buat brand pertama kamu untuk mulai menggunakan The Next Whiz."
+   201→              action={
+   202→                <Button className="bg-teal hover:bg-teal-600" onClick={() => setAddOpen(true)}>
+   203→                  <Plus className="size-4 mr-1" /> Buat Brand Pertama
+   204→                </Button>
+   205→              }
+   206→            />
+   207→          </div>
+   208→        ) : (
+   209→          <div className="divide-y divide-border">
+   210→            {brands.map((b) => {
+   211→              const active = b.id === activeBrandId;
+   212→              return (
+   213→                <button
+   214→                  key={b.id}
+   215→                  onClick={() => setActiveBrand(b.id)}
+   216→                  className={cn(
+   217→                    "w-full px-5 py-4 flex items-center gap-3 text-left transition-colors",
+   218→                    active ? "bg-teal-100/40" : "hover:bg-cream-100/50"
+   219→                  )}
+   220→                >
+   221→                  <div
+   222→                    className={cn(
+   223→                      "size-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0",
+   224→                      active
+   225→                        ? "bg-teal text-white"
+   226→                        : "bg-cream-200 text-ink-700"
+   227→                    )}
+   228→                  >
+   229→                    {b.name[0]?.toUpperCase()}
+   230→                  </div>
+   231→                  <div className="flex-1 min-w-0">
+   232→                    <div className="flex items-center gap-2">
+   233→                      <span className="font-bold text-ink truncate">{b.name}</span>
+   234→                      {active && (
+   235→                        <Badge className="bg-teal text-white border-teal gap-1 text-[10px]">
+   236→                          <Check className="size-2.5" /> Aktif
+   237→                        </Badge>
+   238→                      )}
+   239→                    </div>
+   240→                    <div className="text-xs text-stone mt-0.5 flex items-center gap-2">
+   241→                      <Badge variant="outline" className="text-[10px] py-0 h-4">
+   242→                        {b.category}
+   243→                      </Badge>
+   244→                      <span className="truncate font-mono">tokoku.nextwhiz.id/{b.slug}</span>
+   245→                    </div>
+   246→                  </div>
+   247→                  {active && (
+   248→                    <Edit
+   249→                      className="size-4 text-teal shrink-0"
+   250→                      onClick={(e) => {
+   251→                        e.stopPropagation();
+   252→                        document
+   253→                          .getElementById("edit-brand")
+   254→                          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+   255→                      }}
+   256→                    />
+   257→                  )}
+   258→                </button>
+   259→              );
+   260→            })}
+   261→          </div>
+   262→        )}
+   263→      </SectionCard>
+   264→
+   265→      {/* Edit active brand */}
+   266→      {editingBrand && (
+   267→        <div id="edit-brand" className="scroll-mt-4">
+   268→          <SectionCard
+   269→            title={`Edit Brand — ${editingBrand.name}`}
+   270→            desc="Perubahan tersimpan ke brand aktif"
+   271→            right={
+   272→              <Badge variant="outline" className="text-[10px] gap-1 border-teal/30 text-teal">
+   273→                <Crown className="size-3" /> Brand Aktif
+   274→              </Badge>
+   275→            }
+   276→          >
+   277→            <div className="space-y-4">
+   278→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   279→                <div>
+   280→                  <Label className="mb-1.5">Nama Brand</Label>
+   281→                  <Input
+   282→                    value={eName}
+   283→                    onChange={(e) => setEName(e.target.value)}
+   284→                    className="bg-cream-100"
+   285→                    placeholder="Keripik Mbak Ani"
+   286→                  />
+   287→                </div>
+   288→                <div>
+   289→                  <Label className="mb-1.5">Kategori</Label>
+   290→                  <Select value={eCategory} onValueChange={setECategory}>
+   291→                    <SelectTrigger className="w-full bg-cream-100">
+   292→                      <SelectValue />
+   293→                    </SelectTrigger>
+   294→                    <SelectContent>
+   295→                      {CATEGORIES.map((c) => (
+   296→                        <SelectItem key={c} value={c}>
+   297→                          {c}
+   298→                        </SelectItem>
+   299→                      ))}
+   300→                    </SelectContent>
+   301→                  </Select>
+   302→                </div>
+   303→              </div>
+   304→
+   305→              <div>
+   306→                <Label className="mb-1.5">Deskripsi singkat</Label>
+   307→                <Textarea
+   308→                  value={eDesc}
+   309→                  onChange={(e) => setEDesc(e.target.value)}
+   310→                  rows={2}
+   311→                  placeholder="Keripik pedas rumahan dengan resep keluarga..."
+   312→                  className="bg-cream-100 resize-none"
+   313→                />
+   314→              </div>
+   315→
+   316→              <div>
+   317→                <Label className="mb-1.5">URL Logo (opsional)</Label>
+   318→                <Input
+   319→                  value={eLogo}
+   320→                  onChange={(e) => setELogo(e.target.value)}
+   321→                  className="bg-cream-100"
+   322→                  placeholder="https://…/logo.png"
+   323→                />
+   324→              </div>
+   325→
+   326→              {/* Slug preview */}
+   327→              <div className="rounded-lg bg-cream-100 border border-border px-3 py-2.5 flex items-center gap-2">
+   328→                <Globe className="size-4 text-teal shrink-0" />
+   329→                <div className="flex-1 min-w-0">
+   330→                  <div className="text-[10px] uppercase tracking-wider text-stone font-bold">
+   331→                    URL Toko
+   332→                  </div>
+   333→                  <div className="text-sm font-mono text-ink truncate">
+   334→                    tokoku.nextwhiz.id/<span className="text-teal font-bold">{slugPreview || "—"}</span>
+   335→                  </div>
+   336→                </div>
+   337→              </div>
+   338→
+   339→              <div className="flex justify-end gap-2 pt-1">
+   340→                <Button
+   341→                  variant="outline"
+   342→                  onClick={() => {
+   343→                    const b = brands.find((x) => x.id === editingId);
+   344→                    if (b) {
+   345→                      setEName(b.name);
+   346→                      setECategory(b.category);
+   347→                      setEDesc(b.description ?? "");
+   348→                      setELogo(b.logoUrl ?? "");
+   349→                    }
+   350→                  }}
+   351→                >
+   352→                  Reset
+   353→                </Button>
+   354→                <Button
+   355→                  onClick={saveEdit}
+   356→                  disabled={saving || !eName.trim()}
+   357→                  className="bg-teal hover:bg-teal-600 text-white gap-1.5"
+   358→                >
+   359→                  {saving ? (
+   360→                    <span className="size-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+   361→                  ) : (
+   362→                    <Save className="size-3.5" />
+   363→                  )}
+   364→                  {saving ? "Menyimpan…" : "Simpan Perubahan"}
+   365→                </Button>
+   366→              </div>
+   367→
+   368→              <div className="rounded-lg bg-rose-50/60 border border-rose-200 px-3 py-2 flex items-center gap-2 text-xs text-rose-700">
+   369→                <Trash2 className="size-3.5 shrink-0" />
+   370→                <span>
+   371→                  Hapus brand belum tersedia (data terkait akan ikut terhapus). Fitur ini akan
+   372→                  hadir di versi berikutnya.
+   373→                </span>
+   374→              </div>
+   375→            </div>
+   376→          </SectionCard>
+   377→        </div>
+   378→      )}
+   379→
+   380→      {/* Add brand dialog */}
+   381→      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+   382→        <DialogContent className="max-w-lg">
+   383→          <DialogHeader>
+   384→            <DialogTitle className="flex items-center gap-2">
+   385→              <Store className="size-5 text-teal" /> Tambah Brand Baru
+   386→            </DialogTitle>
+   387→            <DialogDescription>
+   388→              Brand baru akan otomatis jadi brand aktif. Tone of voice default bisa diganti
+   389→              nanti di tab Tone of Voice.
+   390→            </DialogDescription>
+   391→          </DialogHeader>
+   392→
+   393→          <div className="space-y-4">
+   394→            <div>
+   395→              <Label className="mb-1.5">Nama Brand *</Label>
+   396→              <Input
+   397→                value={aName}
+   398→                onChange={(e) => setAName(e.target.value)}
+   399→                placeholder="Keripik Mbak Ani"
+   400→                className="bg-cream-100"
+   401→              />
+   402→              {aName.trim() && (
+   403→                <div className="text-[11px] text-stone mt-1.5 flex items-center gap-1">
+   404→                  <Globe className="size-3 text-teal" />
+   405→                  URL: <span className="font-mono text-teal">tokoku.nextwhiz.id/{slugify(aName)}</span>
+   406→                </div>
+   407→              )}
+   408→            </div>
+   409→            <div>
+   410→              <Label className="mb-1.5">Kategori *</Label>
+   411→              <Select value={aCategory} onValueChange={setACategory}>
+   412→                <SelectTrigger className="w-full bg-cream-100">
+   413→                  <SelectValue />
+   414→                </SelectTrigger>
+   415→                <SelectContent>
+   416→                  {CATEGORIES.map((c) => (
+   417→                    <SelectItem key={c} value={c}>
+   418→                      {c}
+   419→                    </SelectItem>
+   420→                  ))}
+   421→                </SelectContent>
+   422→              </Select>
+   423→            </div>
+   424→            <div>
+   425→              <Label className="mb-1.5">Deskripsi singkat (opsional)</Label>
+   426→              <Textarea
+   427→                value={aDesc}
+   428→                onChange={(e) => setADesc(e.target.value)}
+   429→                rows={2}
+   430→                placeholder="Keripik pedas rumahan dengan resep keluarga..."
+   431→                className="bg-cream-100 resize-none"
+   432→              />
+   433→            </div>
+   434→            <div>
+   435→              <Label className="mb-1.5">URL Logo (opsional)</Label>
+   436→              <Input
+   437→                value={aLogo}
+   438→                onChange={(e) => setALogo(e.target.value)}
+   439→                placeholder="https://…/logo.png"
+   440→                className="bg-cream-100"
+   441→              />
+   442→            </div>
+   443→            <div>
+   444→              <Label className="mb-1.5">Tone of Voice default</Label>
+   445→              <Select value={aTone} onValueChange={(v) => setATone(v as ToneKey)}>
+   446→                <SelectTrigger className="w-full bg-cream-100">
+   447→                  <SelectValue />
+   448→                </SelectTrigger>
+   449→                <SelectContent>
+   450→                  {TONES.map((t) => (
+   451→                    <SelectItem key={t.key} value={t.key}>
+   452→                      {t.icon} {t.label}
+   453→                    </SelectItem>
+   454→                  ))}
+   455→                </SelectContent>
+   456→              </Select>
+   457→            </div>
+   458→          </div>
+   459→
+   460→          <DialogFooter>
+   461→            <Button variant="ghost" onClick={() => setAddOpen(false)}>
+   462→              Batal
+   463→            </Button>
+   464→            <Button
+   465→              onClick={createBrand}
+   466→              disabled={creating || !aName.trim()}
+   467→              className="bg-teal hover:bg-teal-600 text-white gap-1.5"
+   468→            >
+   469→              {creating ? (
+   470→                <span className="size-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+   471→              ) : (
+   472→                <Plus className="size-3.5" />
+   473→              )}
+   474→              {creating ? "Membuat…" : "Buat Brand"}
+   475→            </Button>
+   476→          </DialogFooter>
+   477→        </DialogContent>
+   478→      </Dialog>
+   479→    </div>
+   480→  );
+   481→}
+   482→
+   483→// ─────────────────────────────────────────────────────────────────────────────
+   484→// Tab 2: Profil
+   485→// ─────────────────────────────────────────────────────────────────────────────
+   486→function ProfilTab() {
+   487→  const { user } = useAppStore();
+   488→  const { toast } = useToast();
+   489→  const [name, setName] = useState(user?.name ?? "");
+   490→  const [saving, setSaving] = useState(false);
+   491→
+   492→  useEffect(() => {
+   493→    if (user) setName(user.name);
+   494→  }, [user]);
+   495→
+   496→  const initials = useMemo(() => {
+   497→    if (!user?.name) return "?";
+   498→    return user.name
+   499→      .split(" ")
+   500→      .slice(0, 2)
+   501→      .map((s) => s[0]?.toUpperCase())
+   502→      .join("");
+   503→  }, [user?.name]);
+   504→
+   505→  async function saveName() {
+   506→    if (!name.trim()) {
+   507→      toast({ title: "Nama tidak boleh kosong", variant: "destructive" });
+   508→      return;
+   509→    }
+   510→    if (name.trim() === user?.name) {
+   511→      toast({ title: "Tidak ada perubahan" });
+   512→      return;
+   513→    }
+   514→    setSaving(true);
+   515→    try {
+   516→      const r = await api<{ user: { id: string; name: string; email: string; creditBalance: number; toneOfVoice: string } }>(
+   517→        "/api/user",
+   518→        { method: "PATCH", json: { name: name.trim() } }
+   519→      );
+   520→      // Update user in store directly (no dedicated action — use setState)
+   521→      useAppStore.setState((st) =>
+   522→        st.user ? { user: { ...st.user, name: r.user.name } } : {}
+   523→      );
+   524→      toast({ title: "Profil diperbarui", description: r.user.name });
+   525→    } catch (e) {
+   526→      const msg = e instanceof Error ? e.message : "Gagal menyimpan";
+   527→      toast({ title: "Gagal menyimpan", description: msg, variant: "destructive" });
+   528→    } finally {
+   529→      setSaving(false);
+   530→    }
+   531→  }
+   532→
+   533→  if (!user) {
+   534→    return (
+   535→      <SectionCard title="Profil">
+   536→        <Skeleton className="h-32 w-full" />
+   537→      </SectionCard>
+   538→    );
+   539→  }
+   540→
+   541→  return (
+   542→    <div className="space-y-4">
+   543→      <SectionCard title="Identitas" desc="Info dasar akun kamu">
+   544→        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+   545→          <Avatar className="size-16 rounded-2xl">
+   546→            <AvatarFallback className="bg-teal text-white text-xl font-bold rounded-2xl">
+   547→              {initials}
+   548→            </AvatarFallback>
+   549→          </Avatar>
+   550→          <div className="flex-1">
+   551→            <div className="text-lg font-extrabold text-ink">{user.name}</div>
+   552→            <div className="text-sm text-stone flex items-center gap-1.5 mt-0.5">
+   553→              <Mail className="size-3.5" /> {user.email}
+   554→            </div>
+   555→            <div className="flex flex-wrap gap-2 mt-2">
+   556→              <Badge variant="outline" className="text-[10px] gap-1 border-teal/30 text-teal">
+   557→                <Sparkles className="size-3" /> {user.creditBalance} credit
+   558→              </Badge>
+   559→              <Badge variant="outline" className="text-[10px] gap-1">
+   560→                <Palette className="size-3" /> Default tone: {user.toneOfVoice.replace("_", " ")}
+   561→              </Badge>
+   562→            </div>
+   563→          </div>
+   564→        </div>
+   565→      </SectionCard>
+   566→
+   567→      <SectionCard
+   568→        title="Edit Nama"
+   569→        desc="Nama ini dipakai untuk sapaan & profil. Email tidak bisa diubah (terhubung ke mwxmarket.ai SSO)."
+   570→      >
+   571→        <div className="space-y-3">
+   572→          <div>
+   573→            <Label className="mb-1.5">Nama Lengkap</Label>
+   574→            <Input
+   575→              value={name}
+   576→              onChange={(e) => setName(e.target.value)}
+   577→              className="bg-cream-100"
+   578→              placeholder="Nama kamu"
+   579→              maxLength={100}
+   580→            />
+   581→            <div className="text-[11px] text-stone mt-1">
+   582→              {name.trim().length}/100 karakter
+   583→            </div>
+   584→          </div>
+   585→          <div>
+   586→            <Label className="mb-1.5">Email</Label>
+   587→            <Input
+   588→              value={user.email}
+   589→              disabled
+   590→              className="bg-cream-100/60 text-stone"
+   591→            />
+   592→            <div className="text-[11px] text-stone-300 mt-1 flex items-center gap-1">
+   593→              <Mail className="size-3" /> Email dikelola via mwxmarket.ai
+   594→            </div>
+   595→          </div>
+   596→          <div className="flex justify-end pt-1">
+   597→            <Button
+   598→              onClick={saveName}
+   599→              disabled={saving || !name.trim() || name.trim() === user.name}
+   600→              className="bg-teal hover:bg-teal-600 text-white gap-1.5"
+   601→            >
+   602→              {saving ? (
+   603→                <span className="size-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+   604→              ) : (
+   605→                <Save className="size-3.5" />
+   606→              )}
+   607→              {saving ? "Menyimpan…" : "Simpan Nama"}
+   608→            </Button>
+   609→          </div>
+   610→        </div>
+   611→      </SectionCard>
+   612→
+   613→      <div className="rounded-2xl border border-dashed border-border bg-cream-100/40 p-4 flex items-start gap-3">
+   614→        <div className="size-9 rounded-lg bg-cream-200 text-stone flex items-center justify-center shrink-0">
+   615→          <User className="size-4" />
+   616→        </div>
+   617→        <div>
+   618→          <div className="text-sm font-semibold text-ink">Coming soon</div>
+   619→          <p className="text-xs text-stone mt-0.5">
+   620→            Upload foto profil, ganti password, dan 2FA akan hadir di update berikutnya.
+   621→          </p>
+   622→        </div>
+   623→      </div>
+   624→    </div>
+   625→  );
+   626→}
+   627→
+   628→// ─────────────────────────────────────────────────────────────────────────────
+   629→// Tab 3: Tone of Voice
+   630→// ─────────────────────────────────────────────────────────────────────────────
+   631→function ToneTab() {
+   632→  const { brands, activeBrandId, updateBrand } = useAppStore();
+   633→  const { toast } = useToast();
+   634→  const [saving, setSaving] = useState<ToneKey | null>(null);
+   635→
+   636→  const activeBrand = brands.find((b) => b.id === activeBrandId) ?? brands[0] ?? null;
+   637→  const currentTone = activeBrand?.toneOfVoice as ToneKey | undefined;
+   638→
+   639→  async function selectTone(t: ToneKey) {
+   640→    if (!activeBrand || t === currentTone) return;
+   641→    setSaving(t);
+   642→    try {
+   643→      const r = await api<{ brand: Brand }>(`/api/brands/${activeBrand.id}`, {
+   644→        method: "PATCH",
+   645→        json: { toneOfVoice: t },
+   646→      });
+   647→      updateBrand(r.brand);
+   648→      toast({
+   649→        title: "Tone of Voice diperbarui",
+   650→        description: `${TONES.find((x) => x.key === t)?.label} aktif untuk ${r.brand.name}`,
+   651→      });
+   652→    } catch (e) {
+   653→      const msg = e instanceof Error ? e.message : "Gagal menyimpan tone";
+   654→      toast({ title: "Gagal menyimpan", description: msg, variant: "destructive" });
+   655→    } finally {
+   656→      setSaving(null);
+   657→    }
+   658→  }
+   659→
+   660→  if (!activeBrand) {
+   661→    return (
+   662→      <SectionCard title="Tone of Voice">
+   663→        <EmptyState
+   664→          icon={<Palette className="size-6 text-stone" />}
+   665→          title="Belum ada brand aktif"
+   666→          desc="Buat brand dulu di tab Brand untuk mengatur tone of voice."
+   667→        />
+   668→      </SectionCard>
+   669→    );
+   670→  }
+   671→
+   672→  return (
+   673→    <div className="space-y-4">
+   674→      <SectionCard
+   675→        title="Pilih Tone of Voice"
+   676→        desc={`Dipakai saat generate konten untuk ${activeBrand.name}`}
+   677→        right={
+   678→          <Badge variant="outline" className="text-[10px] gap-1 border-teal/30 text-teal">
+   679→            <Hash className="size-3" /> {activeBrand.slug}
+   680→          </Badge>
+   681→        }
+   682→      >
+   683→        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+   684→          {TONES.map((t) => {
+   685→            const active = t.key === currentTone;
+   686→            const isSaving = saving === t.key;
+   687→            return (
+   688→              <button
+   689→                key={t.key}
+   690→                onClick={() => selectTone(t.key)}
+   691→                disabled={!!saving}
+   692→                className={cn(
+   693→                  "relative text-left rounded-2xl border p-4 transition-all",
+   694→                  active
+   695→                    ? "border-teal bg-gradient-to-b from-teal-100/60 to-card shadow-sm"
+   696→                    : "border-border bg-card hover:border-teal/30"
+   697→                )}
+   698→              >
+   699→                {active && (
+   700→                  <div className="absolute top-3 right-3 size-5 rounded-full bg-teal text-white flex items-center justify-center">
+   701→                    <Check className="size-3" />
+   702→                  </div>
+   703→                )}
+   704→                <div className="text-3xl mb-2">{t.icon}</div>
+   705→                <div className="font-bold text-ink text-sm">{t.label}</div>
+   706→                <div className="text-xs text-stone mt-0.5 leading-snug">{t.desc}</div>
+   707→
+   708→                {/* Example snippet */}
+   709→                <div className="mt-3 rounded-lg bg-cream-100/80 border border-border/60 p-2.5">
+   710→                  <div className="text-[10px] uppercase tracking-wider text-stone font-bold mb-1 flex items-center gap-1">
+   711→                    <Sparkles className="size-2.5 text-teal" /> Contoh caption
+   712→                  </div>
+   713→                  <p className="text-[11px] text-ink-700 leading-snug line-clamp-3 italic">
+   714→                    “{TONE_EXAMPLES[t.key]}”
+   715→                  </p>
+   716→                </div>
+   717→
+   718→                {isSaving && (
+   719→                  <div className="absolute inset-0 rounded-2xl bg-card/60 backdrop-blur-sm flex items-center justify-center">
+   720→                    <span className="size-5 border-2 border-teal/40 border-t-teal rounded-full animate-spin" />
+   721→                  </div>
+   722→                )}
+   723→              </button>
+   724→            );
+   725→          })}
+   726→        </div>
+   727→      </SectionCard>
+   728→
+   729→      <div className="rounded-2xl border border-border bg-cream-100/40 p-4 flex items-start gap-3">
+   730→        <div className="size-9 rounded-lg bg-teal-100 text-teal flex items-center justify-center shrink-0">
+   731→          <Palette className="size-4" />
+   732→        </div>
+   733→        <div>
+   734→          <div className="text-sm font-semibold text-ink">Tone dipakai saat generate konten</div>
+   735→          <p className="text-xs text-stone mt-0.5 leading-relaxed">
+   736→            Setiap brand punya tone-nya sendiri. Saat kamu generate caption, video script,
+   737→            atau carousel di modul Konten, AI akan ikut tone yang kamu pilih di sini.
+   738→          </p>
+   739→        </div>
+   740→      </div>
+   741→    </div>
+   742→  );
+   743→}
+   744→
+   745→// ─────────────────────────────────────────────────────────────────────────────
+   746→// Tab 4: Notifikasi (mock, persisted to localStorage)
+   747→// ─────────────────────────────────────────────────────────────────────────────
+   748→interface NotifItem {
+   749→  key: string;
+   750→  label: string;
+   751→  desc: string;
+   752→  icon: "wa" | "mail" | "calendar" | "box" | "stats";
+   753→  defaultOn: boolean;
+   754→}
+   755→
+   756→const NOTIF_ITEMS: NotifItem[] = [
+   757→  {
+   758→    key: "wa_lead",
+   759→    label: "Notif WA lead baru",
+   760→    desc: "Dapat notifikasi WhatsApp setiap ada lead baru masuk ke inbox.",
+   761→    icon: "wa",
+   762→    defaultOn: true,
+   763→  },
+   764→  {
+   765→    key: "email_order",
+   766→    label: "Notif email order baru",
+   767→    desc: "Email ringkasan setiap ada order masuk + detail item.",
+   768→    icon: "mail",
+   769→    defaultOn: true,
+   770→  },
+   771→  {
+   772→    key: "piutang",
+   773→    label: "Reminder piutang jatuh tempo",
+   774→    desc: "Pengingat 1 hari sebelum piutang jatuh tempo.",
+   775→    icon: "calendar",
+   776→    defaultOn: true,
+   777→  },
+   778→  {
+   779→    key: "stok",
+   780→    label: "Alert stok menipis",
+   781→    desc: "Notif saat stok produk di bawah minimum stok.",
+   782→    icon: "box",
+   783→    defaultOn: true,
+   784→  },
+   785→  {
+   786→    key: "weekly",
+   787→    label: "Weekly summary email",
+   788→    desc: "Ringkasan performa mingguan tiap Senin pagi.",
+   789→    icon: "stats",
+   790→    defaultOn: false,
+   791→  },
+   792→];
+   793→
+   794→const NOTIF_LS_KEY = "nw_notif_settings_v1";
+   795→
+   796→function NotifIcon({ kind }: { kind: NotifItem["icon"] }) {
+   797→  const map = {
+   798→    wa: { e: "💬", cls: "bg-emerald-100 text-emerald-700" },
+   799→    mail: { e: "✉️", cls: "bg-sky-100 text-sky-700" },
+   800→    calendar: { e: "📅", cls: "bg-amber-100 text-amber-700" },
+   801→    box: { e: "📦", cls: "bg-orange-100 text-orange-700" },
+   802→    stats: { e: "📊", cls: "bg-violet-100 text-violet-700" },
+   803→  } as const;
+   804→  const m = map[kind];
+   805→  return (
+   806→    <div className={cn("size-9 rounded-lg flex items-center justify-center text-base shrink-0", m.cls)}>
+   807→      {m.e}
+   808→    </div>
+   809→  );
+   810→}
+   811→
+   812→function NotifikasiTab() {
+   813→  const [settings, setSettings] = useState<Record<string, boolean>>({});
+   814→  const [hydrated, setHydrated] = useState(false);
+   815→
+   816→  useEffect(() => {
+   817→    // Hydrate notif settings from localStorage on client mount.
+   818→    // This is a one-shot external store sync — not a cascading render.
+   819→    /* eslint-disable react-hooks/set-state-in-effect */
+   820→    try {
+   821→      const raw = localStorage.getItem(NOTIF_LS_KEY);
+   822→      if (raw) {
+   823→        setSettings(JSON.parse(raw));
+   824→      } else {
+   825→        // defaults
+   826→        const init: Record<string, boolean> = {};
+   827→        for (const it of NOTIF_ITEMS) init[it.key] = it.defaultOn;
+   828→        setSettings(init);
+   829→      }
+   830→    } catch {
+   831→      /* ignore */
+   832→    }
+   833→    setHydrated(true);
+   834→    /* eslint-enable react-hooks/set-state-in-effect */
+   835→  }, []);
+   836→
+   837→  function toggle(key: string, on: boolean) {
+   838→    const next = { ...settings, [key]: on };
+   839→    setSettings(next);
+   840→    try {
+   841→      localStorage.setItem(NOTIF_LS_KEY, JSON.stringify(next));
+   842→    } catch {
+   843→      /* ignore */
+   844→    }
+   845→  }
+   846→
+   847→  const activeCount = NOTIF_ITEMS.filter((it) => settings[it.key]).length;
+   848→
+   849→  return (
+   850→    <div className="space-y-4">
+   851→      <SectionCard
+   852→        title="Preferensi Notifikasi"
+   853→        desc="Atur channel & jenis notifikasi yang mau kamu terima"
+   854→        right={
+   855→          <Badge variant="outline" className="text-[10px] gap-1">
+   856→            <Bell className="size-3" /> {hydrated ? activeCount : "…"} aktif
+   857→          </Badge>
+   858→        }
+   859→        bodyClassName="p-0"
+   860→      >
+   861→        <div className="divide-y divide-border">
+   862→          {NOTIF_ITEMS.map((it) => {
+   863→            const on = hydrated ? !!settings[it.key] : it.defaultOn;
+   864→            return (
+   865→              <div
+   866→                key={it.key}
+   867→                className="px-5 py-4 flex items-start gap-3 hover:bg-cream-100/40 transition-colors"
+   868→              >
+   869→                <NotifIcon kind={it.icon} />
+   870→                <div className="flex-1 min-w-0">
+   871→                  <div className="font-semibold text-ink text-sm">{it.label}</div>
+   872→                  <div className="text-xs text-stone mt-0.5 leading-snug">{it.desc}</div>
+   873→                </div>
+   874→                <div className="shrink-0 pt-1">
+   875→                  <Switch checked={on} onCheckedChange={(v) => toggle(it.key, v)} />
+   876→                </div>
+   877→              </div>
+   878→            );
+   879→          })}
+   880→        </div>
+   881→      </SectionCard>
+   882→
+   883→      <div className="rounded-2xl border border-dashed border-border bg-cream-100/40 p-4 flex items-start gap-3">
+   884→        <div className="size-9 rounded-lg bg-cream-200 text-stone flex items-center justify-center shrink-0">
+   885→          <Bell className="size-4" />
+   886→        </div>
+   887→        <div>
+   888→          <div className="text-sm font-semibold text-ink">Pengaturan disimpan lokal</div>
+   889→          <p className="text-xs text-stone mt-0.5">
+   890→            Preferensi ini disimpan di browser kamu (localStorage). Integrasi WA & email
+   891→            sebenarnya akan hadir bersama modul Toko v2.
+   892→          </p>
+   893→        </div>
+   894→      </div>
+   895→    </div>
+   896→  );
+   897→}
+   898→
+   899→// ─────────────────────────────────────────────────────────────────────────────
+   900→// Main section
+   901→// ─────────────────────────────────────────────────────────────────────────────
+   902→export function PengaturanSection() {
+   903→  const activeBrand = getActiveBrand(useAppStore.getState());
+   904→
+   905→  return (
+   906→    <div className="space-y-6">
+   907→      <PageHeader
+   908→        title="Pengaturan"
+   909→        subtitle={`Atur brand, profil, tone of voice & notifikasi${activeBrand ? ` · ${activeBrand.name}` : ""}`}
+   910→        icon="⚙️"
+   911→      />
+   912→
+   913→      <Tabs defaultValue="brand" className="w-full">
+   914→        <TabsList className="bg-cream-200/60 h-auto p-1 flex-wrap">
+   915→          <TabsTrigger value="brand" className="gap-1.5">
+   916→            <Store className="size-3.5" /> Brand
+   917→          </TabsTrigger>
+   918→          <TabsTrigger value="profil" className="gap-1.5">
+   919→            <User className="size-3.5" /> Profil
+   920→          </TabsTrigger>
+   921→          <TabsTrigger value="tone" className="gap-1.5">
+   922→            <Palette className="size-3.5" /> Tone of Voice
+   923→          </TabsTrigger>
+   924→          <TabsTrigger value="notif" className="gap-1.5">
+   925→            <Bell className="size-3.5" /> Notifikasi
+   926→          </TabsTrigger>
+   927→        </TabsList>
+   928→
+   929→        <TabsContent value="brand" className="mt-4">
+   930→          <BrandTab />
+   931→        </TabsContent>
+   932→        <TabsContent value="profil" className="mt-4">
+   933→          <ProfilTab />
+   934→        </TabsContent>
+   935→        <TabsContent value="tone" className="mt-4">
+   936→          <ToneTab />
+   937→        </TabsContent>
+   938→        <TabsContent value="notif" className="mt-4">
+   939→          <NotifikasiTab />
+   940→        </TabsContent>
+   941→      </Tabs>
+   942→    </div>
+   943→  );
+   944→}
+   945→
+   946→export default PengaturanSection;
+   947→

@@ -213,3 +213,68 @@
   70% { box-shadow: 0 0 0 6px rgba(22, 163, 74, 0); }
   100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
 }
+
+/* ── Micro-interaction utilities (Task 12-B) ───────────────────────────── */
+
+/* Subtle card lift on hover */
+.card-hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(13, 148, 136, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(13, 148, 136, 0.12);
+}
+
+/* Entrance animations */
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-in-right {
+  animation: slideInRight 0.25s ease-out;
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.scale-in {
+  animation: scaleIn 0.2s ease-out;
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Teal gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #0D9488 0%, #0F766E 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glass effect (cream translucent + blur) */
+.glass {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(252, 251, 249, 0.7);
+  border: 1px solid rgba(231, 227, 220, 0.5);
+}
+.dark .glass {
+  background: rgba(33, 29, 26, 0.7);
+  border: 1px solid rgba(52, 48, 44, 0.5);
+}
+
+/* Skeleton shimmer — re-export of existing .shimmer so callers can use either name */
+.skeleton-shimmer {
+  background: linear-gradient(90deg, #F1EEE8 0px, #FCFBF9 40px, #F1EEE8 80px);
+  background-size: 1000px 100%;
+  animation: shimmer 1.6s linear infinite;
+}

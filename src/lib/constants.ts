@@ -77,6 +77,7 @@ export const CREDIT_PACKAGES = [
 
 export type SectionKey =
   | "beranda"
+  | "produk"
   | "riset"
   | "konten"
   | "toko"
@@ -86,6 +87,7 @@ export type SectionKey =
 
 export const NAV_ITEMS: { key: SectionKey; label: string; icon: string }[] = [
   { key: "beranda", label: "Beranda", icon: "📊" },
+  { key: "produk", label: "Produk", icon: "📦" },
   { key: "riset", label: "Riset", icon: "🔍" },
   { key: "konten", label: "Konten", icon: "📝" },
   { key: "toko", label: "Toko", icon: "🛒" },

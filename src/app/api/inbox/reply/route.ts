@@ -76,7 +76,21 @@ ${brand.description ? `Info brand: ${brand.description}` : ""}`;
       );
       usedAi = true;
     } catch {
-      finalText = `Halo kak! Terima kasih sudah menghubungi ${brand.name}. Ada yang bisa kami bantu? 😊`;
+      // Contextual fallback — acknowledge customer's message + offer help
+      const msg = inbound.messageText.toLowerCase();
+      let fallback = `Halo kak! Terima kasih sudah menghubungi ${brand.name}. 😊`;
+      if (/(harga|berapa|murah|mahal)/.test(msg)) {
+        fallback = `Halo kak! Terima kasih sudah tanya. Untuk info harga terbaru, kami bisa kirimkan katalog lengkap ${brand.name}. Mau kami kirim sekarang? 😊`;
+      } else if (/(stok|ready|tersedia|masih)/.test(msg)) {
+        fallback = `Halo kak! Stok produk ${brand.name} selalu update. Boleh tau produk mana yang kakak mau? Nanti kami cek real-time ya 😊`;
+      } else if (/(alamat|kirim|kirimkan|ongkir)/.test(msg)) {
+        fallback = `Halo kak! Kami bisa kirim ke seluruh Indonesia. Boleh tau alamat lengkap + produk yang dimau? Nanti kami cek ongkirnya ya 📦`;
+      } else if (/(order|pesan|beli|mau)/.test(msg)) {
+        fallback = `Halo kak! Mantap, kami bantu proses orderannya. Boleh tau produk + jumlah yang kakak mau pesan? 🛒`;
+      } else {
+        fallback = `Halo kak! Terima kasih sudah menghubungi ${brand.name}. Ada yang bisa kami bantu? 😊`;
+      }
+      finalText = fallback;
       usedAi = true;
     }
   }

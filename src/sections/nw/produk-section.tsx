@@ -41,6 +41,8 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { formatRupiah } from "@/lib/constants";
+import { ProductDetailDialog } from "@/sections/nw/produk/product-detail-dialog";
+import { exportToCsv } from "@/lib/csv";
 import {
   Package,
   Plus,
@@ -55,6 +57,8 @@ import {
   MoreVertical,
   Briefcase,
   Loader2,
+  Eye,
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -142,6 +146,9 @@ export function ProdukSection() {
   // Delete state
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Detail dialog state
+  const [detailProductId, setDetailProductId] = useState<string | null>(null);
 
   // Fetch
   const { data, isLoading } = useQuery<{ products: Product[] }>({
@@ -315,9 +322,53 @@ export function ProdukSection() {
         subtitle={`${activeBrand.name} · ${activeBrand.category}`}
         icon="📦"
         actions={
-          <Button className="bg-teal hover:bg-teal-600 gap-1.5" onClick={openCreate}>
-            <Plus className="size-4" /> Tambah Produk
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={products.length === 0}
+              onClick={() => {
+                if (products.length === 0) return;
+                exportToCsv(
+                  products.map((p) => ({
+                    nama: p.name,
+                    tipe: p.type,
+                    harga_jual: p.price,
+                    harga_modal: p.costPrice ?? 0,
+                    margin: p.costPrice ? p.price - p.costPrice : 0,
+                    margin_persen: p.costPrice ? Math.round(((p.price - p.costPrice) / p.price) * 100) : 0,
+                    stok: p.stock ?? "",
+                    stok_min: p.minStock ?? "",
+                    sku: p.sku ?? "",
+                    deskripsi: p.description ?? "",
+                    status: p.isActive ? "Aktif" : "Nonaktif",
+                    dibuat: new Date(p.createdAt).toLocaleDateString("id-ID"),
+                  })),
+                  [
+                    { key: "nama", label: "Nama" },
+                    { key: "tipe", label: "Tipe" },
+                    { key: "harga_jual", label: "Harga Jual (Rp)" },
+                    { key: "harga_modal", label: "Harga Modal (Rp)" },
+                    { key: "margin", label: "Margin (Rp)" },
+                    { key: "margin_persen", label: "Margin (%)" },
+                    { key: "stok", label: "Stok" },
+                    { key: "stok_min", label: "Stok Min" },
+                    { key: "sku", label: "SKU" },
+                    { key: "deskripsi", label: "Deskripsi" },
+                    { key: "status", label: "Status" },
+                    { key: "dibuat", label: "Dibuat" },
+                  ],
+                  `produk-${new Date().toISOString().slice(0, 10)}`
+                );
+                toast({ title: `${products.length} produk diekspor ke CSV` });
+              }}
+            >
+              <Download className="size-3.5" /> CSV
+            </Button>
+            <Button className="bg-teal hover:bg-teal-600 gap-1.5" onClick={openCreate}>
+              <Plus className="size-4" /> Tambah Produk
+            </Button>
+          </div>
         }
       />
 
@@ -441,10 +492,23 @@ export function ProdukSection() {
               product={p}
               onEdit={() => openEdit(p)}
               onDelete={() => setDeleteTarget(p)}
+              onDetail={() => setDetailProductId(p.id)}
             />
           ))}
         </div>
       )}
+
+      {/* ─── Product Detail Dialog ───────────────────────────────────────── */}
+      <ProductDetailDialog
+        productId={detailProductId}
+        open={!!detailProductId}
+        onOpenChange={(o) => !o && setDetailProductId(null)}
+        onEdit={() => {
+          const target = products.find((p) => p.id === detailProductId);
+          setDetailProductId(null);
+          if (target) openEdit(target);
+        }}
+      />
 
       {/* ─── Add/Edit Dialog ─────────────────────────────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditing(null); }}>
@@ -710,10 +774,12 @@ function ProductCard({
   product,
   onEdit,
   onDelete,
+  onDetail,
 }: {
   product: Product;
   onEdit: () => void;
   onDelete: () => void;
+  onDetail: () => void;
 }) {
   const margin =
     product.costPrice != null && product.price > 0
@@ -726,7 +792,10 @@ function ProductCard({
   const stock = stockStatus(product.stock, product.minStock);
 
   return (
-    <Card className="overflow-hidden group hover:border-teal/30 transition-colors flex flex-col">
+    <Card
+      className="overflow-hidden group hover:border-teal/30 hover:shadow-md transition-all flex flex-col cursor-pointer"
+      onClick={onDetail}
+    >
       {/* Image */}
       <div className="relative bg-cream-100">
         <AspectRatio ratio={1}>
@@ -745,6 +814,11 @@ function ProductCard({
             </div>
           )}
         </AspectRatio>
+        <div className="absolute inset-0 bg-ink/0 group-hover:bg-ink/5 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+          <span className="bg-card/90 backdrop-blur px-2.5 py-1 rounded-full text-xs font-semibold text-teal-700 flex items-center gap-1 shadow-sm">
+            <Eye className="size-3" /> Lihat Detail
+          </span>
+        </div>
         <div className="absolute top-2 left-2">
           <Badge
             className={
@@ -756,7 +830,7 @@ function ProductCard({
             {product.type === "barang" ? "📦 Barang" : "💼 Jasa"}
           </Badge>
         </div>
-        <div className="absolute top-2 right-2">
+        <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -767,7 +841,10 @@ function ProductCard({
                 <MoreVertical className="size-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={onDetail} className="cursor-pointer gap-2">
+                <Eye className="size-3.5" /> Lihat Detail
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={onEdit} className="cursor-pointer gap-2">
                 <Pencil className="size-3.5" /> Edit
               </DropdownMenuItem>
@@ -828,7 +905,10 @@ function ProductCard({
         )}
 
         {/* Actions */}
-        <div className="mt-3 pt-3 border-t border-border flex items-center gap-2">
+        <div
+          className="mt-3 pt-3 border-t border-border flex items-center gap-2"
+          onClick={(e) => e.stopPropagation()}
+        >
           <Button size="sm" variant="outline" className="h-7 text-xs flex-1 gap-1" onClick={onEdit}>
             <Pencil className="size-3" /> Edit
           </Button>

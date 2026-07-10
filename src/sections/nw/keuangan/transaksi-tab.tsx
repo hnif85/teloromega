@@ -36,6 +36,7 @@ import { SectionCard, EmptyState } from "@/components/nw/primitives";
 import { Plus, Search, Download, ArrowUpRight, ArrowDownRight, FileText } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatRupiah } from "@/lib/constants";
+import { exportToCsv } from "@/lib/csv";
 import { TX_CATEGORY_LABELS, type TransactionRow, type TxType } from "./types";
 
 interface ProductLite {
@@ -166,7 +167,38 @@ export function TransaksiTab({ brandId }: { brandId: string }) {
             variant="outline"
             size="sm"
             className="h-9"
-            onClick={() => toast.success("CSV diekspor (mock). Hubungkan ke storage untuk download.")}
+            disabled={transactions.length === 0}
+            onClick={() => {
+              if (transactions.length === 0) return;
+              exportToCsv(
+                transactions.map((t) => ({
+                  tanggal: new Date(t.date).toLocaleDateString("id-ID"),
+                  tipe: t.type === "income" ? "Pemasukan" : "Pengeluaran",
+                  kategori: TX_CATEGORY_LABELS[t.category] ?? t.category,
+                  deskripsi: t.description ?? "",
+                  produk: t.product?.name ?? "",
+                  pelanggan: t.customer?.name ?? "",
+                  jumlah: t.amount,
+                  hpp: t.costAmount ?? 0,
+                  qty: t.quantity ?? "",
+                  order_id: t.order?.id ?? "",
+                })),
+                [
+                  { key: "tanggal", label: "Tanggal" },
+                  { key: "tipe", label: "Tipe" },
+                  { key: "kategori", label: "Kategori" },
+                  { key: "deskripsi", label: "Deskripsi" },
+                  { key: "produk", label: "Produk" },
+                  { key: "pelanggan", label: "Pelanggan" },
+                  { key: "jumlah", label: "Jumlah (Rp)" },
+                  { key: "hpp", label: "HPP (Rp)" },
+                  { key: "qty", label: "Qty" },
+                  { key: "order_id", label: "Order ID" },
+                ],
+                `transaksi-${new Date().toISOString().slice(0, 10)}`
+              );
+              toast.success(`${transactions.length} transaksi diekspor ke CSV`);
+            }}
           >
             <Download className="size-3.5" /> CSV
           </Button>

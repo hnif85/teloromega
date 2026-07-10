@@ -1,0 +1,655 @@
+     1→"use client";
+     2→
+     3→import { useState, useMemo } from "react";
+     4→import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+     5→import { api } from "@/lib/api";
+     6→import { useAppStore, type SessionUser } from "@/lib/store";
+     7→import { Button } from "@/components/ui/button";
+     8→import { Card } from "@/components/ui/card";
+     9→import { Input } from "@/components/ui/input";
+    10→import { Label } from "@/components/ui/label";
+    11→import { Textarea } from "@/components/ui/textarea";
+    12→import { Badge } from "@/components/ui/badge";
+    13→import { Skeleton } from "@/components/ui/skeleton";
+    14→import {
+    15→  Dialog,
+    16→  DialogContent,
+    17→  DialogHeader,
+    18→  DialogTitle,
+    19→  DialogDescription,
+    20→  DialogFooter,
+    21→} from "@/components/ui/dialog";
+    22→import {
+    23→  Select,
+    24→  SelectContent,
+    25→  SelectItem,
+    26→  SelectTrigger,
+    27→  SelectValue,
+    28→} from "@/components/ui/select";
+    29→import {
+    30→  Table,
+    31→  TableBody,
+    32→  TableCell,
+    33→  TableHead,
+    34→  TableHeader,
+    35→  TableRow,
+    36→} from "@/components/ui/table";
+    37→import { EmptyState, SectionCard } from "@/components/nw/primitives";
+    38→import { useToast } from "@/hooks/use-toast";
+    39→import {
+    40→  ORDER_STATUS,
+    41→  PAYMENT_STATUS,
+    42→  formatRupiah,
+    43→  timeAgo,
+    44→} from "@/lib/constants";
+    45→import {
+    46→  Plus,
+    47→  ChevronDown,
+    48→  ChevronRight,
+    49→  Truck,
+    50→  Package,
+    51→  CreditCard,
+    52→  ShoppingCart,
+    53→} from "lucide-react";
+    54→import type { Order, OrderItem, Product, Payment, Customer, Lead } from "@/sections/nw/toko/types";
+    55→
+    56→interface OrderRow extends Order {
+    57→  customer?: Customer | null;
+    58→  lead?: Lead | null;
+    59→  payments?: Payment[];
+    60→}
+    61→
+    62→export function OrdersTab({
+    63→  brandId,
+    64→  user: _user,
+    65→}: {
+    66→  brandId: string;
+    67→  user: SessionUser | null;
+    68→}) {
+    69→  const queryClient = useQueryClient();
+    70→  const { toast } = useToast();
+    71→  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+    72→  const [createOpen, setCreateOpen] = useState(false);
+    73→
+    74→  const { data, isLoading } = useQuery<{ orders: OrderRow[] }>({
+    75→    queryKey: ["orders", brandId],
+    76→    queryFn: () => api(`/api/orders?brandId=${brandId}`),
+    77→    enabled: !!brandId,
+    78→  });
+    79→  const { data: productsData } = useQuery<{ products: Product[] }>({
+    80→    queryKey: ["products", brandId],
+    81→    queryFn: () => api(`/api/products?brandId=${brandId}`),
+    82→    enabled: !!brandId,
+    83→  });
+    84→  const { data: customersData } = useQuery<{ customers: Customer[]; leads: Lead[] }>({
+    85→    queryKey: ["customers", brandId],
+    86→    queryFn: () => api(`/api/customers?brandId=${brandId}`),
+    87→    enabled: !!brandId,
+    88→  });
+    89→
+    90→  const orders = data?.orders ?? [];
+    91→  const products = (productsData?.products ?? []).filter((p) => p.isActive);
+    92→
+    93→  // Create form
+    94→  const [form, setForm] = useState<{
+    95→    customerId?: string;
+    96→    leadId?: string;
+    97→    items: Record<string, number>;
+    98→    shippingCost: number | "";
+    99→    notes: string;
+   100→  }>({
+   101→    items: {},
+   102→    shippingCost: "",
+   103→    notes: "",
+   104→  });
+   105→
+   106→  const total = useMemo(() => {
+   107→    const itemsTotal = Object.entries(form.items)
+   108→      .filter(([, qty]) => qty > 0)
+   109→      .reduce((acc, [pid, qty]) => {
+   110→        const p = products.find((x) => x.id === pid);
+   111→        return acc + (p?.price ?? 0) * qty;
+   112→      }, 0);
+   113→    return itemsTotal + (form.shippingCost === "" ? 0 : Number(form.shippingCost));
+   114→  }, [form, products]);
+   115→
+   116→  const createMutation = useMutation({
+   117→    mutationFn: () => {
+   118→      const items = Object.entries(form.items)
+   119→        .filter(([, qty]) => qty > 0)
+   120→        .map(([productId, qty]) => ({ productId, qty }));
+   121→      return api<{ order: OrderRow; stockWarnings: string[] }>(`/api/orders`, {
+   122→        method: "POST",
+   123→        json: {
+   124→          brandId,
+   125→          customerId: form.customerId || undefined,
+   126→          leadId: form.leadId || undefined,
+   127→          items,
+   128→          shippingCost: form.shippingCost === "" ? undefined : Number(form.shippingCost),
+   129→          notes: form.notes,
+   130→        },
+   131→      });
+   132→    },
+   133→    onSuccess: (res) => {
+   134→      queryClient.invalidateQueries({ queryKey: ["orders", brandId] });
+   135→      queryClient.invalidateQueries({ queryKey: ["inventory", brandId] });
+   136→      queryClient.invalidateQueries({ queryKey: ["dashboard", brandId] });
+   137→      if (res.stockWarnings.length > 0) {
+   138→        toast({
+   139→          title: "Order dibuat dengan peringatan stok",
+   140→          description: res.stockWarnings.join("; "),
+   141→          variant: "destructive",
+   142→        });
+   143→      } else {
+   144→        toast({ title: "Order dibuat 🎉" });
+   145→      }
+   146→      setCreateOpen(false);
+   147→      setForm({ items: {}, shippingCost: "", notes: "" });
+   148→    },
+   149→    onError: (e: Error) => toast({ title: "Gagal", description: e.message, variant: "destructive" }),
+   150→  });
+   151→
+   152→  const patchMutation = useMutation({
+   153→    mutationFn: (variables: { id: string; status?: string; resiNumber?: string; shippingCourier?: string; shippingCost?: number | null; notes?: string }) =>
+   154→      api<{ order: OrderRow }>(`/api/orders/${variables.id}`, {
+   155→        method: "PATCH",
+   156→        json: variables,
+   157→      }),
+   158→    onSuccess: () => {
+   159→      queryClient.invalidateQueries({ queryKey: ["orders", brandId] });
+   160→      queryClient.invalidateQueries({ queryKey: ["dashboard", brandId] });
+   161→      queryClient.invalidateQueries({ queryKey: ["inventory", brandId] });
+   162→    },
+   163→    onError: (e: Error) => toast({ title: "Gagal", description: e.message, variant: "destructive" }),
+   164→  });
+   165→
+   166→  function parseItems(s: string): OrderItem[] {
+   167→    try {
+   168→      return JSON.parse(s) as OrderItem[];
+   169→    } catch {
+   170→      return [];
+   171→    }
+   172→  }
+   173→
+   174→  return (
+   175→    <div>
+   176→      <div className="flex items-center justify-between mb-4">
+   177→        <div className="text-sm text-stone">
+   178→          Total <span className="font-bold text-ink">{orders.length}</span> order · Klik baris untuk detail
+   179→        </div>
+   180→        <Button size="sm" className="bg-teal hover:bg-teal-600" onClick={() => setCreateOpen(true)}>
+   181→          <Plus className="size-4" /> Order Baru
+   182→        </Button>
+   183→      </div>
+   184→
+   185→      {isLoading ? (
+   186→        <div className="space-y-2">
+   187→          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
+   188→        </div>
+   189→      ) : orders.length === 0 ? (
+   190→        <EmptyState
+   191→          icon="🛒"
+   192→          title="Belum ada order"
+   193→          desc="Buat order baru, atau dari Leads → Jadikan Order."
+   194→          action={
+   195→            <Button size="sm" className="bg-teal hover:bg-teal-600" onClick={() => setCreateOpen(true)}>
+   196→              <Plus className="size-4" /> Buat Order
+   197→            </Button>
+   198→          }
+   199→        />
+   200→      ) : (
+   201→        <SectionCard bodyClassName="p-0">
+   202→          <div className="overflow-x-auto">
+   203→            <Table>
+   204→              <TableHeader>
+   205→                <TableRow>
+   206→                  <TableHead className="w-10"></TableHead>
+   207→                  <TableHead>Customer / Lead</TableHead>
+   208→                  <TableHead className="hidden md:table-cell">Items</TableHead>
+   209→                  <TableHead className="text-right">Total</TableHead>
+   210→                  <TableHead className="hidden sm:table-cell">Status</TableHead>
+   211→                  <TableHead className="hidden lg:table-cell">Pembayaran</TableHead>
+   212→                  <TableHead className="hidden lg:table-cell">Waktu</TableHead>
+   213→                  <TableHead className="text-right">Aksi</TableHead>
+   214→                </TableRow>
+   215→              </TableHeader>
+   216→              <TableBody>
+   217→                {orders.map((o) => {
+   218→                  const items = parseItems(o.items);
+   219→                  const isOpen = expanded[o.id] ?? false;
+   220→                  const statusMeta = ORDER_STATUS.find((s) => s.key === o.status) ?? ORDER_STATUS[0];
+   221→                  const totalPaid = (o.payments ?? [])
+   222→                    .filter((p) => p.status === "Diterima")
+   223→                    .reduce((acc, p) => acc + p.amount, 0);
+   224→                  const hasPending = (o.payments ?? []).some((p) => p.status === "Menunggu");
+   225→                  const hasShipping = items.some((i) => i.type === "barang");
+   226→                  return (
+   227→                    <>
+   228→                      <TableRow
+   229→                        key={o.id}
+   230→                        className="cursor-pointer hover:bg-cream-100/40"
+   231→                        onClick={() => setExpanded((s) => ({ ...s, [o.id]: !s[o.id] }))}
+   232→                      >
+   233→                        <TableCell className="text-stone">
+   234→                          {isOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+   235→                        </TableCell>
+   236→                        <TableCell>
+   237→                          <div className="font-semibold text-sm text-ink">
+   238→                            {o.customer?.name ?? o.lead?.name ?? "Walk-in"}
+   239→                          </div>
+   240→                          <div className="text-[11px] text-stone">
+   241→                            #{o.id.slice(-6).toUpperCase()}
+   242→                          </div>
+   243→                        </TableCell>
+   244→                        <TableCell className="hidden md:table-cell text-sm text-stone">
+   245→                          {items.length} item · {items.reduce((a, b) => a + b.qty, 0)} unit
+   246→                        </TableCell>
+   247→                        <TableCell className="text-right font-bold text-ink tabular-nums">
+   248→                          {formatRupiah(o.totalAmount)}
+   249→                        </TableCell>
+   250→                        <TableCell className="hidden sm:table-cell">
+   251→                          <Badge className={statusMeta.color}>{statusMeta.label}</Badge>
+   252→                        </TableCell>
+   253→                        <TableCell className="hidden lg:table-cell">
+   254→                          {totalPaid >= o.totalAmount && totalPaid > 0 ? (
+   255→                            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 border">
+   256→                              Lunas
+   257→                            </Badge>
+   258→                          ) : hasPending ? (
+   259→                            <Badge className="bg-amber-100 text-amber-700 border-amber-200 border">
+   260→                              Menunggu
+   261→                            </Badge>
+   262→                          ) : totalPaid > 0 ? (
+   263→                            <Badge className="bg-stone-100 text-stone-600 border-stone-200 border">
+   264→                              Sebagian
+   265→                            </Badge>
+   266→                          ) : (
+   267→                            <Badge variant="outline" className="text-stone">Belum bayar</Badge>
+   268→                          )}
+   269→                        </TableCell>
+   270→                        <TableCell className="hidden lg:table-cell text-xs text-stone">
+   271→                          {timeAgo(o.createdAt)}
+   272→                        </TableCell>
+   273→                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+   274→                          <div className="flex items-center justify-end gap-1">
+   275→                            {o.status === "Baru" && (
+   276→                              <Button
+   277→                                size="sm"
+   278→                                variant="outline"
+   279→                                className="h-7 text-xs"
+   280→                                onClick={() => {
+   281→                                  patchMutation.mutate({ id: o.id, status: "Diproses" });
+   282→                                  toast({ title: "Order diproses" });
+   283→                                }}
+   284→                              >
+   285→                                Proses
+   286→                              </Button>
+   287→                            )}
+   288→                            {o.status === "Dikirim" && (
+   289→                              <Button
+   290→                                size="sm"
+   291→                                variant="outline"
+   292→                                className="h-7 text-xs"
+   293→                                onClick={() => {
+   294→                                  patchMutation.mutate({ id: o.id, status: "Selesai" });
+   295→                                  toast({ title: "Order selesai" });
+   296→                                }}
+   297→                              >
+   298→                                Selesai
+   299→                              </Button>
+   300→                            )}
+   301→                            {o.status !== "Dibatalkan" && o.status !== "Selesai" && (
+   302→                              <Button
+   303→                                size="sm"
+   304→                                variant="ghost"
+   305→                                className="h-7 text-xs text-danger hover:bg-danger-100/40"
+   306→                                onClick={() => {
+   307→                                  if (confirm("Batalkan order? Stok akan dikembalikan.")) {
+   308→                                    patchMutation.mutate({ id: o.id, status: "Dibatalkan" });
+   309→                                    toast({ title: "Order dibatalkan" });
+   310→                                  }
+   311→                                }}
+   312→                              >
+   313→                                Batal
+   314→                              </Button>
+   315→                            )}
+   316→                          </div>
+   317→                        </TableCell>
+   318→                      </TableRow>
+   319→                      {isOpen && (
+   320→                        <TableRow key={o.id + "-detail"} className="bg-cream-100/30">
+   321→                          <TableCell colSpan={8} className="p-4">
+   322→                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+   323→                              {/* Items */}
+   324→                              <div className="lg:col-span-2 space-y-2">
+   325→                                <div className="text-xs font-semibold text-stone uppercase tracking-wide">
+   326→                                  Items
+   327→                                </div>
+   328→                                {items.map((it, idx) => (
+   329→                                  <div
+   330→                                    key={idx}
+   331→                                    className="flex items-center justify-between rounded-lg bg-card border border-border p-2.5"
+   332→                                  >
+   333→                                    <div className="flex-1 min-w-0">
+   334→                                      <div className="text-sm font-semibold text-ink truncate">
+   335→                                        {it.name} × {it.qty}
+   336→                                      </div>
+   337→                                      <div className="text-xs text-stone">
+   338→                                        {formatRupiah(it.price)} / unit
+   339→                                        {it.type === "barang" && (
+   340→                                          <Badge variant="outline" className="ml-2 text-[9px] py-0 h-3.5">
+   341→                                            <Package className="size-2.5 mr-0.5" /> barang
+   342→                                          </Badge>
+   343→                                        )}
+   344→                                      </div>
+   345→                                    </div>
+   346→                                    <div className="font-bold text-ink tabular-nums text-sm">
+   347→                                      {formatRupiah(it.price * it.qty)}
+   348→                                    </div>
+   349→                                  </div>
+   350→                                ))}
+   351→
+   352→                                {hasShipping && (
+   353→                                  <div className="rounded-lg border border-violet-200 bg-violet-50/40 p-3 space-y-2">
+   354→                                    <div className="text-xs font-semibold text-violet-700 flex items-center gap-1">
+   355→                                      <Truck className="size-3.5" /> Pengiriman
+   356→                                    </div>
+   357→                                    <div className="grid grid-cols-3 gap-2">
+   358→                                      <div>
+   359→                                        <Label className="text-[10px] text-stone">Kurir</Label>
+   360→                                        <Input
+   361→                                          defaultValue={o.shippingCourier ?? ""}
+   362→                                          placeholder="JNE, JNT, dll"
+   363→                                          className="h-8 text-xs mt-0.5"
+   364→                                          onBlur={(e) =>
+   365→                                            patchMutation.mutate({
+   366→                                              id: o.id,
+   367→                                              shippingCourier: e.target.value,
+   368→                                            })
+   369→                                          }
+   370→                                        />
+   371→                                      </div>
+   372→                                      <div>
+   373→                                        <Label className="text-[10px] text-stone">No Resi</Label>
+   374→                                        <Input
+   375→                                          defaultValue={o.resiNumber ?? ""}
+   376→                                          placeholder="Resi"
+   377→                                          className="h-8 text-xs mt-0.5"
+   378→                                          onBlur={(e) =>
+   379→                                            patchMutation.mutate({
+   380→                                              id: o.id,
+   381→                                              resiNumber: e.target.value,
+   382→                                            })
+   383→                                          }
+   384→                                        />
+   385→                                      </div>
+   386→                                      <div>
+   387→                                        <Label className="text-[10px] text-stone">Ongkir</Label>
+   388→                                        <Input
+   389→                                          type="number"
+   390→                                          defaultValue={o.shippingCost ?? 0}
+   391→                                          className="h-8 text-xs mt-0.5"
+   392→                                          onBlur={(e) =>
+   393→                                            patchMutation.mutate({
+   394→                                              id: o.id,
+   395→                                              shippingCost: Number(e.target.value) || 0,
+   396→                                            })
+   397→                                          }
+   398→                                        />
+   399→                                      </div>
+   400→                                    </div>
+   401→                                  </div>
+   402→                                )}
+   403→
+   404→                                {o.notes && (
+   405→                                  <div className="text-xs text-stone bg-cream-100/60 rounded-lg p-2">
+   406→                                    📝 {o.notes}
+   407→                                  </div>
+   408→                                )}
+   409→                              </div>
+   410→
+   411→                              {/* Side info */}
+   412→                              <div className="space-y-3">
+   413→                                <div className="rounded-lg border border-border bg-card p-3">
+   414→                                  <div className="text-xs font-semibold text-stone mb-1.5">
+   415→                                    Ringkasan
+   416→                                  </div>
+   417→                                  <div className="flex justify-between text-xs mb-1">
+   418→                                    <span className="text-stone">Subtotal</span>
+   419→                                    <span className="font-semibold text-ink">
+   420→                                      {formatRupiah(o.totalAmount - (o.shippingCost ?? 0))}
+   421→                                    </span>
+   422→                                  </div>
+   423→                                  <div className="flex justify-between text-xs mb-1">
+   424→                                    <span className="text-stone">Ongkir</span>
+   425→                                    <span className="font-semibold text-ink">
+   426→                                      {formatRupiah(o.shippingCost ?? 0)}
+   427→                                    </span>
+   428→                                  </div>
+   429→                                  <div className="flex justify-between text-sm pt-1 border-t border-border mt-1">
+   430→                                    <span className="font-bold text-ink">Total</span>
+   431→                                    <span className="font-bold text-ink tabular-nums">
+   432→                                      {formatRupiah(o.totalAmount)}
+   433→                                    </span>
+   434→                                  </div>
+   435→                                  <div className="flex justify-between text-xs mt-1">
+   436→                                    <span className="text-emerald-700">Dibayar</span>
+   437→                                    <span className="font-semibold text-emerald-700">
+   438→                                      {formatRupiah(totalPaid)}
+   439→                                    </span>
+   440→                                  </div>
+   441→                                </div>
+   442→
+   443→                                {(o.payments ?? []).length > 0 && (
+   444→                                  <div className="rounded-lg border border-border bg-card p-3">
+   445→                                    <div className="text-xs font-semibold text-stone mb-1.5">
+   446→                                      Riwayat Pembayaran
+   447→                                    </div>
+   448→                                    <div className="space-y-1">
+   449→                                      {(o.payments ?? []).map((p) => {
+   450→                                        const meta = PAYMENT_STATUS.find((s) => s.key === p.status);
+   451→                                        return (
+   452→                                          <div
+   453→                                            key={p.id}
+   454→                                            className="flex items-center justify-between text-xs"
+   455→                                          >
+   456→                                            <span className="text-stone">{p.method}</span>
+   457→                                            <span className="font-semibold text-ink">
+   458→                                              {formatRupiah(p.amount)}
+   459→                                            </span>
+   460→                                            {meta && (
+   461→                                              <Badge className={`text-[9px] h-4 ${meta.color}`}>
+   462→                                                {meta.label}
+   463→                                              </Badge>
+   464→                                            )}
+   465→                                          </div>
+   466→                                        );
+   467→                                      })}
+   468→                                    </div>
+   469→                                  </div>
+   470→                                )}
+   471→
+   472→                                <Select
+   473→                                  value={o.status}
+   474→                                  onValueChange={(v) => {
+   475→                                    patchMutation.mutate({ id: o.id, status: v });
+   476→                                    toast({ title: `Status → ${v}` });
+   477→                                  }}
+   478→                                >
+   479→                                  <SelectTrigger className="h-8 text-xs">
+   480→                                    <span className="text-stone">Ubah status:</span>
+   481→                                    <SelectValue />
+   482→                                  </SelectTrigger>
+   483→                                  <SelectContent>
+   484→                                    {ORDER_STATUS.map((s) => (
+   485→                                      <SelectItem key={s.key} value={s.key}>
+   486→                                        {s.label}
+   487→                                      </SelectItem>
+   488→                                    ))}
+   489→                                  </SelectContent>
+   490→                                </Select>
+   491→                              </div>
+   492→                            </div>
+   493→                          </TableCell>
+   494→                        </TableRow>
+   495→                      )}
+   496→                    </>
+   497→                  );
+   498→                })}
+   499→              </TableBody>
+   500→            </Table>
+   501→          </div>
+   502→        </SectionCard>
+   503→      )}
+   504→
+   505→      {/* Create order dialog */}
+   506→      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+   507→        <DialogContent className="sm:max-w-lg">
+   508→          <DialogHeader>
+   509→            <DialogTitle>Buat Order Baru</DialogTitle>
+   510→            <DialogDescription>
+   511→              Pilih customer/lead (opsional), produk & qty. Status awal: Baru.
+   512→            </DialogDescription>
+   513→          </DialogHeader>
+   514→          <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+   515→            <div>
+   516→              <Label className="text-xs text-stone">Customer (opsional)</Label>
+   517→              <select
+   518→                className="mt-1 w-full h-9 rounded-md border border-border bg-card px-2 text-sm"
+   519→                value={form.customerId ?? ""}
+   520→                onChange={(e) => setForm({ ...form, customerId: e.target.value || undefined })}
+   521→              >
+   522→                <option value="">— Walk-in / tanpa customer —</option>
+   523→                {(customersData?.customers ?? []).map((c) => (
+   524→                  <option key={c.id} value={c.id}>
+   525→                    {c.name} · {c.phone}
+   526→                  </option>
+   527→                ))}
+   528→              </select>
+   529→            </div>
+   530→            <div>
+   531→              <Label className="text-xs text-stone">Lead (opsional)</Label>
+   532→              <select
+   533→                className="mt-1 w-full h-9 rounded-md border border-border bg-card px-2 text-sm"
+   534→                value={form.leadId ?? ""}
+   535→                onChange={(e) => setForm({ ...form, leadId: e.target.value || undefined })}
+   536→              >
+   537→                <option value="">— Tidak ada —</option>
+   538→                {(customersData?.leads ?? []).map((l) => (
+   539→                  <option key={l.id} value={l.id}>
+   540→                    {l.name} · {l.phone}
+   541→                  </option>
+   542→                ))}
+   543→              </select>
+   544→            </div>
+   545→
+   546→            <div>
+   547→              <Label className="text-xs text-stone mb-1.5 block">Produk</Label>
+   548→              <div className="space-y-2">
+   549→                {products.length === 0 ? (
+   550→                  <div className="text-xs text-stone text-center py-3">
+   551→                    Belum ada produk aktif.
+   552→                  </div>
+   553→                ) : (
+   554→                  products.map((p) => {
+   555→                    const qty = form.items[p.id] ?? 0;
+   556→                    return (
+   557→                      <div
+   558→                        key={p.id}
+   559→                        className="flex items-center justify-between gap-2 p-2.5 rounded-lg border border-border bg-card"
+   560→                      >
+   561→                        <div className="flex-1 min-w-0">
+   562→                          <div className="text-sm font-semibold text-ink truncate">{p.name}</div>
+   563→                          <div className="text-xs text-stone">
+   564→                            {formatRupiah(p.price)}
+   565→                            {p.type === "barang" && p.stock != null && (
+   566→                              <span className={p.stock <= (p.minStock ?? 0) ? " text-amber-700 ml-1" : ""}>
+   567→                                · stok {p.stock}
+   568→                              </span>
+   569→                            )}
+   570→                          </div>
+   571→                        </div>
+   572→                        <div className="flex items-center gap-1.5">
+   573→                          <Button
+   574→                            variant="outline"
+   575→                            size="sm"
+   576→                            className="size-7 p-0"
+   577→                            onClick={() =>
+   578→                              setForm((s) => ({ ...s, items: { ...s.items, [p.id]: Math.max(0, qty - 1) } }))
+   579→                            }
+   580→                          >
+   581→                            −
+   582→                          </Button>
+   583→                          <Input
+   584→                            type="number"
+   585→                            min={0}
+   586→                            value={qty}
+   587→                            onChange={(e) =>
+   588→                              setForm((s) => ({
+   589→                                ...s,
+   590→                                items: { ...s.items, [p.id]: Math.max(0, Number(e.target.value) || 0) },
+   591→                              }))
+   592→                            }
+   593→                            className="w-14 h-7 text-center text-sm"
+   594→                          />
+   595→                          <Button
+   596→                            variant="outline"
+   597→                            size="sm"
+   598→                            className="size-7 p-0"
+   599→                            onClick={() => setForm((s) => ({ ...s, items: { ...s.items, [p.id]: qty + 1 } }))}
+   600→                          >
+   601→                            +
+   602→                          </Button>
+   603→                        </div>
+   604→                      </div>
+   605→                    );
+   606→                  })
+   607→                )}
+   608→              </div>
+   609→            </div>
+   610→
+   611→            <div className="grid grid-cols-2 gap-2">
+   612→              <div>
+   613→                <Label className="text-xs text-stone">Ongkir</Label>
+   614→                <Input
+   615→                  type="number"
+   616→                  value={form.shippingCost}
+   617→                  onChange={(e) =>
+   618→                    setForm({ ...form, shippingCost: e.target.value === "" ? "" : Number(e.target.value) })
+   619→                  }
+   620→                  placeholder="0"
+   621→                  className="mt-1"
+   622→                />
+   623→              </div>
+   624→              <div>
+   625→                <Label className="text-xs text-stone">Catatan</Label>
+   626→                <Input
+   627→                  value={form.notes}
+   628→                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+   629→                  placeholder="Catatan…"
+   630→                  className="mt-1"
+   631→                />
+   632→              </div>
+   633→            </div>
+   634→
+   635→            <div className="text-sm flex items-center justify-between bg-teal-50/50 rounded-lg p-2.5">
+   636→              <span className="text-stone">Total</span>
+   637→              <span className="font-bold text-teal-700 text-lg">{formatRupiah(total)}</span>
+   638→            </div>
+   639→          </div>
+   640→          <DialogFooter>
+   641→            <Button variant="outline" onClick={() => setCreateOpen(false)}>Batal</Button>
+   642→            <Button
+   643→              className="bg-teal hover:bg-teal-600"
+   644→              disabled={createMutation.isPending || !Object.values(form.items).some((q) => q > 0)}
+   645→              onClick={() => createMutation.mutate()}
+   646→            >
+   647→              {createMutation.isPending ? "Membuat…" : "Buat Order"}
+   648→            </Button>
+   649→          </DialogFooter>
+   650→        </DialogContent>
+   651→      </Dialog>
+   652→    </div>
+   653→  );
+   654→}
+   655→

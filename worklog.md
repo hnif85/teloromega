@@ -438,3 +438,140 @@ Priority recommendations for next phase:
 - Onboarding tour / tooltips for first-time users to explain the cross-module data flow.
 - Performance: consider adding database indexes on frequently-queried fields (Transaction.date, Order.status) if data grows.
 - Consider adding a "What's new" changelog modal for version updates.
+
+---
+Task ID: 14-B
+Agent: full-stack-developer (Onboarding Tour + Print Invoice)
+Task: Build 8-step guided onboarding tour with spotlight effect + print invoice feature with A4 layout.
+
+Work Log:
+- Read worklog.md (last 3 entries: 12-A Produk, 12-B Styling+BrandDelete, 13 Insights+DemoSeed) + 9 reference files (store.ts, constants.ts, page.tsx, sidebar.tsx, topbar.tsx, onboarding.tsx, orders-tab.tsx, types.ts, api/orders/route.ts, prisma/schema.prisma, command-palette.tsx for the openCommandPalette() pattern, theme-toggle.tsx, dialog.tsx for the data-slot attributes, globals.css, pengaturan-section.tsx ProfilTab) to learn established patterns (Zustand store with hydrated/onboardingOpen flags, getActiveBrand selector, api() client, SectionCard primitive, framer-motion section transitions, AnimatePresence patterns, START_*_EVENT custom event pattern for imperative component triggers, shadcn Dialog with data-slot attributes, cream/teal palette, all copy in Indonesian).
+- A. Onboarding Tour: created `src/components/nw/onboarding-tour.tsx` (~560 lines). Exports `OnboardingTour` (mounted in page.tsx) and `startTour()` (called from Pengaturan > Profil button — mirrors `openCommandPalette()` pattern). 8 steps with Indonesian copy: Welcome (modal) → Sidebar nav → Brand switcher → Credit → Command palette → Notifications → Theme toggle → Get started (modal). Spotlight effect via 4 fixed-position dark divs (`bg-black/50`) forming a rectangular hole around the target + teal border highlight with subtle box-shadow ring. Tooltip positioned below target if midpoint is in top half of viewport, above otherwise — centered horizontally, clamped to viewport, CSS triangle arrow pointing at target. Framer Motion: AnimatePresence for prompt/overlay fade, motion.div with initial/animate (scale + fade + y-offset) for tooltip and modal entrances. Auto-start: after hydration + 5s delay, checks localStorage `nw_tour_completed`; if not set, shows a bottom-right prompt card with "Mulai Tour" / "Nanti saja" buttons. Manual start: listens for `nw:start-tour` CustomEvent. Keyboard nav: Esc = skip, ←/→ = prev/next. Completion writes localStorage flag and closes. Progress dots + step counter badge (e.g. "3 / 8") + Lewati (skip) link. Mobile fallback: if target element not found (e.g. hidden via responsive classes), renders a full-screen dark overlay + centered modal card.
+- B. Rect computation refactor: Initial implementation stored rect in state via setRect() inside a useEffect with resize/scroll listeners — triggered `react-hooks/set-state-in-effect` lint error. Refactored to compute rect during render (read-only document.querySelector().getBoundingClientRect()) with a separate `tick` state bumped by event listeners to trigger re-renders. Avoids the anti-pattern entirely and is cleaner code. Tick counter modded by 1_000_000 to prevent integer overflow on long sessions.
+- C. Print Invoice: created `src/sections/nw/toko/invoice-print.tsx` (~400 lines). A4-sized (210mm × 297mm) printable invoice with inline styles (survives the @media print visibility toggling). Layout: Header (brand name + "INVOICE" + # + date) → From/To (brand info + customer info) → Items table (No, Nama Produk, Qty, Harga, Subtotal with teal header row) → Summary (Subtotal, Ongkir, Total in large bold teal) → Payment info (teal-tinted card with method, status, amount, total paid + remaining balance) → Order meta (kurir, resi, status, notes) → Footer ("Terima kasih sudah berbelanja di [brand]! 🙏" + brand slug `tokoku.nextwhiz.id/[slug]` + auto-generated doc note). Brand/customer resolution via props. Items parsing: JSON.parse(order.items) with try/catch. Payment calcs: totalPaid = sum of payments where status === "Diterima", shows "Sisa Pembayaran" in red when totalPaid < total. Printability: black text on white, teal accents only for headers/total/brand name — all colors are explicit hex (no CSS var references which might not resolve in print context).
+- D. Invoice Dialog: created `src/sections/nw/toko/invoice-dialog.tsx` (~110 lines). Resolves brand from useAppStore.brands via order.brandId (with active-brand fallback). Resolves customer from order.customer or order.lead (Walk-in Customer fallback). Layout: sticky header (title + order # + customer name), scrollable gray-backed preview area (max-width 210mm shadow card containing <InvoicePrint />), sticky footer with "Tutup" + "Cetak / Simpan PDF" buttons. Print trigger: onClick={() => window.print()} — relies on the @media print CSS to hide everything except .invoice-print. Disabled state when order is null.
+- E. Minimal attribute/wiring edits:
+  · sidebar.tsx: added `data-tour="sidebar-nav"` to the primary `<nav>` element, `data-tour="brand-switcher"` to the brand DropdownMenuTrigger `<button>`.
+  · topbar.tsx: added `data-tour="command-palette"` to ⌘K Button, wrapped `<ThemeToggle />` in `<div data-tour="theme-toggle">` wrapper (since ThemeToggle renders its own Button — can't add data attribute to third-party component prop without modifying it), `data-tour="notifications"` to bell DropdownMenuTrigger Button, `data-tour="credit-button"` to credit outline Button.
+  · page.tsx: imported OnboardingTour, mounted `<OnboardingTour />` immediately after `<OnboardingDialog />` and before `<CommandPalette />`.
+  · pengaturan-section.tsx: imported `startTour` from `@/components/nw/onboarding-tour`. Added a new `<SectionCard title="Tour Berpanduan">` to the ProfilTab function (after the "Coming soon" card, before closing `</div>`). Card contains: 🎯 icon, "Mulai Tour Berpanduan" title, helper text "8 langkah singkat · ± 1 menit · bisa dilewati kapan saja", teal "Mulai Tour" button with Sparkles icon that calls `startTour()`.
+  · orders-tab.tsx: imported `Printer` from lucide-react and `InvoiceDialog`. Added two state vars (invoiceOrder, invoiceOpen). Added a "Invoice" outline button as the FIRST action button in the order action cell — available for orders in any status per spec. Renders `<InvoiceDialog order={invoiceOrder} open={invoiceOpen} onOpenChange={setInvoiceOpen} />` at the bottom of the component.
+  · globals.css: added @media print block (~40 lines). Core rules: `body * { visibility: hidden }`, `.invoice-print, .invoice-print * { visibility: visible }`, `.invoice-print { position: absolute; left: 0; top: 0; width: 100%; padding: 20mm; ... }`, `@page { margin: 0 }`. CRITICAL ADDITION beyond spec's CSS: neutralize Radix Dialog portal positioning (`[data-slot="dialog-content"], [data-slot="dialog-portal"], [data-slot="dialog-overlay"] { position: static !important; transform: none !important; ... }`) so the .invoice-print absolute positioning is relative to the page (initial containing block) rather than the dialog's fixed+translated containing block. Also hides the dialog overlay (`display: none !important`) so it doesn't darken the printed page.
+- Wrote agent-ctx/14-B-onboarding-tour-print-invoice.md work record with full file list, decisions, and test results.
+- Ran `bun run lint`: 0 errors, 0 warnings. Ran `bunx tsc --noEmit` (excluding skills/ and examples/): 0 errors in app code. Dev server compiled successfully after edits (no compile errors in dev.log).
+
+Stage Summary:
+- Files created: `src/components/nw/onboarding-tour.tsx` (~560 lines), `src/sections/nw/toko/invoice-print.tsx` (~400 lines), `src/sections/nw/toko/invoice-dialog.tsx` (~110 lines), `agent-ctx/14-B-onboarding-tour-print-invoice.md`.
+- Files edited: `src/components/nw/sidebar.tsx` (+2 data-tour attrs), `src/components/nw/topbar.tsx` (+4 data-tour attrs + ThemeToggle wrapper div), `src/app/page.tsx` (+1 import, +1 mount), `src/sections/nw/pengaturan-section.tsx` (+1 import, +Tour Berpanduan SectionCard in ProfilTab), `src/sections/nw/toko/orders-tab.tsx` (+2 imports, +2 state vars, +Invoice button in action cell, +InvoiceDialog mount), `src/app/globals.css` (+@media print block ~40 lines).
+- Decisions:
+  · Spotlight approach: 4 dark divs (top/bottom/left/right strips around target rect) over SVG mask or box-shadow — allows independent pointer-events per strip, smooth CSS transitions on each div's position, easy to reason about.
+  · Rect computation: render-time (read-only DOM access) over effect-time setState — avoids the `react-hooks/set-state-in-effect` anti-pattern. Tick counter bumped by event listeners triggers re-renders that pick up fresh rect coords.
+  · Mobile fallback: if target element not found (e.g. hidden via responsive classes), renders a full-screen dark overlay + centered modal card instead of spotlight — prevents the tour from breaking on small screens.
+  · Brand/customer resolution for invoice: brand from useAppStore.brands via order.brandId (avoids a new API call, stays consistent with rest of app). Customer from order.customer or order.lead (Walk-in Customer if both null).
+  · Print CSS: position: absolute (not fixed) for natural multi-page flow. Added Radix Dialog neutralization rules so the absolute positioning is relative to the page (initial containing block), not the dialog's fixed+translated containing block — without this, the invoice would render offset from the page corner.
+  · InvoicePrint uses inline styles with explicit hex colors (not Tailwind classes / CSS vars) to guarantee identical rendering in print context regardless of theme.
+  · "Invoice" button placed as FIRST action button (before status buttons) so it's always visible regardless of order status, per spec.
+  · "Nanti saja" on first-visit prompt also writes localStorage flag (same as finishing the tour) — users who dismiss have explicitly opted out. Pengaturan > Profil "Mulai Tour" button bypasses localStorage (calls startTour() directly).
+- Critical gap closed: new users now get a guided 8-step tour explaining the cross-module data flow + key UI sections (sidebar nav, brand switcher, credit, command palette, notifications, theme toggle) on first visit, with manual restart available from Pengaturan > Profil. UMKM owners can now print/save-as-PDF clean A4 invoices for any order (regardless of status) with brand identity, customer info, items table, payment status, and shipping details — previously there was no print functionality at all.
+- All copy in Indonesian. Mobile responsive (tour uses fixed-positioned overlays that adapt to viewport; invoice preview uses max-width 210mm with horizontal scroll if needed). Established cream/teal palette preserved (teal for tour accents + invoice headers/totals, cream for card backgrounds).
+
+---
+Task ID: 14-A
+Agent: full-stack-developer (Product + Customer Detail Views)
+Task: Build product detail dialog (sales history, stock movement, related content) + customer detail dialog (order history, transactions, campaigns, receivables). Wire into Produk section + Toko leads/orders tabs.
+
+Work Log:
+- Read worklog.md (last 3 entries: 12-A Produk, 12-B Styling+BrandDelete+Features, 13 Insights+DemoSeed) and 11 pattern files (constants, store, api, primitives, produk-section, toko/leads-tab, toko/orders-tab, toko/types, api/products/route, api/orders/route, api/transactions/route, api/customers/route, api/campaigns/route, prisma schema) to learn established conventions: TanStack Query + api() client, getActiveBrand selector, SectionCard/StatCard/EmptyState primitives, cream/teal/orange palette, getUserId cookie auth, Order.items JSON shape, all copy in Indonesian.
+- A. Created `src/app/api/products/[id]/details/route.ts` (~210 lines): GET endpoint, auth via getUserId + ownership verify via product.brand.userId. Fetches all brand orders (with customer/lead/payments includes), filters orders containing productId via items JSON parse. Stats from non-cancelled orders: totalSold, totalRevenue, totalCost (HPP), grossProfit, marginPct, orderCount (incl. cancelled), lastSoldAt (most recent order date). Returns last 10 orders as recentOrders with computed paymentStatus (Lunas/Menunggu/Sebagian/Belum bayar). Stock movements (barang only): reconstructs initial stock = current + Σ sold (non-cancelled), then iterates chronologically with running balance; jasa products get empty array. Related content: Content rows where productId matches (id, type, platform, createdAt).
+- B. Created `src/app/api/customers/[id]/route.ts` (~190 lines): GET endpoint, auth via getUserId + ownership verify via customer.brand.userId. Parallel Prisma queries: orders (with payments), transactions, receivables, campaignRecipients (with campaign include). Returns customer object + stats (avgOrderValue, lastOrderAt, repeatRate proxy = totalOrders/(totalOrders+1)×100, daysSinceFirstOrder, daysSinceLastOrder) + orders (with parsed items + computed paymentStatus) + transactions + campaigns (joined via CampaignRecipient → Campaign with opened/clicked booleans) + receivables.
+- C. Created `src/sections/nw/produk/product-detail-dialog.tsx` (~510 lines): "use client" component, props { productId, open, onOpenChange, onEdit? }. TanStack Query fetches /api/products/[id]/details. Dialog max-w-3xl max-h-90vh scrollable. Header: product image/initials placeholder + name + type badge (barang/jasa) + SKU + price + costPrice/margin. 6 mini StatCards: Total Terjual, Total Pendapatan, Laba Kotor, Margin %, Jumlah Order, Penjualan Terakhir. 3 Tabs: Riwayat Order (table with date/customer/qty/total/status/payment badges), Pergerakan Stok (timeline cards green for "in" red for "out" with running balance; jasa shows "Produk jasa tidak melacak stok." note), Konten Terkait (grid of related Content cards with type icon + platform badge + date). Footer: Edit Produk + Tutup buttons. Loading skeleton + error state. Mobile responsive (grids collapse 2-col on mobile, table columns hide on small screens).
+- D. Edited `src/sections/nw/produk-section.tsx`: imported ProductDetailDialog + Eye icon, added detailProductId state. ProductCard now takes onDetail prop; card has cursor-pointer + hover shadow + overlay "Lihat Detail" hint + onClick=onDetail. Edit/Hapus buttons + dropdown menu trigger wrapper use e.stopPropagation() to prevent card click. "Lihat Detail" added as first item in DropdownMenu (MoreVertical). Rendered <ProductDetailDialog> with onEdit that closes detail + opens edit dialog for same product.
+- E. Created `src/sections/nw/toko/customer-detail-dialog.tsx` (~520 lines): "use client" component, props { customerId, open, onOpenChange }. TanStack Query fetches /api/customers/[id]. Dialog max-w-3xl max-h-90vh scrollable. Header: avatar initials + name + clickable WA link for phone + email + "Customer sejak [date]". 5 mini StatCards: Total Order, Total Belanja, Rata-rata Order, Order Terakhir, Hari Sejak Order. 4 Tabs: Riwayat Order (table with items summary + total + status/payment badges), Transaksi (table with type badge Masuk/Keluar + category + amount signed + description + date), Campaign (list with name + channel + date + opened/clicked badges), Piutang (list with amount + due date + status badge Outstanding/Lunas/Jatuh Tempo). Footer: Chat WhatsApp + Tutup. Loading skeleton + error state. Mobile responsive.
+- F. Edited `src/sections/nw/toko/leads-tab.tsx`: imported CustomerDetailDialog + ExternalLink icon, added detailCustomerId state. In lead side panel, the "✓ Terhubung ke Customer" block now has a clickable button (teal hover + underline + ExternalLink icon) showing customer name → opens CustomerDetailDialog with activeLead.customerId. Rendered dialog at end of component.
+- G. Edited `src/sections/nw/toko/orders-tab.tsx`: imported CustomerDetailDialog + ExternalLink icon, added detailCustomerId state. In orders table Customer column, if o.customer exists render <button> (with e.stopPropagation() to prevent row expand) showing customer name + ExternalLink icon → opens CustomerDetailDialog. Walk-in/lead-only orders render as plain text. Rendered dialog at end of component.
+- Wrote agent-ctx/14-A-product-customer-detail-views.md work record with full file list, decisions, and cross-module data flow summary.
+- Fixed 2 typos during dev: (1) `import { NextRequest, NextResponse } from "next.server"` → `"next/server"` in both new API routes (caused tsc TS2307 errors), (2) `@components/ui/tabs` → `@/components/ui/tabs` in produk-section.tsx (caused dev compile errors). Both fixed.
+- Ran `bun run lint`: 0 errors, 0 warnings. Ran `bunx tsc --noEmit` (excluding skills/ and examples/): 0 errors.
+
+Stage Summary:
+- Files created: `src/app/api/products/[id]/details/route.ts`, `src/app/api/customers/[id]/route.ts`, `src/sections/nw/produk/product-detail-dialog.tsx`, `src/sections/nw/toko/customer-detail-dialog.tsx`, `agent-ctx/14-A-product-customer-detail-views.md`.
+- Files edited: `src/sections/nw/produk-section.tsx` (ProductDetailDialog wiring + clickable cards + dropdown "Lihat Detail" item), `src/sections/nw/toko/leads-tab.tsx` (CustomerDetailDialog wiring + clickable customer link in lead side panel), `src/sections/nw/toko/orders-tab.tsx` (CustomerDetailDialog wiring + clickable customer names in orders table).
+- Decisions:
+  · Stock movement reconstruction: computed initial stock = current + Σ sold (non-cancelled) since Product has no native inventory ledger. Shown as first "in" movement with reference "initial", followed by chronological "out" movements with running balance. Mirrors UMKM mental model "started with X, sold Y, now have Z".
+  · Cancelled orders excluded from stats (totalSold/Revenue/Cost) + stock movements to keep arithmetic consistent. orderCount + lastSoldAt include cancelled (last appearance in any order).
+  · Payment status enum unified to 4 values (Lunas/Menunggu/Sebagian/Belum bayar) across product detail + customer detail for consistency. Computed from Payment rows.
+  · repeatRate proxy = totalOrders / (totalOrders + 1) × 100 — slightly under 100% to reflect growth potential.
+  · Customer phone is clickable (teal wa.me link) in customer detail header — same pattern as lead side panel.
+  · Detail dialogs use unique query keys (["product-detail", id] / ["customer-detail", id]) so they auto-refetch on each open. No staleTime, no invalidations needed since dialogs are read-only views.
+  · Stock card timeline (custom divs) over a table — easier to show colored in/out + running balance than a flat table. Mirrors Insights section funnel pattern.
+  · ExternalLink icon next to clickable customer names provides affordance without being intrusive; e.stopPropagation() prevents row-expand toggle on orders table.
+  · No lib/* files modified per spec. Only edited the 3 explicitly named section files + created new files in api/ and sections/nw/{produk,toko}/.
+  · All copy in Indonesian. Mobile responsive throughout. Established cream/teal palette preserved (teal primary actions, emerald/amber/rose for status, orange for jasa accent).
+- Cross-module data flow enabled: Produk card click → detail with sales history + stock movement + related content. Lead side panel "Terhubung ke Customer" click → customer detail with order history + transactions + campaigns + receivables. Orders table customer name click → same customer detail. Walk-in orders not clickable.
+- Lint: 0 errors, 0 warnings. tsc: 0 errors in app code.
+
+---
+Task ID: 14
+Agent: main (Z.ai Code) — Cron Review Round 3
+Task: QA, add real CSV export, product/customer detail views, onboarding tour, print invoice
+
+Work Log:
+- **Assessment**: Read worklog (440 lines, 13 prior task entries). Project stable after Round 2 (9 sections, dark mode, demo data, Insights). Identified gaps via QA: CSV export was mock (just toast), no product detail view, no customer detail view, no onboarding tour, no print invoice.
+- **QA via agent-browser**: Verified all 9 sections work. Confirmed CSV button in Keuangan was mock. Confirmed product cards not clickable. Confirmed lead panel "Terhubung ke Customer" not clickable.
+- **Real CSV Export (built myself)**:
+  - Created `src/lib/csv.ts` — reusable `buildCsv()`, `downloadCsv()`, `exportToCsv()` utilities. Client-side only (Blob + URL.createObjectURL + anchor click). BOM prefix for Excel UTF-8 compatibility. Handles commas/quotes/newlines in cell values.
+  - Wired into 4 sections:
+    - `keuangan/transaksi-tab.tsx` — replaced mock toast with real export (10 columns: Tanggal, Tipe, Kategori, Deskripsi, Produk, Pelanggan, Jumlah, HPP, Qty, Order ID)
+    - `toko/orders-tab.tsx` — new CSV button in header (15 columns: Order ID, Tanggal, Pelanggan, Telepon, Items, Total Item, Subtotal, Ongkir, Total, Dibayar, Status Order, Status Bayar, Resi, Kurir, Catatan)
+    - `toko/leads-tab.tsx` — new CSV button in header (9 columns: Nama, Telepon, Sumber, Stage, Terhubung Customer, Nama Customer, Catatan, Kontak Terakhir, Dibuat)
+    - `produk-section.tsx` — new CSV button in PageHeader (12 columns: Nama, Tipe, Harga Jual, Harga Modal, Margin, Margin %, Stok, Stok Min, SKU, Deskripsi, Status, Dibuat)
+  - Fixed toast import conflict: 3 files used shadcn `useToast` (pattern: `toast({ title })`) but I initially used sonner's `toast.success()`. Removed sonner imports, used shadcn pattern instead.
+  - Verified: clicking CSV button triggers download + shows success toast with count.
+- **Product Detail Dialog (delegated to subagent 14-A)**:
+  - New `GET /api/products/[id]/details` endpoint — aggregated product stats (totalSold, totalRevenue, totalCost, grossProfit, marginPct, orderCount, lastSoldAt), recent 10 orders, stock movements with running balance, related content.
+  - New `product-detail-dialog.tsx` — max-w-3xl dialog with image header, 6 mini StatCards, 3 tabs (Riwayat Order, Pergerakan Stok timeline, Konten Terkait).
+  - Wired into `produk-section.tsx` — product cards now clickable (cursor-pointer + "Lihat Detail" overlay), Edit/Hapus use stopPropagation. "Lihat Detail" also in DropdownMenu.
+  - Verified: clicking product opens dialog showing "Paket Foto Produk UMKM" with stats (1 terjual, Rp 250rb pendapatan, Rp 170rb laba, 68% margin).
+- **Customer Detail Dialog (delegated to subagent 14-A)**:
+  - New `GET /api/customers/[id]` endpoint — customer info, stats (avgOrderValue, lastOrderAt, repeatRate, daysSince), orders with parsed items, transactions, campaigns (with open/click), receivables.
+  - New `customer-detail-dialog.tsx` — max-w-3xl dialog with avatar header, 5 mini StatCards, 4 tabs (Riwayat Order, Transaksi, Campaign, Piutang).
+  - Wired into `toko/leads-tab.tsx` (customer name in lead panel is now clickable button) + `toko/orders-tab.tsx` (customer names in table are clickable).
+  - Verified: clicking "Andi Wijaya" in lead panel opens dialog showing 2 orders, Rp 48rb total, Rp 24rb avg, 1 campaign received.
+- **Onboarding Tour (delegated to subagent 14-B)**:
+  - New `onboarding-tour.tsx` — 8-step guided tour with spotlight effect (4 dark divs around target + teal border highlight), framer-motion animations, keyboard navigation (Esc=skip, ←/→=prev/next).
+  - Steps: Welcome → Sidebar nav → Brand switcher → Credit → Command palette → Notifications → Theme toggle → Get started.
+  - Auto-start on first visit (localStorage `nw_tour_completed` check, 5s delay, bottom-right prompt card).
+  - Manual start from Pengaturan > Profil ("Mulai Tour Berpanduan" button).
+  - Added `data-tour` attributes to sidebar + topbar elements.
+  - Verified: tour starts from Pengaturan, navigates through all 8 steps via keyboard, finishes with "Selesai" button.
+- **Print Invoice (delegated to subagent 14-B)**:
+  - New `invoice-print.tsx` — A4-sized printable invoice with inline styles (survives print CSS visibility toggling). Header, From/To, Items table, Summary, Payment info, Footer.
+  - New `invoice-dialog.tsx` — Dialog wrapper with "Cetak / Simpan PDF" button (calls window.print()).
+  - Print CSS in globals.css — `@media print` with visibility hidden + invoice-print visible + Radix Dialog neutralization rules.
+  - Wired into `toko/orders-tab.tsx` — "Invoice" button per order row.
+  - Verified: clicking Invoice opens dialog showing "INVOICE" heading + "Cetak / Simpan PDF" button.
+
+Stage Summary:
+- **Real CSV export**: 4 sections (Keuangan Transaksi, Toko Orders, Toko Leads, Produk) now export actual downloadable CSV files with BOM for Excel compatibility. Previously all were mock toasts.
+- **Product detail dialog**: Click any product card → see sales stats, order history, stock movement timeline, related content. Previously only Edit was available.
+- **Customer detail dialog**: Click customer name in lead panel or orders table → see order history, transactions, campaigns received, receivables. Previously not accessible.
+- **Onboarding tour**: 8-step guided walkthrough with spotlight effect, keyboard nav, auto-start on first visit. Helps new users understand the cross-module data flow.
+- **Print invoice**: A4 printable invoice with brand header, items table, payment summary. Uses window.print() with CSS visibility toggling.
+- **Lint**: 0 errors, 0 warnings. **tsc**: 0 errors. **Dev server**: running on port 3000, HTTP 200.
+- **Files created**: lib/csv.ts, api/products/[id]/details/route.ts, api/customers/[id]/route.ts, produk/product-detail-dialog.tsx, toko/customer-detail-dialog.tsx, toko/invoice-print.tsx, toko/invoice-dialog.tsx, onboarding-tour.tsx.
+- **Files edited**: keuangan/transaksi-tab.tsx (real CSV), toko/orders-tab.tsx (CSV + invoice), toko/leads-tab.tsx (CSV + customer link), produk-section.tsx (CSV + product click), page.tsx (OnboardingTour mount), pengaturan-section.tsx (Tour button), sidebar.tsx (data-tour attrs), topbar.tsx (data-tour attrs), globals.css (print styles).
+
+Unresolved issues / risks:
+- LLM API token still unavailable — all AI features use fallbacks (unchanged from previous rounds).
+- Onboarding tour spotlight effect may not perfectly highlight elements on very small screens (mobile fallback shows full-screen overlay instead).
+- CSV export fetches current page of data only (e.g., transactions limited to `pageSize * (page + 1)`). For large datasets, consider adding a "Export All" option that fetches without limit.
+- Print invoice uses inline styles (not Tailwind) to survive print CSS — slightly harder to maintain but necessary for correct printing.
+
+Priority recommendations for next phase:
+- Product image upload (file upload to a storage service) — currently URL-only or SVG placeholder.
+- Real WhatsApp integration for Campaigns — currently simulated.
+- Bulk actions: bulk delete products, bulk verify payments, bulk move leads.
+- Calendar view for orders/payments/campaigns (monthly grid).
+- Goal setting / business targets tracking (e.g., "Target omzet bulanan Rp 5jt").
+- Email notification system for critical events (low stock, payment received, etc.).
+- Multi-user collaboration (multiple users per brand with role-based permissions).

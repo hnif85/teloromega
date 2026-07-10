@@ -233,6 +233,7 @@ export function Topbar() {
           <Button
             variant="outline"
             size="sm"
+            data-tour="command-palette"
             className="hidden sm:flex gap-1.5 border-border text-stone hover:text-ink hover:bg-cream-100 px-2 h-8"
             onClick={() => openCommandPalette()}
             aria-label="Buka command palette (Cmd+K)"
@@ -242,7 +243,9 @@ export function Topbar() {
           </Button>
 
           {/* Theme toggle */}
-          <ThemeToggle />
+          <div data-tour="theme-toggle">
+            <ThemeToggle />
+          </div>
 
           {/* Notifications dropdown */}
           <DropdownMenu>
@@ -250,6 +253,7 @@ export function Topbar() {
               <Button
                 variant="ghost"
                 size="icon"
+                data-tour="notifications"
                 className="relative"
                 aria-label="Notifikasi"
               >
@@ -316,6 +320,7 @@ export function Topbar() {
           <Button
             size="sm"
             variant="outline"
+            data-tour="credit-button"
             className="gap-1.5 border-teal/30 text-teal hover:bg-teal-100 hover:text-teal-600"
             onClick={quickTopup}
           >

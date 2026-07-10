@@ -278,3 +278,44 @@
   background-size: 1000px 100%;
   animation: shimmer 1.6s linear infinite;
 }
+
+/* ── Print styles for InvoicePrint (Task 14-B) ────────────────────────────
+   Hides everything on the page except the .invoice-print subtree, then
+   repositions the invoice at the top-left of the page with safe print
+   margins. The Radix Dialog portal's content uses position:fixed + translate
+   centering, so we neutralize that positioning in print mode so the
+   .invoice-print absolute positioning is relative to the page (initial
+   containing block) rather than the dialog.
+*/
+@media print {
+  body * { visibility: hidden; }
+  .invoice-print, .invoice-print * { visibility: visible; }
+  .invoice-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 20mm;
+    box-shadow: none !important;
+    margin: 0 !important;
+    border: none !important;
+  }
+  /* Neutralize the Radix Dialog portal so .invoice-print's position:absolute
+     is relative to the page (initial containing block), not the dialog. */
+  [data-slot="dialog-content"],
+  [data-slot="dialog-portal"],
+  [data-slot="dialog-overlay"] {
+    position: static !important;
+    transform: none !important;
+    inset: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+    width: auto !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  [data-slot="dialog-overlay"] { display: none !important; }
+  @page { margin: 0; }
+}

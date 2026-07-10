@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { Sidebar } from "@/components/nw/sidebar";
 import { Topbar } from "@/components/nw/topbar";
 import { OnboardingDialog } from "@/components/nw/onboarding";
+import { OnboardingTour } from "@/components/nw/onboarding-tour";
 import { SectionTransition } from "@/components/nw/section-transition";
 import { CommandPalette } from "@/components/nw/command-palette";
 import { BerandaSection } from "@/sections/nw/beranda-section";
@@ -102,6 +103,7 @@ export default function Home() {
         </div>
       </footer>
       {onboardingOpen && <OnboardingDialog />}
+      <OnboardingTour />
       <CommandPalette />
     </div>
   );

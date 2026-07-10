@@ -72,7 +72,7 @@ export function Sidebar() {
       </div>
 
       {/* Primary nav */}
-      <nav className="sidebar-scroll px-3 flex-1 overflow-y-auto flex flex-col gap-1">
+      <nav data-tour="sidebar-nav" className="sidebar-scroll px-3 flex-1 overflow-y-auto flex flex-col gap-1">
         {NAV_ITEMS.map((item) => (
           <div
             key={item.key}
@@ -115,7 +115,7 @@ export function Sidebar() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors w-full text-left">
+            <button data-tour="brand-switcher" className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors w-full text-left">
               <div className="size-7 rounded-md bg-teal text-white text-xs font-bold flex items-center justify-center shrink-0">
                 {activeBrand?.name?.[0]?.toUpperCase() ?? "?"}
               </div>

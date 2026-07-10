@@ -73,6 +73,7 @@ import {
   type ToneKey,
 } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { startTour } from "@/components/nw/onboarding-tour";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-tone example snippets (static, for preview)
@@ -716,6 +717,31 @@ function ProfilTab() {
           </p>
         </div>
       </div>
+
+      <SectionCard
+        title="Tour Berpanduan"
+        desc="Belum hafal fitur Next Whiz? Jalankan tour 8 langkah untuk kenalan dengan navigasi, brand switcher, credit, command palette, notifikasi, dan theme toggle."
+      >
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <div className="size-10 rounded-xl bg-teal-100 text-teal flex items-center justify-center text-xl shrink-0">
+            🎯
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-ink">
+              Mulai Tour Berpanduan
+            </div>
+            <p className="text-xs text-stone mt-0.5">
+              8 langkah singkat · ± 1 menit · bisa dilewati kapan saja.
+            </p>
+          </div>
+          <Button
+            onClick={() => startTour()}
+            className="bg-teal hover:bg-teal-600 text-white gap-1.5 shrink-0"
+          >
+            <Sparkles className="size-3.5" /> Mulai Tour
+          </Button>
+        </div>
+      </SectionCard>
     </div>
   );
 }

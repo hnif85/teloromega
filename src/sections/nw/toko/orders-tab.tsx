@@ -50,8 +50,14 @@ import {
   Package,
   CreditCard,
   ShoppingCart,
+  Printer,
+  ExternalLink,
+  Download,
 } from "lucide-react";
 import type { Order, OrderItem, Product, Payment, Customer, Lead } from "@/sections/nw/toko/types";
+import { InvoiceDialog } from "@/sections/nw/toko/invoice-dialog";
+import { CustomerDetailDialog } from "@/sections/nw/toko/customer-detail-dialog";
+import { exportToCsv } from "@/lib/csv";
 
 interface OrderRow extends Order {
   customer?: Customer | null;
@@ -70,6 +76,9 @@ export function OrdersTab({
   const { toast } = useToast();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [createOpen, setCreateOpen] = useState(false);
+  const [invoiceOrder, setInvoiceOrder] = useState<OrderRow | null>(null);
+  const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [detailCustomerId, setDetailCustomerId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<{ orders: OrderRow[] }>({
     queryKey: ["orders", brandId],
@@ -177,9 +186,66 @@ export function OrdersTab({
         <div className="text-sm text-stone">
           Total <span className="font-bold text-ink">{orders.length}</span> order · Klik baris untuk detail
         </div>
-        <Button size="sm" className="bg-teal hover:bg-teal-600" onClick={() => setCreateOpen(true)}>
-          <Plus className="size-4" /> Order Baru
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={orders.length === 0}
+            onClick={() => {
+              if (orders.length === 0) return;
+              exportToCsv(
+                orders.map((o) => {
+                  let items: OrderItem[] = [];
+                  try { items = JSON.parse(o.items); } catch { /* */ }
+                  const paidAmount = (o.payments ?? [])
+                    .filter((p) => p.status === "Diterima")
+                    .reduce((s, p) => s + p.amount, 0);
+                  return {
+                    order_id: o.id,
+                    tanggal: new Date(o.createdAt).toLocaleDateString("id-ID"),
+                    pelanggan: o.customer?.name ?? o.lead?.name ?? "Walk-in",
+                    telepon: o.customer?.phone ?? o.lead?.phone ?? "",
+                    items_summary: items.map((i) => `${i.name} ×${i.qty}`).join("; "),
+                    total_item: items.reduce((s, i) => s + i.qty, 0),
+                    subtotal: items.reduce((s, i) => s + i.qty * i.price, 0),
+                    ongkir: o.shippingCost ?? 0,
+                    total: o.totalAmount,
+                    dibayar: paidAmount,
+                    status_order: o.status,
+                    status_bayar: paidAmount >= o.totalAmount && paidAmount > 0 ? "Lunas" : paidAmount > 0 ? "Sebagian" : (o.payments?.length ?? 0) > 0 ? "Menunggu" : "Belum bayar",
+                    resi: o.resiNumber ?? "",
+                    kurir: o.shippingCourier ?? "",
+                    catatan: o.notes ?? "",
+                  };
+                }),
+                [
+                  { key: "order_id", label: "Order ID" },
+                  { key: "tanggal", label: "Tanggal" },
+                  { key: "pelanggan", label: "Pelanggan" },
+                  { key: "telepon", label: "Telepon" },
+                  { key: "items_summary", label: "Items" },
+                  { key: "total_item", label: "Total Item" },
+                  { key: "subtotal", label: "Subtotal (Rp)" },
+                  { key: "ongkir", label: "Ongkir (Rp)" },
+                  { key: "total", label: "Total (Rp)" },
+                  { key: "dibayar", label: "Dibayar (Rp)" },
+                  { key: "status_order", label: "Status Order" },
+                  { key: "status_bayar", label: "Status Bayar" },
+                  { key: "resi", label: "No Resi" },
+                  { key: "kurir", label: "Kurir" },
+                  { key: "catatan", label: "Catatan" },
+                ],
+                `orders-${new Date().toISOString().slice(0, 10)}`
+              );
+              toast({ title: `${orders.length} order diekspor ke CSV` });
+            }}
+          >
+            <Download className="size-3.5" /> CSV
+          </Button>
+          <Button size="sm" className="bg-teal hover:bg-teal-600" onClick={() => setCreateOpen(true)}>
+            <Plus className="size-4" /> Order Baru
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -235,7 +301,21 @@ export function OrdersTab({
                         </TableCell>
                         <TableCell>
                           <div className="font-semibold text-sm text-ink">
-                            {o.customer?.name ?? o.lead?.name ?? "Walk-in"}
+                            {o.customer ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (o.customerId) setDetailCustomerId(o.customerId);
+                                }}
+                                className="hover:text-teal-700 hover:underline inline-flex items-center gap-1 text-left"
+                              >
+                                {o.customer.name}
+                                <ExternalLink className="size-3 shrink-0 text-stone" />
+                              </button>
+                            ) : (
+                              <span>{o.lead?.name ?? "Walk-in"}</span>
+                            )}
                           </div>
                           <div className="text-[11px] text-stone">
                             #{o.id.slice(-6).toUpperCase()}
@@ -272,6 +352,18 @@ export function OrdersTab({
                         </TableCell>
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs gap-1"
+                              onClick={() => {
+                                setInvoiceOrder(o);
+                                setInvoiceOpen(true);
+                              }}
+                              title="Cetak invoice / struk penjualan"
+                            >
+                              <Printer className="size-3" /> Invoice
+                            </Button>
                             {o.status === "Baru" && (
                               <Button
                                 size="sm"
@@ -649,6 +741,19 @@ export function OrdersTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <InvoiceDialog
+        order={invoiceOrder}
+        open={invoiceOpen}
+        onOpenChange={setInvoiceOpen}
+      />
+
+      {/* Customer Detail Dialog */}
+      <CustomerDetailDialog
+        customerId={detailCustomerId}
+        open={!!detailCustomerId}
+        onOpenChange={(o) => !o && setDetailCustomerId(null)}
+      />
     </div>
   );
 }

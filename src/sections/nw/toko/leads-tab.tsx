@@ -40,8 +40,10 @@ import {
 import { EmptyState, SectionCard } from "@/components/nw/primitives";
 import { useToast } from "@/hooks/use-toast";
 import { LEAD_STAGES, timeAgo, formatRupiah } from "@/lib/constants";
-import { Plus, Phone, User, Trash2, GripVertical, ShoppingCart, MessageSquare } from "lucide-react";
+import { Plus, Phone, User, Trash2, GripVertical, ShoppingCart, MessageSquare, ExternalLink, Download } from "lucide-react";
 import type { Lead, Product, Customer } from "@/sections/nw/toko/types";
+import { CustomerDetailDialog } from "@/sections/nw/toko/customer-detail-dialog";
+import { exportToCsv } from "@/lib/csv";
 
 type LeadWithCustomer = Lead & {
   customer?: Pick<Customer, "name" | "phone"> | null;
@@ -117,6 +119,7 @@ export function LeadsTab({
   const [addOpen, setAddOpen] = useState(false);
   const [orderOpen, setOrderOpen] = useState<LeadWithCustomer | null>(null);
   const [addForm, setAddForm] = useState({ name: "", phone: "", sourceChannel: "wa", notes: "" });
+  const [detailCustomerId, setDetailCustomerId] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -249,9 +252,47 @@ export function LeadsTab({
         <div className="text-sm text-stone">
           Total <span className="font-bold text-ink">{leads.length}</span> leads · Tarik kartu ke kolom lain untuk pindah stage
         </div>
-        <Button size="sm" className="bg-teal hover:bg-teal-600" onClick={() => setAddOpen(true)}>
-          <Plus className="size-4" /> Lead Baru
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={leads.length === 0}
+            onClick={() => {
+              if (leads.length === 0) return;
+              exportToCsv(
+                leads.map((l) => ({
+                  nama: l.name,
+                  telepon: l.phone,
+                  sumber: l.sourceChannel,
+                  stage: l.stage,
+                  terhubung_customer: l.customer ? "Ya" : "Tidak",
+                  customer_name: l.customer?.name ?? "",
+                  catatan: l.notes ?? "",
+                  kontak_terakhir: l.lastContactedAt ? new Date(l.lastContactedAt).toLocaleDateString("id-ID") : "",
+                  dibuat: new Date(l.createdAt).toLocaleDateString("id-ID"),
+                })),
+                [
+                  { key: "nama", label: "Nama" },
+                  { key: "telepon", label: "Telepon" },
+                  { key: "sumber", label: "Sumber" },
+                  { key: "stage", label: "Stage" },
+                  { key: "terhubung_customer", label: "Terhubung Customer" },
+                  { key: "customer_name", label: "Nama Customer" },
+                  { key: "catatan", label: "Catatan" },
+                  { key: "kontak_terakhir", label: "Kontak Terakhir" },
+                  { key: "dibuat", label: "Dibuat" },
+                ],
+                `leads-${new Date().toISOString().slice(0, 10)}`
+              );
+              toast({ title: `${leads.length} lead diekspor ke CSV` });
+            }}
+          >
+            <Download className="size-3.5" /> CSV
+          </Button>
+          <Button size="sm" className="bg-teal hover:bg-teal-600" onClick={() => setAddOpen(true)}>
+            <Plus className="size-4" /> Lead Baru
+          </Button>
+        </div>
       </div>
 
       {/* Kanban */}
@@ -327,8 +368,19 @@ export function LeadsTab({
 
                 {activeLead.customer && (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3">
-                    <div className="text-xs font-semibold text-emerald-700 mb-1">✓ Terhubung ke Customer</div>
-                    <div className="text-sm text-ink">{activeLead.customer.name}</div>
+                    <div className="text-xs font-semibold text-emerald-700 mb-1 flex items-center gap-1">
+                      ✓ Terhubung ke Customer
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activeLead.customerId) setDetailCustomerId(activeLead.customerId);
+                      }}
+                      className="text-sm text-ink hover:text-teal-700 hover:underline font-semibold flex items-center gap-1.5 text-left w-full"
+                    >
+                      {activeLead.customer?.name ?? "Lihat detail"}
+                      <ExternalLink className="size-3 shrink-0" />
+                    </button>
                   </div>
                 )}
 
@@ -593,6 +645,13 @@ export function LeadsTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Customer Detail Dialog */}
+      <CustomerDetailDialog
+        customerId={detailCustomerId}
+        open={!!detailCustomerId}
+        onOpenChange={(o) => !o && setDetailCustomerId(null)}
+      />
     </div>
   );
 }

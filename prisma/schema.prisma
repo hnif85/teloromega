@@ -1,0 +1,413 @@
+// The Next Whiz — Full data model (mirrors `shared.*` schema from LOGIC_FLOW_v0.1.1.md)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth (mocked locally; in prod via mwxmarket.ai SSO) ────────────────────
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String
+  creditBalance  Int      @default(50) // cache; otoritatif di mwxmarket (mock)
+  toneOfVoice    String   @default("santai_ramah")
+  lastLogin      DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  brands         Brand[]
+  research       Research[]
+  transactions   Transaction[]
+  receivables    Receivable[]
+  payables       Payable[]
+  operationalCosts OperationalCost[]
+  creditUsageLog CreditUsageLog[]
+  inboxMessages  InboxMessage[]
+}
+
+// ─── Brand & Product ────────────────────────────────────────────────────────
+model Brand {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String
+  slug         String   @unique
+  logoUrl      String?
+  description  String?
+  category     String
+  toneOfVoice  String   @default("santai_ramah")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products     Product[]
+  research     Research[]
+  contexts     Context[]
+  contextUsage ContextUsage[]
+  content      Content[]
+  customers    Customer[]
+  leads        Lead[]
+  orders       Order[]
+  campaigns    Campaign[]
+  inboxMessages InboxMessage[]
+  transactions Transaction[]
+  receivables  Receivable[]
+  payables     Payable[]
+  operationalCosts OperationalCost[]
+  creditUsageLog CreditUsageLog[]
+
+  @@index([userId])
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  brandId     String
+  type        String   // 'barang' | 'jasa'
+  name        String
+  price       Int      // harga jual
+  costPrice   Int?     // harga modal → margin/laba otomatis
+  stock       Int?     // sumber stok otoritatif (barang). NULL untuk jasa
+  minStock    Int?
+  sku         String?
+  description String?
+  imageUrl    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  brand       Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  inventory   Inventory[]
+  content     Content[]
+  transactions Transaction[]
+
+  @@index([brandId])
+}
+
+model Inventory {
+  id        String   @id @default(cuid())
+  productId String
+  variant   String
+  stock     Int
+  updatedAt DateTime @updatedAt
+
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+// ─── Research & Context ─────────────────────────────────────────────────────
+model Research {
+  id          String   @id @default(cuid())
+  userId      String
+  brandId     String
+  query       String
+  intent      String?  // market_trend | competitor_analysis | keyword_research | pricing
+  resultJson  String   // JSON string (SQLite has no native JSON)
+  status      String   @default("completed") // pending | completed | failed
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand       Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  contexts    Context[]
+
+  @@index([brandId])
+}
+
+model Context {
+  id            String   @id @default(cuid())
+  researchId    String
+  brandId       String
+  targetModule  String   // konten | toko | keuangan
+  contextJson   String   // JSON string
+  createdAt     DateTime @default(now())
+
+  research      Research @relation(fields: [researchId], references: [id], onDelete: Cascade)
+  brand         Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  contextUsage  ContextUsage[]
+  content       Content[]
+
+  @@index([brandId])
+  @@index([researchId])
+}
+
+model ContextUsage {
+  id          String   @id @default(cuid())
+  contextId   String
+  brandId     String
+  usedFor     String   // konten.generate | toko.apply_price | keuangan.view_projection
+  referenceId String?
+  createdAt   DateTime @default(now())
+
+  context     Context  @relation(fields: [contextId], references: [id], onDelete: Cascade)
+  brand       Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([contextId])
+}
+
+// ─── Content (hasil generate, reusable) ─────────────────────────────────────
+model Content {
+  id          String   @id @default(cuid())
+  brandId     String
+  productId   String?
+  contextId   String?
+  type        String   // gambar | video | caption | carousel
+  body        String?
+  assetUrl    String?
+  platform    String?
+  createdAt   DateTime @default(now())
+
+  brand       Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  context     Context? @relation(fields: [contextId], references: [id], onDelete: SetNull)
+
+  @@index([brandId])
+}
+
+// ─── Customers (anti-ketik-ulang, lintas modul) ─────────────────────────────
+model Customer {
+  id            String    @id @default(cuid())
+  brandId       String
+  name          String
+  phone         String
+  email         String?
+  firstOrderAt  DateTime?
+  totalOrders   Int       @default(0)
+  totalSpent    Int       @default(0)
+  createdAt     DateTime  @default(now())
+
+  brand         Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  leads         Lead[]
+  orders        Order[]
+  transactions  Transaction[]
+  receivables   Receivable[]
+  campaignRecipients CampaignRecipient[]
+
+  @@index([brandId])
+  @@unique([brandId, phone])
+}
+
+// ─── Toko: Inbox, Leads, Orders, Payments, Campaigns ────────────────────────
+model InboxMessage {
+  id           String   @id @default(cuid())
+  brandId      String
+  userId       String?
+  channel      String   // wa | telegram
+  fromNumber   String
+  fromName     String?
+  messageText  String
+  direction    String   // inbound | outbound
+  repliedBy    String?  // 'ai' | 'user'
+  leadId       String?
+  createdAt    DateTime @default(now())
+
+  brand        Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([brandId])
+}
+
+model Lead {
+  id              String    @id @default(cuid())
+  brandId         String
+  customerId      String?
+  name            String
+  phone           String
+  sourceChannel   String    @default("wa")
+  stage           String    @default("Baru") // Baru | Negosiasi | Deal | Closed
+  notes           String?
+  assignedTo      String?
+  lastContactedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  brand           Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  orders          Order[]
+
+  @@index([brandId])
+}
+
+model Order {
+  id              String    @id @default(cuid())
+  brandId         String
+  customerId      String?
+  leadId          String?
+  items           String    // JSON: [{ productId, name, qty, price }]
+  totalAmount     Int
+  status          String    @default("Baru") // Baru | Diproses | Dikirim | Selesai | Dibatalkan
+  resiNumber      String?
+  shippingCourier String?
+  shippingCost    Int?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  brand           Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  lead            Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  payments        Payment[]
+  transactions    Transaction[]
+
+  @@index([brandId])
+}
+
+model Payment {
+  id            String    @id @default(cuid())
+  orderId       String
+  amount        Int
+  method        String    @default("transfer")
+  status        String    @default("Menunggu") // Menunggu | Diterima | Ditolak
+  proofImageUrl String?
+  verifiedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+model Campaign {
+  id             String    @id @default(cuid())
+  brandId        String
+  channel        String    // 'wa' | 'email'
+  name           String
+  subject        String?
+  body           String
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  status         String    @default("draft") // draft | scheduled | sent | failed
+  createdAt      DateTime  @default(now())
+
+  brand          Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  recipients     CampaignRecipient[]
+
+  @@index([brandId])
+}
+
+model CampaignRecipient {
+  id          String    @id @default(cuid())
+  campaignId  String
+  customerId  String?
+  leadId      String?
+  contact     String    // phone (WA) or email
+  sent        Boolean   @default(false)
+  deliveredAt DateTime?
+  openedAt    DateTime?
+  clickedAt   DateTime?
+
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId])
+}
+
+// ─── Keuangan ───────────────────────────────────────────────────────────────
+model Transaction {
+  id           String    @id @default(cuid())
+  userId       String
+  brandId      String
+  productId    String?
+  customerId   String?
+  orderId      String?
+  type         String    // income | expense
+  category     String    // penjualan | bahan_baku | operasional | marketing | gaji | lainnya
+  amount       Int
+  costAmount   Int?      // HPP snapshot (cost_price × qty)
+  quantity     Int?
+  description  String?
+  date         DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand        Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  product      Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  order        Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([brandId])
+  @@index([date])
+}
+
+model Receivable {
+  id           String   @id @default(cuid())
+  userId       String
+  brandId      String
+  customerId   String?
+  customerName String
+  amount       Int
+  dueDate      DateTime
+  status       String   @default("outstanding") // outstanding | paid | overdue
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand        Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([brandId])
+}
+
+model Payable {
+  id           String   @id @default(cuid())
+  userId       String
+  brandId      String
+  supplierName String
+  amount       Int
+  dueDate      DateTime
+  status       String   @default("outstanding") // outstanding | paid | overdue
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand        Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([brandId])
+}
+
+model OperationalCost {
+  id        String   @id @default(cuid())
+  userId    String
+  brandId   String
+  category  String
+  amount    Int
+  recurring Boolean  @default(false)
+  date      DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand     Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([brandId])
+}
+
+// ─── Credit (Next Whiz side; balance otoritatif di mwxmarket.ai — mocked) ────
+model CreditRate {
+  id          String   @id @default(cuid())
+  actionKey   String   @unique
+  actionName  String
+  creditCost  Int
+  module      String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model CreditUsageLog {
+  id              String   @id @default(cuid())
+  userId          String
+  brandId         String?
+  actionKey       String
+  creditCost      Int
+  balanceBefore   Int
+  balanceAfter    Int
+  referenceId     String?
+  status          String   @default("charged") // charged | refunded
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand           Brand?   @relation(fields: [brandId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([brandId])
+}

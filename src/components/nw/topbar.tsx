@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAppStore, getActiveBrand } from "@/lib/store";
 import { NAV_ITEMS, SECONDARY_NAV, type SectionKey, timeAgo } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { Bell, Menu, Zap, Plus, Command } from "lucide-react";
+import { Bell, Menu, Zap, Plus, Command, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/nw/theme-toggle";
 import {
@@ -139,6 +139,17 @@ export function Topbar() {
     }
   }
 
+  async function handleLogout() {
+    try {
+      await api("/api/logout", { method: "POST" });
+    } catch {
+      /* ignore — clear local state anyway */
+    }
+    setOpen(false);
+    useAppStore.getState().logout();
+    toast({ title: "Berhasil logout", description: "Sampai jumpa lagi! 👋" });
+  }
+
   function MobileNav() {
     return (
       <div className="flex flex-col gap-1">
@@ -188,6 +199,26 @@ export function Topbar() {
             {b.id === activeBrandId && <span className="text-teal text-xs">✓</span>}
           </button>
         ))}
+
+        <div className="h-px bg-border my-2" />
+        <div className="flex items-center gap-2 px-3 py-2 mb-1">
+          <div className="size-8 rounded-full bg-gradient-to-br from-teal to-teal-600 text-white text-xs font-bold flex items-center justify-center">
+            {user?.name?.[0]?.toUpperCase() ?? "U"}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-ink truncate">{user?.name}</div>
+            <div className="text-[10px] text-stone truncate">{user?.email}</div>
+          </div>
+        </div>
+        <button
+          onClick={() => {
+            handleLogout();
+          }}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors text-left"
+        >
+          <LogOut className="size-4" />
+          <span>Keluar</span>
+        </button>
       </div>
     );
   }

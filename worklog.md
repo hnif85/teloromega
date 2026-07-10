@@ -695,3 +695,40 @@ Priority recommendations for next phase:
 - Multi-user collaboration (multiple users per brand with role-based permissions).
 - Advanced analytics: cohort analysis, customer lifetime value, seasonal trends.
 - Mobile app / PWA support for offline-first experience.
+
+---
+Task ID: 16
+Agent: main (Z.ai Code)
+Task: Add login/logout flow + reset onboarding so user can try the onboarding process
+
+Work Log:
+- Created `/api/logout` (POST) — clears `nw_user_id` cookie.
+- Created `/api/reset-onboarding` (POST) — soft-deletes all active brands for the current user so onboarding dialog re-appears. User account + credit preserved.
+- Updated `src/lib/store.ts` — added `isLoggedIn` state + `logout()` + `clearBrands()` actions. `setSession()` now sets `isLoggedIn: true`. `logout()` clears user/brands/section + sets `isLoggedIn: false` + keeps `hydrated: true` so login screen shows.
+- Created `src/components/nw/login-screen.tsx` — full-page login screen with:
+  - NW logo + "The Next Whiz" heading
+  - "Masuk dengan mwxmarket.ai" button (calls `/api/init` → auto-login as demo user Ibu Ani)
+  - "Coba Onboarding dari Awal" button (login → reset brands → re-init → onboarding dialog triggers)
+  - 6-feature preview grid (Dashboard, Riset AI, Konten AI, Toko, Keuangan, Kalender)
+  - mesh-hero gradient background
+- Created `src/components/nw/user-menu.tsx` — dropdown menu triggered by user card in sidebar. Contains: user info header, "Pengaturan" item, "Keluar" item (rose). Logout opens AlertDialog confirmation "Keluar dari The Next Whiz?" → POST `/api/logout` → `logout()` store action → toast.
+- Updated `src/components/nw/sidebar.tsx` — replaced static user card with `<UserMenu />` component (dropdown with logout).
+- Updated `src/components/nw/topbar.tsx` — added `handleLogout()` function + `LogOut` icon import. MobileNav now includes user info card + "Keluar" button at the bottom (for mobile access since sidebar is hidden).
+- Updated `src/app/page.tsx` — added `isLoggedIn` from store. If `!isLoggedIn`, render `<LoginScreen />` instead of the main app.
+- Fixed reset-onboarding flow: login first (sets cookie), then reset brands (needs auth), then re-init (0 brands → onboarding triggers). Initial implementation called reset before login → 401.
+
+QA via agent-browser:
+1. Started logged in as Ibu Ani (dashboard with demo data) ✅
+2. Clicked sidebar user card → dropdown with "Pengaturan" + "Keluar" ✅
+3. Clicked "Keluar" → AlertDialog "Keluar dari The Next Whiz?" ✅
+4. Clicked "Ya, Keluar" → toast "Berhasil logout" → LoginScreen appeared ✅
+5. Clicked "Coba Onboarding dari Awal" → login → reset → onboarding dialog "Setup Brand" appeared ✅
+6. Filled "Test Brand Baru" → clicked "Lanjut" → step 2 (product) → dashboard with empty state ✅
+
+Stage Summary:
+- Login/logout flow fully functional: auto-login on first visit → logout via sidebar/topbar → login screen → login or reset onboarding.
+- Onboarding can be re-triggered anytime via "Coba Onboarding dari Awal" button on login screen (soft-deletes all brands).
+- Logout accessible from: sidebar user dropdown (desktop) + mobile nav sheet bottom (mobile).
+- Lint: 0 errors, 0 warnings. tsc: 0 errors. Dev server: running on port 3000, HTTP 200.
+- Files created: api/logout/route.ts, api/reset-onboarding/route.ts, login-screen.tsx, user-menu.tsx.
+- Files edited: store.ts (isLoggedIn + logout + clearBrands), sidebar.tsx (UserMenu), topbar.tsx (handleLogout + mobile Keluar), page.tsx (LoginScreen conditional).

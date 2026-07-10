@@ -29,6 +29,7 @@ export interface SessionState {
   section: SectionKey;
   hydrated: boolean;
   onboardingOpen: boolean;
+  isLoggedIn: boolean;
 
   setSession: (s: { user: SessionUser; brands: Brand[]; activeBrandId: string | null }) => void;
   setSection: (s: SectionKey) => void;
@@ -39,6 +40,8 @@ export interface SessionState {
   addBrand: (b: Brand) => void;
   updateBrand: (b: Brand) => void;
   setHydrated: (h: boolean) => void;
+  logout: () => void;
+  clearBrands: () => void;
 }
 
 export const useAppStore = create<SessionState>((set) => ({
@@ -48,6 +51,7 @@ export const useAppStore = create<SessionState>((set) => ({
   section: "beranda",
   hydrated: false,
   onboardingOpen: false,
+  isLoggedIn: false,
 
   setSession: (s) =>
     set({
@@ -55,6 +59,7 @@ export const useAppStore = create<SessionState>((set) => ({
       brands: s.brands,
       activeBrandId: s.activeBrandId ?? s.brands[0]?.id ?? null,
       hydrated: true,
+      isLoggedIn: true,
       onboardingOpen: s.brands.length === 0,
     }),
   setSection: (s) => set({ section: s }),
@@ -69,6 +74,18 @@ export const useAppStore = create<SessionState>((set) => ({
   updateBrand: (b) =>
     set((st) => ({ brands: st.brands.map((x) => (x.id === b.id ? b : x)) })),
   setHydrated: (h) => set({ hydrated: h }),
+  logout: () =>
+    set({
+      user: null,
+      brands: [],
+      activeBrandId: null,
+      section: "beranda",
+      isLoggedIn: false,
+      onboardingOpen: false,
+      hydrated: true,
+    }),
+  clearBrands: () =>
+    set({ brands: [], activeBrandId: null, onboardingOpen: true, section: "beranda" }),
 }));
 
 export const getActiveBrand = (st: SessionState): Brand | null =>

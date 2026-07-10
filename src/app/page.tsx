@@ -9,6 +9,7 @@ import { OnboardingDialog } from "@/components/nw/onboarding";
 import { OnboardingTour } from "@/components/nw/onboarding-tour";
 import { SectionTransition } from "@/components/nw/section-transition";
 import { CommandPalette } from "@/components/nw/command-palette";
+import { LoginScreen } from "@/components/nw/login-screen";
 import { BerandaSection } from "@/sections/nw/beranda-section";
 import { InsightsSection } from "@/sections/nw/insights-section";
 import { ProdukSection } from "@/sections/nw/produk-section";
@@ -24,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function Home() {
   const {
     hydrated,
+    isLoggedIn,
     section,
     setSession,
     setHydrated,
@@ -63,6 +65,11 @@ export default function Home() {
         </div>
       </div>
     );
+  }
+
+  // Show login screen when not logged in
+  if (!isLoggedIn) {
+    return <LoginScreen />;
   }
 
   return (

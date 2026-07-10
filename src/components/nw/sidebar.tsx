@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { SidebarThemeToggle } from "@/components/nw/sidebar-theme-toggle";
+import { UserMenu } from "@/components/nw/user-menu";
 
 export function Sidebar() {
   const { section, setSection, brands, activeBrandId, setActiveBrand, user, setOnboardingOpen, addBrand } =
@@ -163,15 +164,11 @@ export function Sidebar() {
         </DropdownMenu>
       </nav>
 
-      {/* User card */}
+      {/* User card with dropdown menu (logout, settings) */}
       <div className="p-3 border-t border-sidebar-border">
-        <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-sidebar-accent/50 transition-colors">
-          <div className="size-8 rounded-full bg-gradient-to-br from-teal to-teal-600 text-white text-xs font-bold flex items-center justify-center shrink-0">
-            {user?.name?.[0]?.toUpperCase() ?? "U"}
-          </div>
+        <div className="flex items-center gap-1">
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-cream-100 truncate">{user?.name ?? "User"}</div>
-            <div className="text-[10px] text-cream-300/60 truncate">{user?.email}</div>
+            <UserMenu />
           </div>
           <SidebarThemeToggle />
         </div>

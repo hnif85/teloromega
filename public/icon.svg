@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="The Next Whiz">
+  <defs>
+    <linearGradient id="nw-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0D9488"/>
+      <stop offset="100%" stop-color="#0F766E"/>
+    </linearGradient>
+    <linearGradient id="nw-shine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="112" ry="112" fill="url(#nw-bg)"/>
+  <rect x="0" y="0" width="512" height="512" rx="112" ry="112" fill="url(#nw-shine)"/>
+  <text x="256" y="256"
+        font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+        font-size="240" font-weight="800"
+        text-anchor="middle" dominant-baseline="central"
+        fill="#FFFFFF" letter-spacing="-8">NW</text>
+  <circle cx="112" cy="400" r="14" fill="#99F1E5" opacity="0.85"/>
+  <circle cx="400" cy="112" r="10" fill="#FED7AA" opacity="0.85"/>
+</svg>

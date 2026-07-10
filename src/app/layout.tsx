@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Manrope, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
@@ -24,6 +24,33 @@ export const metadata: Metadata = {
     "Riset, konten, toko, keuangan — satu platform. Ditenagai AI untuk pemilik usaha kecil Indonesia.",
   keywords: ["Next Whiz", "UMKM", "AI", "Riset Pasar", "Konten", "Keuangan"],
   authors: [{ name: "The Next Whiz" }],
+  manifest: "/manifest.json",
+  applicationName: "The Next Whiz",
+  appleWebApp: {
+    capable: true,
+    title: "The Next Whiz",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+    shortcut: ["/icon-192.png"],
+  },
+  formatDetection: {
+    telephone: false,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0D9488",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -33,6 +60,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id" suppressHydrationWarning>
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="The Next Whiz" />
+      </head>
       <body
         className={`${manrope.variable} ${geistMono.variable} font-sans antialiased bg-background text-foreground`}
       >

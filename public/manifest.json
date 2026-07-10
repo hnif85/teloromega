@@ -1,0 +1,33 @@
+{
+  "name": "The Next Whiz — AI Co-pilot UMKM",
+  "short_name": "Next Whiz",
+  "description": "Riset, konten, toko, keuangan — satu platform. Ditenagai AI untuk pemilik usaha kecil Indonesia.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F6F4EF",
+  "theme_color": "#0D9488",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity", "finance"],
+  "lang": "id",
+  "dir": "ltr"
+}

@@ -863,3 +863,147 @@ Priority recommendations for next phase:
 - Advanced analytics: cohort analysis, customer lifetime value, seasonal trends.
 - PWA / offline support for mobile-first experience.
 - Fix activity log `total` to respect type filter.
+
+---
+Task ID: 18-A
+Agent: full-stack-developer (Global Search)
+Task: Build global search across 6 models (products, orders, customers, leads, transactions, content) with Cmd+F shortcut, grouped results, keyboard navigation.
+
+Work Log:
+- Read worklog.md (last 2 entries: Task 8 Credit/Pengaturan + Task 10 final integration), constants.ts (SectionKey, formatRupiah, timeAgo), store.ts (useAppStore, getActiveBrand), auth.ts (getUserId), api.ts (api() client), command-palette.tsx (CustomEvent open pattern + recent-commands localStorage pattern), activity/route.ts (Promise.all parallel multi-model query pattern), schema.prisma (all 6 target models + their text fields).
+- Created `src/app/api/search/route.ts` — GET endpoint:
+  · Auth: `getUserId(req)` + brand ownership check.
+  · Params: `brandId`, `q` (min 2 chars), `limit` (default 20, max 100).
+  · 6 parallel Prisma `findMany` queries filtered by `brandId` + `OR contains q` across: Products (name/sku/description), Orders (resi/customer.name/lead.name), Customers (name/phone/email), Leads (name/phone/notes), Transactions (description/category), Content (body/platform/type). Each take = limit.
+  · Score: exact name = 100, starts-with = 80, contains = 60, other-field = 40. Computed post-fetch via `scoreName()` + `fieldMatches()` helpers.
+  · Cross-model createdAt-desc tiebreaker via position map (walks each list in fixed order; lower index = newer).
+  · Returns `{results: SearchResult[], total, query}` with each result having `id, type, title, subtitle, icon (emoji), section (SectionKey), referenceId, score`.
+  · Empty/too-short query → `{results: [], total: 0, query}`.
+- Created `src/components/nw/global-search.tsx` — `"use client"` component:
+  · Dialog (not CommandDialog) for custom layout: search input row → scrollable grouped results → keyboard-hint footer.
+  · `openGlobalSearch()` exported function dispatches `nw:open-global-search` CustomEvent (mirrors `openCommandPalette` pattern).
+  · Opens on Cmd+F / Ctrl+F via global keydown listener with `preventDefault` (overrides browser find).
+  · Autofocus input on open; auto-clears query; resets active index.
+  · 300ms debounce on input via custom `useDebounced` hook.
+  · TanStack Query with `enabled: !!query && query.length >= 2` and `placeholderData: (prev) => prev` to avoid flash between keystrokes.
+  · Grouped results with sticky headers per type (📦 Produk, 🛒 Order, 👤 Customer, 👥 Lead, 💰 Transaksi, 📝 Konten) and count Badges.
+  · Empty query state: recent searches from localStorage (`nw:recent-searches`, last 5) with Hapus button + search tips + source-data Badges.
+  · Loading state: 5 skeleton result rows.
+  · No-results state: friendly message + suggestion chips.
+  · Keyboard nav: ↑↓ flat-index across grouped results, ↵ opens, Esc closes. Active item auto-scrolled into view.
+  · Click result → `setSection(r.section)` + close dialog + persist query to recent.
+  · All copy in Indonesian; cream/teal palette; shadcn/ui (Dialog, Input, Badge, Skeleton, ScrollArea); Lucide icons (Search, Package, ShoppingCart, User, Users, DollarSign, FileText, ChevronRight, Clock, X, Sparkles).
+- Edited `src/components/nw/topbar.tsx`:
+  · Added `Search` to lucide imports + `GlobalSearch, openGlobalSearch` import.
+  · Inserted ⌘F search button (hidden sm:flex, with Search icon + "Cari..." text + ⌘F kbd) next to the existing ⌘K command palette button.
+  · Rendered `<GlobalSearch />` at the bottom of the header (mounted once, opened via event).
+- Wrote agent-ctx record at `/home/z/my-project/agent-ctx/18-A-global-search.md`.
+- Ran `bun run lint` → 0 errors, 0 warnings (clean).
+- Ran `bunx tsc --noEmit` → 0 errors (filtered out skills/ and examples/).
+
+Stage Summary:
+- Files created: `src/app/api/search/route.ts`, `src/components/nw/global-search.tsx`, `agent-ctx/18-A-global-search.md`.
+- Files edited: `src/components/nw/topbar.tsx` (added search button + GlobalSearch mount + imports).
+- Decisions:
+  · Plain Dialog (not CommandDialog) for full control over grouped layout + footer.
+  · Scoring computed post-fetch in JS so a single Prisma query per model suffices (no per-field fan-out).
+  · Order ID short-ref matching done client-side (SQLite can't easily do ends-with on CUID); score bumps to 100 when last 6 chars exactly match the query.
+  · `placeholderData: (prev) => prev` keeps old results visible during refetch — no jarring empty flash between keystrokes.
+  · Recent searches persisted to localStorage `nw:recent-searches` (last 5), shown in empty-query state alongside search tips + source-data badges.
+  · Cmd+F overrides browser find globally (preventDefault); Esc closes via Radix Dialog default.
+- No existing APIs/lib/section files modified (only topbar.tsx for wiring + 2 new files). Existing Cmd+K Command Palette untouched.
+- Cross-module navigation map: produk→produk section, order/customer/lead→toko section, transaksi→keuangan section, konten→konten section. `referenceId` is exposed for future deep-linking (sections don't currently support item-level routes via URL).
+
+---
+Task ID: 18-B
+Agent: full-stack-developer (PWA + Dashboard Hero)
+Task: Add PWA manifest + icons + layout wiring. Build dashboard hero section with gradient + greeting + quick stats + decorative elements.
+
+Work Log:
+- Read worklog.md (last 3 entries: 17-A Bantuan, 17-B Activity Log, 17 Cron Review Round 5) + 6 pattern files (layout.tsx, globals.css, page.tsx, beranda-section.tsx, primitives.tsx, public/ listing). Confirmed date-fns@4 (id locale), framer-motion@12, sharp@0.34 available. Confirmed dashboard API shape (stats: research/products/salesMonth/credit/leads/orders/content) + no trend data.
+- A. Created `public/manifest.json` per spec — name "The Next Whiz — AI Co-pilot UMKM", short_name "Next Whiz", start_url "/", display "standalone", background_color "#F6F4EF" (cream), theme_color "#0D9488" (teal), orientation "portrait-primary", lang "id", dir "ltr", categories ["business","productivity","finance"]. Icons array includes SVG (type image/svg+xml, sizes any, purpose any maskable) as first entry + 192 PNG + 512 PNG.
+- B. Created `public/icon.svg` (512×512 viewBox): teal gradient rounded-square bg (#0D9488 → #0F766E linear), top-shine overlay (white 18%→0% gradient), white "NW" text centered font-size 240 weight 800 letter-spacing -8, two decorative dots (teal-200 + orange-200) for visual interest. Maskable-safe (NW text well inside 80% safe zone).
+- C. Generated `public/icon-192.png` (4.6 KB) + `public/icon-512.png` (25.6 KB) via sharp: read SVG with density 384, resize to size×size cover, png quality 92. One-off script /tmp/gen-icons.mjs (not committed).
+- D. Edited `src/app/layout.tsx`:
+  · metadata: added `manifest: "/manifest.json"`, `applicationName: "The Next Whiz"`, `appleWebApp: { capable: true, title: "The Next Whiz", statusBarStyle: "default" }`, `icons.icon` array (SVG + 192 + 512 PNG), `icons.apple` (192 PNG), `icons.shortcut` (192 PNG), `formatDetection.telephone: false`.
+  · Added `export const viewport: Viewport` with `themeColor: "#0D9488"`, `width: "device-width"`, `initialScale: 1`, `maximumScale: 1`, `viewportFit: "cover"` (iOS notch safe-area).
+  · Added explicit `<head>` links: `<link rel="manifest" href="/manifest.json" />`, `<link rel="apple-touch-icon" href="/icon-192.png" />`, and 4 mobile meta tags (mobile-web-app-capable, apple-mobile-web-app-capable, apple-mobile-web-app-status-bar-style, apple-mobile-web-app-title).
+- E. Edited `src/sections/nw/beranda-section.tsx`:
+  · Added imports: `motion` from framer-motion, `format` from date-fns, `id as idLocale` from date-fns/locale, `Plus`/`Lightbulb`/`CalendarDays`/`Store` from lucide-react.
+  · Added `DAILY_TIPS` static array (5 tips in Indonesian with emoji + tone variation: teal/orange/violet/emerald).
+  · Added `tipOfDay()` helper — picks tip based on `new Date().getDate() % DAILY_TIPS.length` (stable per-day, rotates daily).
+  · Added `DashboardHero` component (~150 lines) replacing the plain PageHeader:
+    - Container: motion.section fade-in + slide-up (opacity 0→1, y 14→0, 0.45s cubic-bezier). Rounded-3xl, mesh-hero + diagonal teal→cream→orange gradient bg, blurred decorative blobs (top-right teal, bottom-left orange).
+    - Layout: lg:grid-cols-5 (left col-span-3, right col-span-2), stacked on mobile.
+    - Left column: badges row (CalendarDays + Indonesian date via format(now,"EEEE, d MMMM yyyy",{locale:idLocale}) + brand badge with Store icon + category badge); greeting "Halo, {firstName} 👋" text-3xl sm:text-4xl font-extrabold (motion fade-in from left); subtitle with brand name highlighted; inline quick stats (📦 N produk · 🛒 N order bulan ini · 📈 Rp Z omzet with colored icons + tabular-nums); CTA buttons "Mulai Riset" (teal solid + Sparkles + shadow) + "Tambah Produk" (outline + Plus + glass bg).
+    - Right column: decorative emoji cluster (hidden on mobile) — 6 emojis (📊🔍📝🛒💰📅) in circle (64px radius) around central "NW" badge (size-14 rounded-2xl teal). Each emoji: staggered entrance (delay 0.3+i*0.08, scale 0.6→1) + continuous float (y:[0,-4,0], 2.4+i*0.2s, infinite). NW badge: spring entrance. Plus Tip of the Day card below — gradient bg (tone-based), Lightbulb + "TIP HARI INI" label, bold title, body text. Slide-in entrance (delay 0.4).
+  · Added `HeroStatCard` wrapper component (~20 lines): motion.button when onClick provided (else motion.div). Adds whileTap scale 0.98, group-hover lift (-translate-y-0.5) + teal shadow, gradient overlay reveal on hover (from-teal-100/60 via-transparent to-orange-100/40). Focus-visible ring for keyboard nav.
+  · Replaced the plain `<PageHeader title="Halo, ..." />` block in active-brand branch with `<DashboardHero ... />`. (Empty-state branch keeps PageHeader — appropriate for onboarding state.)
+  · Wrapped all 7 stat cards (4 in top row + 3 in second row) with `<HeroStatCard onClick={...}>` — each navigates to its source section (riset/produk/toko/credit/konten). All cards now have hover gradient + active scale + lift + aria-label.
+  · Preserved all existing functionality: GoalsWidget, recent research, recommendations, low stock alerts, pending payments, cross-module info card, empty state.
+- Lint: 0 errors, 0 warnings. tsc --noEmit (excluding skills/examples): 0 errors. Dev server log confirms `✓ Compiled in 1875ms` after edits (no compile errors).
+- Wrote agent-ctx/18-B-pwa-dashboard-hero.md work record with file list, decisions, and reusable patterns.
+
+Stage Summary:
+- Files created: `public/manifest.json` (PWA manifest), `public/icon.svg` (scalable icon), `public/icon-192.png` (192×192 raster), `public/icon-512.png` (512×512 raster), `agent-ctx/18-B-pwa-dashboard-hero.md`.
+- Files edited: `src/app/layout.tsx` (metadata.manifest + icons + appleWebApp + viewport.themeColor + explicit head links), `src/sections/nw/beranda-section.tsx` (DashboardHero + HeroStatCard wrapper + 7 stat cards wrapped + tip-of-day + framer-motion entrance animations).
+- Decisions:
+  · SVG icon listed first in manifest — modern browsers prefer scalable SVG for crisp rendering at any density. PNGs retained for iOS Safari (doesn't support SVG maskable in apple-touch-icon).
+  · PNGs generated via sharp (already in deps) at density 384 for crisp text anti-aliasing.
+  · Right column = decorative emoji cluster (hidden on mobile) + tip-of-day card (visible everywhere). Chose tip card over health gauge to avoid extra /api/insights fetch; rotates daily via getDate() % tips.length.
+  · Hero replaces PageHeader entirely (per spec). Empty-state branch keeps PageHeader (appropriate for onboarding).
+  · Stat card enhancements via local HeroStatCard wrapper in beranda-section.tsx — keeps StatCard primitive untouched for other sections (insights/keuangan/etc reuse it as-is).
+  · No trend indicators added — /api/dashboard doesn't return prior-period data; fabricating trends would mislead. StatCard primitive already supports trend prop — adding trends later only needs backend changes.
+  · All 7 stat cards now clickable (previously only Produk Aktif was). motion.button for native keyboard accessibility (Tab + Enter) without extra ARIA boilerplate.
+  · viewportFit: "cover" for iOS notch safe-area when installed as PWA.
+
+---
+Task ID: 18
+Agent: main (Z.ai Code) — Cron Review Round 6
+Task: QA, verify activity log filter, add Global Search + PWA support + Dashboard Hero
+
+Work Log:
+- **Assessment**: Read worklog (865 lines, 17 prior task entries). Project stable after Round 5 (12 sections, Bantuan, Aktivitas, login/logout). Identified next priorities: Global Search, PWA support, dashboard hero styling.
+- **QA via agent-browser**: Verified all 12 sections present in sidebar. Confirmed app stable.
+- **Activity log filter verification**: Checked `/api/activity` code — the `wants()` function gates each model query by `filterTypes` BEFORE querying. So `total` IS correctly filtered. The worklog note from Round 5 was incorrect — no bug exists.
+- **Global Search (delegated to subagent 18-A)**:
+  - New `/api/search` GET endpoint — 6 parallel Prisma queries (Products, Orders, Customers, Leads, Transactions, Content). Scoring: exact name=100, starts-with=80, contains=60, other-field=40. Returns unified results with type/icon/section for navigation.
+  - New `global-search.tsx` — Cmd+F/Ctrl+F shortcut (overrides browser find), 300ms debounce, grouped results (📦 Produk, 🛒 Order, 👤 Customer, 👥 Lead, 💰 Transaksi, 📝 Konten), keyboard navigation (↑↓ Enter Esc), recent searches (localStorage), loading skeleton, empty/no-results states.
+  - Wired into topbar — search button with "Cari... ⌘F" next to ⌘K command palette button.
+  - Verified: search dialog opens, typing "keripik" returns grouped results (Produk + Customer sections appear).
+- **PWA Support (delegated to subagent 18-B)**:
+  - `public/manifest.json` — standalone display, teal theme (#0D9488), cream background (#F6F4EF), 3 icons (SVG scalable + 192 PNG + 512 PNG), Indonesian lang, business/productivity/finance categories.
+  - `public/icon.svg` — teal gradient rounded-square with white "NW" text, maskable-safe.
+  - `public/icon-192.png` + `public/icon-512.png` — rasterized via sharp.
+  - `layout.tsx` — manifest link, theme-color meta, apple-touch-icon, viewport export with themeColor.
+  - Verified: manifest.json HTTP 200, all 3 icons HTTP 200, HTML has `<link rel="manifest">` + `<meta name="theme-color" content="#0D9488">`.
+- **Dashboard Hero (subagent 18-B)**:
+  - New `DashboardHero` component replaces plain PageHeader — 2-column layout with mesh-hero gradient background.
+  - Left: Indonesian date (date-fns id locale), brand badge, "Halo, {firstName} 👋" greeting, inline quick stats (produk · order · omzet), CTA buttons.
+  - Right: decorative emoji cluster (📊🔍📝🛒💰📅) with float animation + Tip of the Day card (rotates daily, 5 tips).
+  - Framer-motion entrance animation (fade-in + slide-up).
+  - All 7 stat cards now wrapped with `whileTap={{ scale: 0.98 }}` + gradient hover overlay + clickable (navigates to source section).
+  - Verified: hero renders with greeting "Halo, Ibu 👋", date "Jumat, 10 Juli 2026", quick stats, tip of the day.
+
+Stage Summary:
+- **Global Search**: Cmd+F opens search dialog, searches 6 models in parallel, grouped results with keyboard nav. Sits next to Cmd+K command palette.
+- **PWA**: App is now installable — manifest + icons + theme-color wired. Can be added to home screen on mobile/desktop.
+- **Dashboard Hero**: Visually striking gradient hero with greeting, date, quick stats, CTA buttons, tip of the day, decorative emoji cluster with float animation.
+- **Lint**: 0 errors, 0 warnings. **tsc**: 0 errors. **Dev server**: running on port 3000, HTTP 200.
+- **Files created**: api/search/route.ts, global-search.tsx, public/manifest.json, public/icon.svg, public/icon-192.png, public/icon-512.png.
+- **Files edited**: topbar.tsx (search button + GlobalSearch mount), layout.tsx (PWA metadata + viewport), beranda-section.tsx (DashboardHero + clickable stat cards).
+
+Unresolved issues / risks:
+- LLM API token still unavailable — all AI features use fallbacks (unchanged).
+- Server OOM killed twice during this round (memory pressure from large dev compilation). Auto-restarted successfully each time.
+- PWA service worker not added (manifest + icons make it installable, but no offline caching). Consider adding next-round for true offline support.
+- Global search doesn't search Research/Context/Campaign models (only 6 models). Could be extended.
+
+Priority recommendations for next phase:
+- Add service worker for true offline PWA support (cache static assets + API responses).
+- Extend global search to include Research, Campaigns, Goals.
+- Product image upload (file upload to storage).
+- Real WhatsApp integration for Campaigns.
+- Email notification system for critical events.
+- Multi-user collaboration (multiple users per brand with role-based permissions).
+- Advanced analytics: cohort analysis, customer lifetime value, seasonal trends.

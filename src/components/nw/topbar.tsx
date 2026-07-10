@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAppStore, getActiveBrand } from "@/lib/store";
 import { NAV_ITEMS, SECONDARY_NAV, type SectionKey, timeAgo } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { Bell, Menu, Zap, Plus, Command, LogOut } from "lucide-react";
+import { Bell, Menu, Zap, Plus, Command, LogOut, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/nw/theme-toggle";
 import {
@@ -26,6 +26,7 @@ import {
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { openCommandPalette } from "@/components/nw/command-palette";
+import { GlobalSearch, openGlobalSearch } from "@/components/nw/global-search";
 
 // Shape returned by /api/dashboard — only the fields the topbar needs.
 interface DashboardData {
@@ -260,6 +261,20 @@ export function Topbar() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Global search trigger — ⌘F badge */}
+          <Button
+            variant="outline"
+            size="sm"
+            data-tour="global-search"
+            className="hidden sm:flex gap-1.5 border-border text-stone hover:text-ink hover:bg-cream-100 px-2 h-8"
+            onClick={() => openGlobalSearch()}
+            aria-label="Cari data (Cmd+F)"
+          >
+            <Search className="size-3.5" />
+            <span className="text-xs">Cari...</span>
+            <kbd className="text-[10px] font-mono text-stone">⌘F</kbd>
+          </Button>
+
           {/* Command palette trigger — ⌘K badge */}
           <Button
             variant="outline"
@@ -370,6 +385,9 @@ export function Topbar() {
           </Button>
         </div>
       </div>
+
+      {/* Global search dialog — mounted once, opened via Cmd+F or the search button. */}
+      <GlobalSearch />
     </header>
   );
 }

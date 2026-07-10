@@ -1347,7 +1347,8 @@ function formatDateRange(s: string, e: string): string {
 function TargetTab() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const activeBrand = getActiveBrand(useAppStore.getState());
+  const { brands, activeBrandId } = useAppStore();
+  const activeBrand = brands.find((b) => b.id === activeBrandId) ?? brands[0] ?? null;
   const brandId = activeBrand?.id;
 
   // ─── Fetch goals (all statuses for management view) ───

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/lib/store";
 import { api } from "@/lib/api";
 import { Sidebar } from "@/components/nw/sidebar";
@@ -20,6 +21,8 @@ import { KeuanganSection } from "@/sections/nw/keuangan-section";
 import { KalenderSection } from "@/sections/nw/kalender-section";
 import { CreditSection } from "@/sections/nw/credit-section";
 import { PengaturanSection } from "@/sections/nw/pengaturan-section";
+import { BantuanSection } from "@/sections/nw/bantuan-section";
+import { AktivitasSection } from "@/sections/nw/aktivitas-section";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Home() {
@@ -31,6 +34,7 @@ export default function Home() {
     setHydrated,
     onboardingOpen,
   } = useAppStore();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let cancelled = false;
@@ -50,6 +54,13 @@ export default function Home() {
       cancelled = true;
     };
   }, []);
+
+  // Clear all cached queries when user logs out — prevents 401s from stale queries
+  useEffect(() => {
+    if (!isLoggedIn) {
+      queryClient.clear();
+    }
+  }, [isLoggedIn, queryClient]);
 
   if (!hydrated) {
     return (
@@ -90,6 +101,8 @@ export default function Home() {
               {section === "kalender" && <KalenderSection />}
               {section === "credit" && <CreditSection />}
               {section === "pengaturan" && <PengaturanSection />}
+              {section === "bantuan" && <BantuanSection />}
+              {section === "aktivitas" && <AktivitasSection />}
             </SectionTransition>
           </main>
         </div>

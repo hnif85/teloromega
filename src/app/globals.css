@@ -279,6 +279,17 @@
   animation: shimmer 1.6s linear infinite;
 }
 
+/* Skeleton pulse — gradient sweep variant (Task 17-B) */
+.skeleton-pulse {
+  background: linear-gradient(90deg, var(--muted) 0%, var(--card) 50%, var(--muted) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* ── Print styles for InvoicePrint (Task 14-B) ────────────────────────────
    Hides everything on the page except the .invoice-print subtree, then
    repositions the invoice at the top-left of the page with safe print

@@ -93,13 +93,19 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-cream-100/60 p-10 text-center">
-      <div className="size-14 rounded-2xl bg-cream-200 text-stone mx-auto flex items-center justify-center text-2xl mb-3">
+    <div className="fade-in rounded-2xl border border-dashed border-border bg-cream-100/60 mesh-hero p-10 text-center">
+      <div className="size-16 rounded-2xl bg-cream-200 text-stone mx-auto flex items-center justify-center text-3xl mb-3 shadow-[0_4px_16px_rgba(13,148,136,0.18)]">
         {icon}
       </div>
       <h3 className="font-bold text-ink">{title}</h3>
-      <p className="text-sm text-stone mt-1 max-w-md mx-auto">{desc}</p>
-      {action && <div className="mt-4">{action}</div>}
+      <p className="text-sm text-stone mt-1 max-w-md mx-auto leading-relaxed">{desc}</p>
+      {action && (
+        <div className="mt-4 flex justify-center">
+          <div className="rounded-lg transition-shadow duration-200 hover:shadow-[0_0_0_3px_rgba(13,148,136,0.15)]">
+            {action}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

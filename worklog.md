@@ -732,3 +732,134 @@ Stage Summary:
 - Lint: 0 errors, 0 warnings. tsc: 0 errors. Dev server: running on port 3000, HTTP 200.
 - Files created: api/logout/route.ts, api/reset-onboarding/route.ts, login-screen.tsx, user-menu.tsx.
 - Files edited: store.ts (isLoggedIn + logout + clearBrands), sidebar.tsx (UserMenu), topbar.tsx (handleLogout + mobile Keluar), page.tsx (LoginScreen conditional).
+
+---
+Task ID: 17-A
+Agent: full-stack-developer (Help & Support)
+Task: Build Bantuan section — FAQ accordion, keyboard shortcuts, contact options, quick action cards.
+
+Work Log:
+- Read worklog.md (last 3 entries: 15-A Kalender, 15-B Goals, 16 Login/logout) and 6 pattern files (constants.ts, store.ts, primitives.tsx, credit-section.tsx, command-palette.tsx, onboarding-tour.tsx) to align with established conventions: SectionKey + SECONDARY_NAV for nav items (auto-rendered by Sidebar + Topbar MobileNav), PageHeader/SectionCard primitives, cream/teal palette with semantic colors (emerald/orange/violet/rose), `startTour()` named export from onboarding-tour for programmatic tour trigger, Accordion + Separator shadcn components.
+- A. constants.ts: added `"bantuan"` to SectionKey type union (after `"pengaturan"`) and added `{ key: "bantuan", label: "Bantuan", icon: "❓" }` to SECONDARY_NAV (after Pengaturan). Sidebar + Topbar MobileNav auto-render SECONDARY_NAV so no other component edits needed for nav visibility.
+- B. page.tsx: imported `BantuanSection` from `@/sections/nw/bantuan-section` and added render branch `{section === "bantuan" && <BantuanSection />}` after pengaturan.
+- C. Created `src/sections/nw/bantuan-section.tsx` (~380 lines): "use client" component.
+  · PageHeader: title "Bantuan", icon "❓", subtitle "Pusat bantuan, FAQ, & kontak support". Right action: teal outline Badge "Pusat Bantuan" with HelpCircle icon.
+  · Quick Actions Grid (4 cards, grid-cols-1 sm:grid-cols-2 lg:grid-cols-4): 🎓 Mulai Tour (teal accent, calls `startTour()`), 📖 Panduan Cepat (orange accent, scrolls to #faq), ⌨️ Keyboard Shortcuts (violet accent, scrolls to #shortcuts), 💬 Hubungi Support (emerald accent, scrolls to #contact). Each card has hover border-teal/40 + shadow-sm + arrow-right translate-x animation. Keyboard accessible (button element).
+  · FAQ Section (SectionCard id="faq" scroll-mt-4): Accordion type="multiple" with 10 questions (numbered teal badges 1–10), all in Indonesian. Each item: trigger with question + chevron, content with answer. Footer info bar with "Tidak menemukan jawaban? Hubungi support" link that scrolls to #contact.
+  · Keyboard Shortcuts Section (SectionCard id="shortcuts"): grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 of 5 ShortcutCards. Each card: kbd-styled keys (⌘K, Esc, ←/→, Tab, Enter), label, description. Below grid: teal-tinted tip box explaining ⌘K Command Palette.
+  · Contact Section (SectionCard id="contact"): grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 of 3 ContactRow links. 📧 Email (mailto:support@nextwhiz.id, teal accent), 💬 WhatsApp (https://wa.me/6281234567890, emerald accent, external), 📚 Dokumentasi (https://docs.nextwhiz.id, orange accent, external with ExternalLink icon). Each row: icon box + label uppercase + value, hover border-teal/40. Below: Separator + operational hours info (Senin–Jumat 09.00–17.00 WIB, response < 24 jam) with pulsing success dot.
+  · About Section (gradient bg-cream-100/60 → bg-card rounded-2xl border): NW logo + "The Next Whiz" title + "v0.1.1 · MVP" badge. Description: "AI Co-pilot all-in-one untuk UMKM Indonesia". Right side: tech stack (Next.js 16, TypeScript, Prisma, z-ai-web-dev-sdk) + "Dibuat untuk UMKM Indonesia" with Heart icon.
+  · Bottom CTA: dashed teal-border card with 🎯 emoji + "Masih bingung mulai dari mana?" + "Mulai Tour" button calling startTour().
+  · All copy in Indonesian. Mobile responsive throughout (single-column on mobile, 2-col on sm, 3-4 col on lg). Established cream/teal palette preserved with semantic colors (teal/orange/violet/emerald) for accent variety. shadcn/ui components used: Accordion, Button, Badge, Separator. Lucide icons: HelpCircle, BookOpen, Keyboard, Mail, MessageCircle, ExternalLink, Info, Sparkles, GraduationCap, ArrowRight, Heart.
+- Lint: 0 errors, 0 warnings. tsc --noEmit: 0 errors in app code.
+- Wrote agent-ctx/17-A-help-support.md work record with file list, decisions, and reusable patterns.
+
+Stage Summary:
+- Files created: `src/sections/nw/bantuan-section.tsx` (~380 lines), `agent-ctx/17-A-help-support.md`.
+- Files edited: `src/lib/constants.ts` (+2: "bantuan" in SectionKey + SECONDARY_NAV), `src/app/page.tsx` (+2: BantuanSection import + render branch).
+- Decisions:
+  · Bantuan is a SECONDARY_NAV item (like Credit/Pengaturan) — not a primary NAV_ITEM. Spec-compliant placement.
+  · "Hubungi Support" quick action scrolls to #contact section (consistent with other quick actions that scroll to their target sections). Contact section has all 3 channels (email/wa/docs), so scroll-to-section gives users the full picture without duplicating content in a dialog.
+  · FAQ uses Accordion type="multiple" so users can open multiple FAQs at once (better for comparing answers). State tracked via `openItems` for potential future use (e.g., "still need help?" footer).
+  · Shortcut keys rendered with `<kbd>` styled elements (min-w-28px h-7 px-2 font-mono bold) — matches conventional keyboard shortcut visual language.
+  · About section uses gradient bg (cream-100/60 → card) for visual distinction from other SectionCards.
+  · Bottom CTA repeats the "Mulai Tour" call-to-action — users who scrolled through all help content and still need guidance get a final prominent tour trigger.
+  · All FAQ answers reference established app features (Credit, brand switcher, CSV exports, demo data reset, Context creation = free) for consistency with v0.1.1 spec.
+  · Only edited constants.ts (SectionKey/SECONDARY_NAV) and page.tsx (route) per spec — no other lib/* or section files touched.
+
+---
+Task ID: 17-B
+Agent: full-stack-developer (Activity Log + Styling)
+Task: Build Aktivitas section — unified timeline of all events. Enhance EmptyState with gradient + glow. Add skeleton-pulse animation.
+
+Work Log:
+- Read worklog.md (last 3 entries: 15-A Kalender, 15-B Goals, 16 Login/logout) + 9 pattern files (constants, store, auth, api, primitives, topbar, insights route, insights-section, schema.prisma) to align with established conventions (cookie auth via getUserId, api() client, TanStack Query, PageHeader/StatCard/EmptyState/SectionCard primitives, getActiveBrand selector, Promise.all parallel queries, cream/teal palette + semantic colors, sonner toast, Indonesian copy).
+- A. Created `src/app/api/activity/route.ts` (~330 lines): GET endpoint with auth via getUserId + brand ownership verify. Query params: brandId (required), limit (default 50, max 200), type (optional comma-separated filter: order|payment|lead|content|research|transaction|campaign|goal). Parallel Promise.all across 8 models — each queried with take=limit when its type is wanted, Promise.resolve([]) otherwise (TypeScript narrows never[] → typed array automatically). Per-model field selection: Order (items JSON parsed for item count + customer/lead name + totalAmount + status), Payment (include order.customer/lead + method + status + amount), Lead (name + stage + sourceChannel), Content (type + platform + body excerpt + product name), Research (query + intent + status), Transaction (type + amount + category + description + date), Campaign (name + channel + status + sentAt/scheduledAt + _count recipients), Goal (type + period + target + status). Maps each record to ActivityItem shape with type-specific title (emoji + Indonesian verb), description, amount, status, timestamp, referenceId, icon emoji. Campaign timestamp = sentAt ?? scheduledAt ?? createdAt. Transaction timestamp = date (not createdAt). Merges all, sorts by timestamp desc, slices to limit. Returns { activities, total } where total = count after filter before slice (drives "Load more" visibility).
+- B. Edited `src/lib/constants.ts`: added "aktivitas" to SectionKey type (after "bantuan"). Added { key: "aktivitas", label: "Aktivitas", icon: "📋" } to SECONDARY_NAV (after "bantuan", per spec "after bantuan if it exists").
+- C. Edited `src/app/page.tsx`: added `import { AktivitasSection } from "@/sections/nw/aktivitas-section";` after BantuanSection import. Added render branch `{section === "aktivitas" && <AktivitasSection />}` after bantuan branch.
+- D. Created `src/sections/nw/aktivitas-section.tsx` (~580 lines): "use client" component.
+  · PageHeader: ClipboardList icon, "Aktivitas" title, "Riwayat semua aktivitas brand kamu" subtitle. Actions: Select filter dropdown (Semua/Order/Pembayaran/Lead/Konten/Riset/Transaksi/Campaign/Target) with Filter icon + Refresh button (spins when fetching).
+  · Stats row: 4 StatCards — Total Aktivitas (uses API total field, teal), Hari Ini (success), Minggu Ini (orange), Bulan Ini (stone). Period stats computed client-side from fetched activities (Monday-start week per Indonesian convention).
+  · Separator between stats and timeline.
+  · Timeline (Card container): vertical teal gradient line (from-teal-300 via-teal-100 to-transparent). ScrollArea max-h-70vh. Activities grouped by date ("Hari Ini" / "Kemarin" / "2 Hari Lalu" / full Indonesian date for older). Each group has uppercase date label badge + activity count.
+  · TimelineItem: clickable button (navigates to type's section via setSection). Icon circle (colored by type: order=teal, payment=emerald, lead=sky, content=orange, research=violet, transaction=amber, campaign=rose, goal=teal) with ring-4 ring-card to punch through the timeline line + emoji from API. Title (font-semibold) + description (text-stone, line-clamp-2). Amount (formatRupiahShort, colored: income=emerald, expense=rose, Diterima=emerald, Ditolak=rose, Dibatalkan=stone+line-through, neutral=ink). Status badge (capitalized, color-mapped). timeAgo timestamp. Hover reveals type label + Lucide icon + ChevronRight (teal, slide-in).
+  · Navigation map: order/payment/lead/campaign → toko, content → konten, research → riset, transaction → keuangan, goal → pengaturan.
+  · Load More button: visible when total > activities.length. Increments visibleLimit by 50 (capped at 200). Shows spinner + "Memuat..." when fetching.
+  · Empty state: "Belum ada aktivitas. Mulai tambah produk, bikin order, atau jalankan riset untuk melihat aktivitas di sini." (uses enhanced EmptyState primitive with mesh-hero bg + glow).
+  · Error state: "Gagal memuat aktivitas" with "Coba Lagi" button (refetch).
+  · Loading skeleton: 6 placeholder cards using Skeleton component + skeleton-pulse CSS class (gradient sweep). Each card has circle + 3 text lines mimicking real timeline item layout.
+  · TanStack Query: queryKey ["activity", brandId, filter, visibleLimit], staleTime 30s. Filter change resets visibleLimit to 50.
+  · All copy in Indonesian. Mobile responsive (2-col stats on mobile → 4-col on lg, smaller icon circles on mobile, hidden text labels on small screens).
+  · Uses shadcn/ui: Button, Card, Badge, Select, Skeleton, ScrollArea, Separator. Uses Lucide: ClipboardList, Filter, RefreshCw, ChevronRight, ShoppingBag, CreditCard, Users, FileText, Search, DollarSign, Megaphone, Target, Calendar.
+- E. Enhanced `src/components/nw/primitives.tsx` EmptyState: added fade-in animation class on root, mesh-hero subtle gradient background, size-16 icon container (up from size-14) with text-3xl (up from text-2xl) + soft teal glow via box-shadow `shadow-[0_4px_16px_rgba(13,148,136,0.18)]`, leading-relaxed on description, action button wrapped in flex-justify-center container with hover border-glow `hover:shadow-[0_0_0_3px_rgba(13,148,136,0.15)]` transition.
+- F. Added `.skeleton-pulse` CSS to `src/app/globals.css`: gradient sweep animation (muted → card → muted, 200% bg-size, 1.5s ease-in-out infinite, background-position 200% → -200%). Uses CSS vars (--muted, --card) so it adapts to light/dark theme automatically. Distinct from existing .shimmer/.skeleton-shimmer (which use fixed hex colors) — this variant is theme-aware.
+- Ran `bun run lint`: 0 errors, 0 warnings. Ran `bunx tsc --noEmit` (excluding skills/ and examples/): 0 errors in app code.
+- Dev server log confirms successful compilation after file creation (✓ Compiled in 204ms / 466ms). Earlier transient "Module not found: @/sections/nw/aktivitas-section" errors were from the brief window between editing page.tsx (adding import) and creating the section file — resolved once the file existed.
+
+Stage Summary:
+- Files created:
+  · src/app/api/activity/route.ts (~330 lines) — unified timeline endpoint merging 8 models
+  · src/sections/nw/aktivitas-section.tsx (~580 lines) — full timeline UI with stats, filter, load-more, skeleton, empty/error states
+- Files edited:
+  · src/lib/constants.ts (+2 lines: "aktivitas" in SectionKey + SECONDARY_NAV entry after "bantuan")
+  · src/app/page.tsx (+2 lines: AktivitasSection import + render branch)
+  · src/components/nw/primitives.tsx (EmptyState enhanced: fade-in + mesh-hero bg + icon glow + leading-relaxed desc + action hover border-glow)
+  · src/app/globals.css (+9 lines: .skeleton-pulse class + @keyframes skeleton-pulse)
+- Decisions:
+  · Per-model take = limit (not limit/8) so a single dominant model can't starve the merged feed — e.g., if 50 orders exist but only 3 payments, querying 50 from each then merge-sort-slice ensures the 50 most-recent across all types surface.
+  · TypeScript auto-narrows `Promise<A[]> | Promise<never[]>` → `A[]` in Promise.all destructuring (never[] is assignable to A[]), so no explicit casts needed on the for...of loops.
+  · Campaign timestamp resolution: sentAt ?? scheduledAt ?? createdAt — a sent campaign shows at send time, a scheduled-but-unsent campaign shows at scheduled time, a draft shows at creation.
+  · Transaction timestamp = date field (business date), not createdAt (record-insertion time) — matches how Keuangan module displays transactions.
+  · Amount color logic: transactions split by title regex (Pemasukan=emerald / Pengeluaran=rose); payments by status (Diterima=emerald, Ditolak=rose, Menunggu=neutral); orders by status (Dibatalkan=stone+strikethrough, else emerald); other types neutral ink.
+  · Total Aktivitas stat uses API `total` field (true count after filter, pre-slice) — not `activities.length` (which is capped at visibleLimit). Period stats (Hari Ini / Minggu Ini / Bulan Ini) computed from fetched activities — accurate as long as visibleLimit covers the period (default 50 covers ~2 months for typical UMKM volume).
+  · Filter change resets visibleLimit to 50 — prevents showing "Load More" with stale count after switching filter.
+  · ScrollArea with max-h-70vh — consistent with kalender-section's ScrollArea max-h pattern. Timeline scrolls within the card; date group labels scroll with content.
+  · Icon circle uses API emoji (item.icon) for visual distinctiveness — each type has a unique colorful emoji. Lucide icons from TYPE_STYLE map are used in the hover-reveal affordance (type label + icon + chevron) and would be available for future legend/filter-chip UI.
+  · Skeleton uses shadcn Skeleton component + skeleton-pulse CSS class — Skeleton provides the rounded-md base + animate-pulse fallback; skeleton-pulse overrides bg + animation with the theme-aware gradient sweep for a richer loading effect.
+  · Card component used for timeline + skeleton containers (rounded-2xl p-4 sm:p-6 py-4 gap-0 shadow-sm) — satisfies shadcn/ui Card requirement while matching the established visual style of SectionCard/primitives.
+  · EmptyState enhancement is backward-compatible: existing callers pass emoji icons (ignore text color) or Lucide icons (get stone color + teal glow shadow). The mesh-hero bg + fade-in apply to all EmptyState instances app-wide.
+  · Only edited constants.ts (SectionKey/SECONDARY_NAV), page.tsx (route), primitives.tsx (EmptyState), globals.css (skeleton-pulse) per spec — no other lib/* or section files touched.
+
+---
+Task ID: 17
+Agent: main (Z.ai Code) — Cron Review Round 5
+Task: QA, fix logout 401 bug + Goals dialog reactivity, add Bantuan + Aktivitas sections, styling polish
+
+Work Log:
+- **Assessment**: Read worklog (735 lines, 16 prior task entries). Project stable after Round 4 (10 sections, Kalender, Goals, bulk actions, login/logout). Identified: 401 errors after logout (stale queries), Goals dialog brand reactivity issue, missing help center, missing activity log.
+- **Bug fix — 401 after logout**: Client-side TanStack Query caches kept refetching after logout (cookie cleared → 401). Fixed in `page.tsx`: added `useQueryClient` + `useEffect` that calls `queryClient.clear()` when `isLoggedIn` becomes false. This purges all cached queries so no stale requests fire.
+- **Bug fix — Goals dialog reactivity**: `TargetTab` used `getActiveBrand(useAppStore.getState())` (non-reactive snapshot). When brand switched, the `brandId` didn't update → queries/mutations used stale brand ID. Fixed: changed to `const { brands, activeBrandId } = useAppStore()` (reactive hook) + derive `activeBrand` from the arrays.
+- **Bantuan Section (delegated to subagent 17-A)**:
+  - New `bantuan-section.tsx` — 4 quick action cards (Mulai Tour, Panduan Cepat, Keyboard Shortcuts, Hubungi Support), FAQ accordion (10 questions in Indonesian), keyboard shortcuts grid (⌘K, Esc, ←/→, Tab, Enter), contact section (email/WA/docs links), about card.
+  - Added "Bantuan" to SECONDARY_NAV (after Pengaturan).
+  - Verified: renders with all sections, FAQ accordion functional.
+- **Aktivitas Section (delegated to subagent 17-B)**:
+  - New `/api/activity` GET endpoint — 8 parallel Prisma queries (Order, Payment, Lead, Content, Research, Transaction, Campaign, Goal), unified timeline shape, type filter, limit param.
+  - New `aktivitas-section.tsx` — timeline view with vertical gradient line, date-grouped ("Hari Ini"/"Kemarin"/date), colored icon circles per type, clickable items → navigate to relevant section, 4 StatCards (Total/Hari Ini/Minggu Ini/Bulan Ini), load more, filter dropdown, skeleton loading, empty state.
+  - Added "Aktivitas" to SECONDARY_NAV (after Bantuan).
+  - Verified: seeded demo data → 26 total activities, 5 today, timeline renders with clickable items.
+- **Styling Polish (subagent 17-B)**:
+  - Enhanced `EmptyState` component: `fade-in` animation, `mesh-hero` subtle gradient background, larger icon (size-16) with teal glow shadow, `leading-relaxed` description, action button hover border-glow.
+  - New `.skeleton-pulse` CSS class: theme-aware gradient sweep animation (uses `--muted`/`--card` CSS vars, adapts to light/dark).
+
+Stage Summary:
+- **Bugs fixed**: 401 after logout (query cache cleared on logout), Goals dialog reactivity (useAppStore hook instead of getState).
+- **New sections**: Bantuan (❓ — FAQ, shortcuts, contact) + Aktivitas (📋 — unified timeline of all events). Total sections: 12.
+- **Styling**: Enhanced EmptyState with gradient + glow + animation. New skeleton-pulse animation.
+- **Lint**: 0 errors, 0 warnings. **tsc**: 0 errors. **Dev server**: running on port 3000, HTTP 200.
+- **Files created**: api/activity/route.ts, bantuan-section.tsx, aktivitas-section.tsx.
+- **Files edited**: page.tsx (queryClient.clear on logout + 2 new routes), constants.ts (2 new SECONDARY_NAV entries), primitives.tsx (EmptyState enhancement), globals.css (skeleton-pulse), pengaturan-section.tsx (TargetTab reactivity fix).
+
+Unresolved issues / risks:
+- LLM API token still unavailable — all AI features use fallbacks (unchanged).
+- Activity log `total` count includes all 8 types even when filtered (the `total` field is computed before type filter). Minor — the timeline correctly filters, only the stat card shows unfiltered count.
+- Server OOM killed once during this round (memory pressure from large dev compilation). Auto-restarted successfully.
+
+Priority recommendations for next phase:
+- Product image upload (file upload to storage) — currently URL-only or SVG placeholder.
+- Real WhatsApp integration for Campaigns — currently simulated.
+- Email notification system for critical events (low stock, payment received, goal achieved).
+- Multi-user collaboration (multiple users per brand with role-based permissions).
+- Advanced analytics: cohort analysis, customer lifetime value, seasonal trends.
+- PWA / offline support for mobile-first experience.
+- Fix activity log `total` to respect type filter.

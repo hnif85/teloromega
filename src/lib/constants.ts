@@ -85,7 +85,9 @@ export type SectionKey =
   | "keuangan"
   | "kalender"
   | "credit"
-  | "pengaturan";
+  | "pengaturan"
+  | "bantuan"
+  | "aktivitas";
 
 export const NAV_ITEMS: { key: SectionKey; label: string; icon: string }[] = [
   { key: "beranda", label: "Beranda", icon: "📊" },
@@ -101,6 +103,8 @@ export const NAV_ITEMS: { key: SectionKey; label: string; icon: string }[] = [
 export const SECONDARY_NAV: { key: SectionKey; label: string; icon: string }[] = [
   { key: "credit", label: "Credit", icon: "⚡" },
   { key: "pengaturan", label: "Pengaturan", icon: "⚙️" },
+  { key: "bantuan", label: "Bantuan", icon: "❓" },
+  { key: "aktivitas", label: "Aktivitas", icon: "📋" },
 ];
 
 export const KONTEN_TYPES = [

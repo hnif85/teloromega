@@ -7,6 +7,13 @@
 
 ---
 
+## [0.2.0] — 2026-07-11
+
+### ✨ Added
+- edit konten via PATCH, regenerate image/caption with AI, deduct credit
+
+
+
 ## [0.1.0] — 2026-07-11
 
 ### ✨ Added

@@ -5,7 +5,7 @@
 // 3 views: gallery (default), detail (tap card), create (FAB)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAppStore, getActiveBrand } from "@/lib/store";
 import { api } from "@/lib/api";
@@ -29,11 +29,9 @@ import {
   Sparkles,
   ArrowLeft,
   Plus,
-  ChevronRight,
-  X,
   Loader2,
   Clock,
-  Layers,
+  Pencil,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { PLATFORMS, TONES, timeAgo } from "@/lib/constants";
@@ -207,16 +205,43 @@ function GalleryView({
 
 // ─── Detail View ────────────────────────────────────────────────────────────
 function DetailView({
-  item,
+  item: initialItem,
   onBack,
+  brandId,
 }: {
   item: ContentItem;
   onBack: () => void;
+  brandId: string;
 }) {
   const { toast } = useToast();
+  const setCredit = useAppStore((s) => s.setCredit);
+  const queryClient = useQueryClient();
+
+  const [item, setItem] = useState(initialItem);
+  const [editText, setEditText] = useState("");
   const hashtags = parseHashtags(item.body ?? "");
   const isImage = item.type === "gambar";
-  const isVideo = item.type === "video";
+
+  // Sync when initialItem changes (e.g. from parent)
+  useEffect(() => { setItem(initialItem); }, [initialItem]);
+
+  const editMutation = useMutation({
+    mutationFn: () =>
+      api<{ content: ContentItem; balanceAfter: number }>(`/api/content/${item.id}`, {
+        method: "PATCH",
+        json: { edit: editText },
+      }),
+    onSuccess: (data) => {
+      setItem(data.content);
+      setCredit(data.balanceAfter);
+      setEditText("");
+      queryClient.invalidateQueries({ queryKey: ["contents", brandId] });
+      toast({ title: "Konten berhasil diedit! ✨" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Gagal edit", description: err.message, variant: "destructive" });
+    },
+  });
 
   function copyText() {
     if (!item.body) return;
@@ -246,7 +271,7 @@ function DetailView({
         <div className="rounded-xl overflow-hidden border border-border bg-black/5">
           <img src={item.assetUrl} alt="Konten" className="w-full h-auto" />
         </div>
-      ) : isVideo ? (
+      ) : !isImage ? (
         <VideoScriptPreview body={item.body ?? ""} />
       ) : (
         <div className="aspect-square rounded-xl bg-cream-100 border border-border flex items-center justify-center">
@@ -284,6 +309,36 @@ function DetailView({
           )}
         </div>
       )}
+
+      {/* Edit section */}
+      <div className="rounded-xl border border-teal/20 bg-teal-50/30 p-3 space-y-2">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-teal-700">
+          <Pencil className="size-3.5" /> Edit Konten ({item.type === "gambar" ? "4" : "6"} credit)
+        </div>
+        <textarea
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          placeholder={`Mau ubah apa?\nMisal: "background diganti outdoor", "tone lebih formal", "target ibu-ibu"…`}
+          rows={2}
+          className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-ink placeholder:text-stone/50 focus:outline-none focus:ring-2 focus:ring-teal/30 resize-none"
+        />
+        <Button
+          size="sm"
+          disabled={!editText.trim() || editMutation.isPending}
+          onClick={() => editMutation.mutate()}
+          className="gap-1.5 bg-teal hover:bg-teal-600 w-full"
+        >
+          {editMutation.isPending ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" /> Mengedit...
+            </>
+          ) : (
+            <>
+              <Sparkles className="size-3.5" /> Edit
+            </>
+          )}
+        </Button>
+      </div>
 
       {/* Actions */}
       <div className="flex gap-2">
@@ -841,7 +896,7 @@ export function KontenSection() {
       )}
 
       {view === "detail" && selectedContent && (
-        <DetailView item={selectedContent} onBack={handleBack} />
+        <DetailView item={selectedContent!} onBack={handleBack} brandId={activeBrand!.id} />
       )}
 
       {view === "create" && (

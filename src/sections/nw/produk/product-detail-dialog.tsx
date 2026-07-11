@@ -1,6 +1,7 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -434,19 +435,44 @@ function ProductHeader({
   product: ProductDetailResponse["product"];
   stats: ProductDetailResponse["stats"];
 }) {
+  const queryClient = useQueryClient();
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(product.imageUrl);
+
   const isBarang = product.type === "barang";
   const marginAmount =
     product.costPrice != null && product.price > 0
       ? product.price - product.costPrice
       : null;
 
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const r = await api<{ imageUrl: string }>(`/api/products/${product.id}/image`, {
+        method: "POST",
+        body: form,
+        json: undefined,
+      });
+      setPreviewUrl(r.imageUrl);
+      queryClient.invalidateQueries({ queryKey: ["product-detail", product.id] });
+    } catch (err: any) {
+      // silently fail
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
     <div className="flex items-start gap-4">
       {/* Image / placeholder */}
-      <div className="size-20 rounded-xl overflow-hidden bg-cream-100 shrink-0 flex items-center justify-center">
-        {product.imageUrl ? (
+      <div className="relative group size-20 rounded-xl overflow-hidden bg-cream-100 shrink-0 flex items-center justify-center">
+        {previewUrl ? (
           <img
-            src={product.imageUrl}
+            src={previewUrl}
             alt={product.name}
             className="w-full h-full object-cover"
             onError={(e) => {
@@ -460,6 +486,21 @@ function ProductHeader({
             </span>
           </div>
         )}
+        {/* Upload overlay */}
+        <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer flex items-center justify-center">
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+            className="hidden"
+            onChange={handleImageUpload}
+            disabled={uploading}
+          />
+          {uploading ? (
+            <span className="text-white text-xs font-medium">Uploading...</span>
+          ) : (
+            <ImageIcon className="size-5 text-white" />
+          )}
+        </label>
       </div>
 
       {/* Info */}

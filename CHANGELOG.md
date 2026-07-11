@@ -7,6 +7,16 @@
 
 ---
 
+## [0.3.0] — 2026-07-11
+
+### ✨ Added
+- quick-add transaction FAB + photo receipt upload
+
+### 🐛 Fixed
+- keuangan compact cards, remove pajak/tren charts, transaksi table→card, period selector grid
+
+
+
 ## [0.2.2] — 2026-07-11
 
 ### 🐛 Fixed

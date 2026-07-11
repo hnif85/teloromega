@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
     productId,
     customerId,
     description,
+    receiptUrl,
     date,
     quantity,
     costAmount: explicitCost,
@@ -96,6 +97,7 @@ export async function POST(req: NextRequest) {
     productId?: string | null;
     customerId?: string | null;
     description?: string | null;
+    receiptUrl?: string | null;
     date?: string | null;
     quantity?: number | null;
     costAmount?: number | null;
@@ -163,6 +165,7 @@ export async function POST(req: NextRequest) {
       costAmount,
       quantity: quantity ?? (product ? 1 : null),
       description: description?.trim() || null,
+      receiptUrl: receiptUrl?.trim() || null,
       date: date ? new Date(date) : new Date(),
       productId: product?.id ?? null,
       customerId: customerId || null,

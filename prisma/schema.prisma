@@ -325,6 +325,7 @@ model Transaction {
   costAmount   Int?      // HPP snapshot (cost_price × qty)
   quantity     Int?
   description  String?
+  receiptUrl   String?   // foto struk (URL dari Supabase Storage)
   date         DateTime  @default(now())
   createdAt    DateTime  @default(now())
 

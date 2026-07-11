@@ -7,6 +7,13 @@
 
 ---
 
+## [0.2.2] — 2026-07-11
+
+### 🐛 Fixed
+- add demo tab back to Pengaturan hub
+
+
+
 ## [0.2.1] — 2026-07-11
 
 

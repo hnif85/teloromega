@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { llmJson } from "@/lib/ai";
 import { TONE_MAP, type ToneKey } from "@/lib/constants";
 import { tavilySearch, toSearchResultFormat } from "./_search";
+import { runAgenticResearch, type AgentResearchResult } from "./_agent";
 
 export interface ResearchResult {
   intent: string;
@@ -402,37 +403,59 @@ export async function generateContexts(
   return [konten, toko, keuangan];
 }
 
-/** Run the full research pipeline. Throws on failure. Caller handles refund. */
+/** Run the full research pipeline via LangChain agentic loop.
+ *  The DeepSeek agent has Tavily as a tool — it decides how many searches to run,
+ *  what to search for, and synthesizes everything autonomously.
+ *  Falls back to manual pipeline on failure. */
 export async function runResearchPipeline(
   brand: BrandLite,
   query: string,
   onProgress?: (status: string, progress: number, message: string) => Promise<void>
 ): Promise<{ intent: string; result: ResearchResult; searchCount: number }> {
-  // Step 1: real web search via Tavily
-  await onProgress?.("searching", 10, "Mencari data terbaru di web...");
-  const tavilyResults = await tavilySearch(query, { maxResults: 8, days: 90, depth: "advanced" });
-  const searchResults = toSearchResultFormat(tavilyResults);
+  try {
+    await onProgress?.("searching", 15, "Agent DeepSeek menganalisis & mencari data...");
+    const agentResult = await runAgenticResearch(brand, query);
 
-  if (searchResults.length === 0) {
-    // Fallback: generate empty results so pipeline still produces something
-    console.warn("[research] Tavily returned no results for query:", query);
+    await onProgress?.("synthesizing", 80, "Mensintesis hasil riset...");
+
+    // Map agent result back to ResearchResult format
+    const result: ResearchResult = {
+      intent: agentResult.intent || "market_trend",
+      target_audience: agentResult.target_audience,
+      swot: agentResult.swot || { strengths: [], weaknesses: [], opportunities: [], threats: [] },
+      competitors: agentResult.competitors,
+      keywords: agentResult.keywords || { hot: [], stable: [] },
+      market_trend: agentResult.market_trend || {
+        labels: [], values: [],
+        stats: { growth_pct: 0, peak: "-" },
+      },
+      content_recommendations: agentResult.content_recommendations,
+      pricing: agentResult.pricing || {
+        market_avg: "-", lowest: "-", highest: "-", recommendation: "-",
+      },
+    };
+
+    await onProgress?.("completed", 95, "Menyimpan hasil & membuat rekomendasi...");
+
+    return { intent: agentResult.intent || "market_trend", result, searchCount: -1 }; // -1 = agent decides count
+  } catch (agentErr) {
+    console.error("[research] Agentic pipeline failed, falling back to manual:", agentErr instanceof Error ? agentErr.message : "unknown");
+
+    // Fallback to manual pipeline
+    await onProgress?.("searching", 10, "Fallback: Mencari data web...");
+    const searchResults = toSearchResultFormat(
+      await tavilySearch(query, { maxResults: 8, days: 90 })
+    );
+
+    await onProgress?.("analyzing", 40, "Fallback: Menganalisis intent...");
+    const snippets = searchResults.slice(0, 5).map((r) => r.snippet).join("\n");
+    const intent = await classifyIntent(query, snippets);
+
+    await onProgress?.("synthesizing", 70, "Fallback: Mensintesis dengan Gemini...");
+    const result = await synthesizeResearch(query, intent, brand, searchResults);
+
+    await onProgress?.("completed", 90, "Menyimpan hasil & membuat rekomendasi...");
+
+    return { intent, result, searchCount: searchResults.length };
   }
-
-  await onProgress?.("analyzing", 40, "Menganalisis intent pencarian...");
-
-  // Step 2: classify intent
-  const snippets = searchResults
-    .slice(0, 5)
-    .map((r) => r.snippet)
-    .join("\n");
-  const intent = await classifyIntent(query, snippets);
-
-  await onProgress?.("synthesizing", 70, "Mensintesis hasil riset dengan AI...");
-
-  // Step 3: synthesize full research
-  const result = await synthesizeResearch(query, intent, brand, searchResults);
-
-  await onProgress?.("completed", 90, "Menyimpan hasil & membuat rekomendasi...");
-
-  return { intent, result, searchCount: searchResults.length };
 }

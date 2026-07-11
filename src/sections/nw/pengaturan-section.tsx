@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -59,7 +58,6 @@ import {
   Trash2,
   User,
   Palette,
-  Bell,
   Check,
   Crown,
   Save,
@@ -882,160 +880,6 @@ function ToneTab() {
           <p className="text-xs text-stone mt-0.5 leading-relaxed">
             Setiap brand punya tone-nya sendiri. Saat kamu generate caption, video script,
             atau carousel di modul Konten, AI akan ikut tone yang kamu pilih di sini.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tab 4: Notifikasi (mock, persisted to localStorage)
-// ─────────────────────────────────────────────────────────────────────────────
-interface NotifItem {
-  key: string;
-  label: string;
-  desc: string;
-  icon: "wa" | "mail" | "calendar" | "box" | "stats";
-  defaultOn: boolean;
-}
-
-const NOTIF_ITEMS: NotifItem[] = [
-  {
-    key: "wa_lead",
-    label: "Notif WA lead baru",
-    desc: "Dapat notifikasi WhatsApp setiap ada lead baru masuk ke inbox.",
-    icon: "wa",
-    defaultOn: true,
-  },
-  {
-    key: "email_order",
-    label: "Notif email order baru",
-    desc: "Email ringkasan setiap ada order masuk + detail item.",
-    icon: "mail",
-    defaultOn: true,
-  },
-  {
-    key: "piutang",
-    label: "Reminder piutang jatuh tempo",
-    desc: "Pengingat 1 hari sebelum piutang jatuh tempo.",
-    icon: "calendar",
-    defaultOn: true,
-  },
-  {
-    key: "stok",
-    label: "Alert stok menipis",
-    desc: "Notif saat stok produk di bawah minimum stok.",
-    icon: "box",
-    defaultOn: true,
-  },
-  {
-    key: "weekly",
-    label: "Weekly summary email",
-    desc: "Ringkasan performa mingguan tiap Senin pagi.",
-    icon: "stats",
-    defaultOn: false,
-  },
-];
-
-const NOTIF_LS_KEY = "nw_notif_settings_v1";
-
-function NotifIcon({ kind }: { kind: NotifItem["icon"] }) {
-  const map = {
-    wa: { e: "💬", cls: "bg-emerald-100 text-emerald-700" },
-    mail: { e: "✉️", cls: "bg-sky-100 text-sky-700" },
-    calendar: { e: "📅", cls: "bg-amber-100 text-amber-700" },
-    box: { e: "📦", cls: "bg-orange-100 text-orange-700" },
-    stats: { e: "📊", cls: "bg-violet-100 text-violet-700" },
-  } as const;
-  const m = map[kind];
-  return (
-    <div className={cn("size-9 rounded-lg flex items-center justify-center text-base shrink-0", m.cls)}>
-      {m.e}
-    </div>
-  );
-}
-
-function NotifikasiTab() {
-  const [settings, setSettings] = useState<Record<string, boolean>>({});
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    // Hydrate notif settings from localStorage on client mount.
-    // This is a one-shot external store sync — not a cascading render.
-    /* eslint-disable react-hooks/set-state-in-effect */
-    try {
-      const raw = localStorage.getItem(NOTIF_LS_KEY);
-      if (raw) {
-        setSettings(JSON.parse(raw));
-      } else {
-        // defaults
-        const init: Record<string, boolean> = {};
-        for (const it of NOTIF_ITEMS) init[it.key] = it.defaultOn;
-        setSettings(init);
-      }
-    } catch {
-      /* ignore */
-    }
-    setHydrated(true);
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, []);
-
-  function toggle(key: string, on: boolean) {
-    const next = { ...settings, [key]: on };
-    setSettings(next);
-    try {
-      localStorage.setItem(NOTIF_LS_KEY, JSON.stringify(next));
-    } catch {
-      /* ignore */
-    }
-  }
-
-  const activeCount = NOTIF_ITEMS.filter((it) => settings[it.key]).length;
-
-  return (
-    <div className="space-y-4">
-      <SectionCard
-        title="Preferensi Notifikasi"
-        desc="Atur channel & jenis notifikasi yang mau kamu terima"
-        right={
-          <Badge variant="outline" className="text-[10px] gap-1">
-            <Bell className="size-3" /> {hydrated ? activeCount : "…"} aktif
-          </Badge>
-        }
-        bodyClassName="p-0"
-      >
-        <div className="divide-y divide-border">
-          {NOTIF_ITEMS.map((it) => {
-            const on = hydrated ? !!settings[it.key] : it.defaultOn;
-            return (
-              <div
-                key={it.key}
-                className="px-5 py-4 flex items-start gap-3 hover:bg-cream-100/40 transition-colors"
-              >
-                <NotifIcon kind={it.icon} />
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-ink text-sm">{it.label}</div>
-                  <div className="text-xs text-stone mt-0.5 leading-snug">{it.desc}</div>
-                </div>
-                <div className="shrink-0 pt-1">
-                  <Switch checked={on} onCheckedChange={(v) => toggle(it.key, v)} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </SectionCard>
-
-      <div className="rounded-2xl border border-dashed border-border bg-cream-100/40 p-4 flex items-start gap-3">
-        <div className="size-9 rounded-lg bg-cream-200 text-stone flex items-center justify-center shrink-0">
-          <Bell className="size-4" />
-        </div>
-        <div>
-          <div className="text-sm font-semibold text-ink">Pengaturan disimpan lokal</div>
-          <p className="text-xs text-stone mt-0.5">
-            Preferensi ini disimpan di browser kamu (localStorage). Integrasi WA & email
-            sebenarnya akan hadir bersama modul Toko v2.
           </p>
         </div>
       </div>
@@ -2572,58 +2416,6 @@ function HubSubView({ title, children, onBack }: { title: string; children: Reac
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Hub item: Credit (inline)
-// ─────────────────────────────────────────────────────────────────────────────
-function CreditHubContent() {
-  const { user, setCredit } = useAppStore();
-  const { toast } = useToast();
-  const { data: packages } = useQuery({
-    queryKey: ["credit-packages"],
-    queryFn: () => api<{ packages: typeof CREDIT_PACKAGES }>("/api/credit/packages"),
-  });
-
-  async function topup(pkg: (typeof CREDIT_PACKAGES)[number]) {
-    try {
-      const r = await api<{ balance: number }>("/api/credit/topup", {
-        method: "POST",
-        json: { packageId: pkg.id, credits: pkg.credits, price: pkg.price },
-      });
-      setCredit(r.balance);
-      toast({ title: "Top‑up berhasil", description: `+${pkg.credits} credit ditambahkan` });
-    } catch (e) {
-      toast({ title: "Gagal", description: e instanceof Error ? e.message : "Terjadi kesalahan", variant: "destructive" });
-    }
-  }
-
-  return (
-    <SectionCard>
-      <div className="mb-4 flex items-center gap-3">
-        <div className="size-12 rounded-xl bg-teal-100 text-teal flex items-center justify-center">
-          <Crown className="size-6" />
-        </div>
-        <div>
-          <div className="text-2xl font-extrabold text-ink">{user?.creditBalance ?? 0}</div>
-          <div className="text-xs text-stone">Credit tersedia</div>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {(packages?.packages ?? CREDIT_PACKAGES).map((pkg) => (
-          <Button
-            key={pkg.id}
-            variant="outline"
-            className="h-auto flex-col gap-0.5 py-3 border-teal/20 hover:bg-teal-50"
-            onClick={() => topup(pkg)}
-          >
-            <span className="text-sm font-bold text-teal">{pkg.credits}</span>
-            <span className="text-[10px] text-stone">{formatRupiah(pkg.price)}</span>
-          </Button>
-        ))}
-      </div>
-    </SectionCard>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Hub item: Aktivitas (inline — last 5 activities)
 // ─────────────────────────────────────────────────────────────────────────────
 function AktivitasHubContent() {
@@ -2758,11 +2550,9 @@ function HubMenuRow({
 // ─────────────────────────────────────────────────────────────────────────────
 export function PengaturanSection() {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
-  const { user, brands, activeBrandId, setActiveBrand, logout, setOnboardingOpen, addBrand } = useAppStore();
-  const activeBrand = getActiveBrand(useAppStore.getState());
+  const { user, logout } = useAppStore();
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   // ── Sub‑view routing ────────────────────────────────────────────────
   if (activeMenu) {
@@ -2773,12 +2563,8 @@ export function PengaturanSection() {
         return <HubSubView title="Profil" onBack={back}><ProfilTab /></HubSubView>;
       case "brand":
         return <HubSubView title="Brand" onBack={back}><BrandTab /></HubSubView>;
-      case "credit":
-        return <HubSubView title="Credit" onBack={back}><CreditHubContent /></HubSubView>;
       case "tone":
         return <HubSubView title="Tone of Voice" onBack={back}><ToneTab /></HubSubView>;
-      case "notif":
-        return <HubSubView title="Notifikasi" onBack={back}><NotifikasiTab /></HubSubView>;
       case "aktivitas":
         return <HubSubView title="Aktivitas" onBack={back}><AktivitasHubContent /></HubSubView>;
       case "target":
@@ -2794,50 +2580,18 @@ export function PengaturanSection() {
   }
 
   // ── Hub menu items ──────────────────────────────────────────────────
+  // Credit and Notifikasi are deliberately not in this list — each already
+  // has one dedicated entry point (topbar credit chip, topbar bell icon).
+  // Adding them here too would just be a second door to the same room.
   const menuItems: HubItem[] = [
     { key: "profil", icon: "👤", label: "Profil" },
     { key: "brand", icon: "📦", label: "Brand" },
-    {
-      key: "credit",
-      icon: "⚡",
-      label: "Credit",
-      badge: (
-        <span className="text-[11px] font-bold bg-teal-100 text-teal px-2 py-0.5 rounded-full">
-          {user?.creditBalance ?? 0}
-        </span>
-      ),
-    },
     { key: "tone", icon: "🎨", label: "Tone Suara" },
-    { key: "notif", icon: "🔔", label: "Notifikasi" },
     { key: "aktivitas", icon: "📋", label: "Aktivitas" },
     { key: "target", icon: "🎯", label: "Target Bisnis" },
     { key: "bantuan", icon: "❓", label: "Bantuan" },
     { key: "backup", icon: "💾", label: "Backup & Restore" },
   ];
-
-  async function quickCreateBrand() {
-    const name = window.prompt("Nama brand baru?");
-    if (!name) return;
-    try {
-      const r = await api<{ brand: any }>("/api/brands", {
-        method: "POST",
-        json: { name, category: "Lainnya" },
-      });
-      addBrand({
-        id: r.brand.id,
-        name: r.brand.name,
-        slug: r.brand.slug,
-        logoUrl: r.brand.logoUrl,
-        description: r.brand.description,
-        category: r.brand.category,
-        toneOfVoice: r.brand.toneOfVoice,
-        isActive: r.brand.isActive,
-      });
-      toast({ title: "Brand dibuat", description: r.brand.name });
-    } catch (e: any) {
-      toast({ title: "Gagal", description: e.message, variant: "destructive" });
-    }
-  }
 
   async function handleLogout() {
     try {
@@ -2898,36 +2652,6 @@ export function PengaturanSection() {
                 }`}
               />
             </button>
-          </div>
-
-          {/* Brand switcher */}
-          <div className="px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wider text-stone font-semibold mb-1.5">
-              Brand aktif
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {brands.map((b) => (
-                <button
-                  key={b.id}
-                  onClick={() => setActiveBrand(b.id)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    b.id === activeBrandId
-                      ? "bg-teal text-white"
-                      : "bg-cream-100 text-ink hover:bg-cream-200"
-                  }`}
-                >
-                  <span>{b.name[0]?.toUpperCase()}</span>
-                  <span>{b.name}</span>
-                  {b.id === activeBrandId && <Check className="size-3" />}
-                </button>
-              ))}
-              <button
-                onClick={quickCreateBrand}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-teal border border-dashed border-teal/30 hover:bg-teal-50 transition-colors"
-              >
-                <Plus className="size-3" /> Baru
-              </button>
-            </div>
           </div>
 
           {/* Logout */}

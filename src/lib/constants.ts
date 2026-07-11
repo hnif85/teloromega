@@ -100,10 +100,11 @@ export const NAV_ITEMS: { key: SectionKey; label: string; icon: string }[] = [
   { key: "keuangan", label: "Keuangan", icon: "💰" },
 ];
 
-// Profile menu items — shown in user dropdown, not in sidebar
+// Profile menu items — shown in user dropdown, not in sidebar.
+// Credit and Notifikasi are deliberately excluded here: they each have one
+// dedicated entry point elsewhere (topbar credit chip, topbar bell icon) and
+// showing them again here would just be a second door to the same room.
 export const PROFILE_MENU: { key: SectionKey; label: string; icon: string }[] = [
-  { key: "credit", label: "Credit", icon: "⚡" },
-  { key: "notifikasi", label: "Notifikasi", icon: "🔔" },
   { key: "aktivitas", label: "Aktivitas", icon: "📋" },
   { key: "pengaturan", label: "Pengaturan", icon: "⚙️" },
   { key: "bantuan", label: "Bantuan", icon: "❓" },

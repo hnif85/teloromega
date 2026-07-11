@@ -7,8 +7,6 @@ import { PROFILE_MENU } from "@/lib/constants";
 import {
   LogOut,
   Loader2,
-  Zap,
-  Bell,
   ClipboardList,
   Settings,
   HelpCircle,
@@ -35,8 +33,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 const ICONS: Record<string, React.ElementType> = {
-  credit: Zap,
-  notifikasi: Bell,
   aktivitas: ClipboardList,
   pengaturan: Settings,
   bantuan: HelpCircle,
@@ -100,9 +96,6 @@ export function UserMenu() {
                 <span className="flex items-center gap-2.5">
                   <Icon className="size-4" /> {item.label}
                 </span>
-                {item.key === "credit" && user && (
-                  <span className="text-[11px] font-bold text-teal">{user.creditBalance}</span>
-                )}
                 {isActive && <ChevronRight className="size-3 text-teal" />}
               </DropdownMenuItem>
             );

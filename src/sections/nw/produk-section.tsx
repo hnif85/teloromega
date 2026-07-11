@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore, getActiveBrand } from "@/lib/store";
 import { api } from "@/lib/api";
+import { compressImage, formatBytes } from "@/lib/image-compress";
 import { PageHeader, StatCard, EmptyState } from "@/components/nw/primitives";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +61,8 @@ import {
   Eye,
   Download,
   CheckSquare,
+  Upload,
+  ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -147,6 +150,36 @@ export function ProdukSection() {
   // Delete state
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Image upload state
+  const [imageUploading, setImageUploading] = useState(false);
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageUploading(true);
+    try {
+      const { file: compressed } = await compressImage(file, {
+        maxSize: 1024,
+        quality: 0.7,
+        maxBytes: 300 * 1024,
+      });
+      const f = new FormData();
+      f.append("file", compressed, compressed.name);
+      const r = await api<{ imageUrl: string }>("/api/upload/image", {
+        method: "POST",
+        body: f,
+        json: undefined,
+      });
+      setForm((prev) => ({ ...prev, imageUrl: r.imageUrl }));
+      toast({ title: "Foto terupload", description: "Thumbnail akan muncul setelah simpan produk." });
+    } catch (err: any) {
+      toast({ title: "Gagal upload foto", description: err?.message ?? "Coba lagi.", variant: "destructive" });
+    } finally {
+      setImageUploading(false);
+      e.target.value = "";
+    }
+  }
 
   // Bulk select state
   const [selectMode, setSelectMode] = useState(false);
@@ -752,14 +785,60 @@ export function ProdukSection() {
             </div>
 
             <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="p-img">URL Foto {form.type === "jasa" ? "Portofolio" : ""} (opsional)</Label>
-              <Input
-                id="p-img"
-                value={form.imageUrl}
-                onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
-                placeholder="https://…"
-              />
-              <p className="text-[11px] text-stone">Tempel link foto produk. Kosongkan untuk pakai inisial.</p>
+              <Label>Foto Produk (opsional)</Label>
+              <div className="flex items-start gap-3">
+                {/* Thumbnail preview */}
+                <div className="size-24 rounded-xl overflow-hidden bg-cream-100 shrink-0 flex items-center justify-center border border-border">
+                  {form.imageUrl ? (
+                    <img
+                      src={form.imageUrl}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                  ) : (
+                    <ImageIcon className="size-8 text-cream-400" />
+                  )}
+                </div>
+                {/* Upload button */}
+                <div className="flex-1 space-y-2">
+                  <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-cream-100 hover:bg-cream-200 cursor-pointer transition-colors text-sm font-medium text-stone">
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+                      className="hidden"
+                      onChange={handleImageUpload}
+                      disabled={imageUploading}
+                    />
+                    {imageUploading ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Upload...
+                      </>
+                    ) : form.imageUrl ? (
+                      <>
+                        <Upload className="size-4" />
+                        Ganti Foto
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="size-4" />
+                        Upload Foto
+                      </>
+                    )}
+                  </label>
+                  {form.imageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, imageUrl: "" }))}
+                      className="text-xs text-stone hover:text-rose-600 transition-colors"
+                    >
+                      Hapus foto
+                    </button>
+                  )}
+                  <p className="text-[11px] text-stone">Format PNG/JPEG/WebP, maks 5MB. Auto dikompres.</p>
+                </div>
+              </div>
             </div>
           </div>
 

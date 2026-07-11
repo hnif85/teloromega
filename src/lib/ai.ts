@@ -1,14 +1,27 @@
-// AI helpers — thin wrappers around z-ai-web-dev-sdk
-// These run server-side only.
+// AI helpers — call MWX AI Module (ai-module.mwxmarket.ai)
+// These run server-side only. All calls are auto-logged to AiPromptLog.
+// Routes can call setAiContext() to add user/brand/feature metadata.
 
-import ZAI from "z-ai-web-dev-sdk";
+import { db } from "@/lib/db";
 
-let _zai: Awaited<ReturnType<typeof ZAI.create>> | null = null;
+// ── AI Module config ─────────────────────────────────────────────────────────
+const AI_BASE = process.env.AI_MODULE_URL ?? "https://ai-module.mwxmarket.ai";
+const AI_KEY = process.env.AI_MODULE_KEY ?? "";
+const AI_DEFAULT_MODEL = "gemini-3.5-flash";
+const AI_DEFAULT_PROVIDER = "vertex";
 
-async function getClient() {
-  if (_zai) return _zai;
-  _zai = await ZAI.create();
-  return _zai;
+// ── Context (module-level — safe on Vercel serverless: each request isolated) ─
+interface AiContext {
+  userId?: string;
+  brandId?: string;
+  feature: string;
+  service?: string;
+}
+let _ctx: AiContext | null = null;
+
+/** Set AI context BEFORE calling llmChat/llmJson. Used for logging. */
+export function setAiContext(ctx: AiContext | null) {
+  _ctx = ctx;
 }
 
 export interface ChatMessage {
@@ -16,18 +29,152 @@ export interface ChatMessage {
   content: string;
 }
 
+interface AiModuleResponse {
+  status: number;
+  data: {
+    content: string;
+    usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+  };
+}
+
+// ── Core: raw call to AI module ─────────────────────────────────────────────
+async function callAiModule(
+  messages: ChatMessage[],
+  opts?: { temperature?: number; max_tokens?: number; model?: string; service?: string }
+): Promise<AiModuleResponse> {
+  const ctx = _ctx;
+  const service = opts?.service ?? ctx?.service ?? "General Assistant";
+  const model = opts?.model ?? AI_DEFAULT_MODEL;
+
+  const body = JSON.stringify({
+    service,
+    ai: AI_DEFAULT_PROVIDER,
+    model,
+    messages,
+    temperature: opts?.temperature ?? 0.7,
+    top_p: 1,
+    max_tokens: opts?.max_tokens,
+    debug: false,
+  });
+
+  const t0 = Date.now();
+  let res: Response;
+  try {
+    res = await fetch(`${AI_BASE}/completions`, {
+      method: "POST",
+      headers: {
+        "accept": "application/json",
+        "x-key": AI_KEY,
+        "Content-Type": "application/json",
+      },
+      body,
+    });
+  } catch (err: any) {
+    // Network error — log and throw
+    const latencyMs = Date.now() - t0;
+    await _logAiCall({
+      feature: ctx?.feature ?? "unknown",
+      ai: AI_DEFAULT_PROVIDER,
+      model,
+      service,
+      prompt: body,
+      success: false,
+      error: `Network error: ${err.message}`,
+      latencyMs,
+    });
+    throw err;
+  }
+
+  const latencyMs = Date.now() - t0;
+
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => "Unknown error");
+    await _logAiCall({
+      feature: ctx?.feature ?? "unknown",
+      ai: AI_DEFAULT_PROVIDER,
+      model,
+      service,
+      prompt: body,
+      success: false,
+      error: `HTTP ${res.status}: ${errorText.slice(0, 500)}`,
+      latencyMs,
+    });
+    throw new Error(`AI module error (${res.status}): ${errorText.slice(0, 200)}`);
+  }
+
+  const json = (await res.json()) as AiModuleResponse;
+
+  // Log successful call
+  await _logAiCall({
+    feature: ctx?.feature ?? "unknown",
+    ai: AI_DEFAULT_PROVIDER,
+    model,
+    service,
+    prompt: body,
+    response: json.data?.content ?? "",
+    promptTokens: json.data?.usage?.prompt_tokens,
+    completionTokens: json.data?.usage?.completion_tokens,
+    totalTokens: json.data?.usage?.total_tokens,
+    success: true,
+    latencyMs,
+  });
+
+  return json;
+}
+
+// ── Log helper ───────────────────────────────────────────────────────────────
+async function _logAiCall(p: {
+  feature: string;
+  ai: string;
+  model: string;
+  service: string;
+  prompt: string;
+  response?: string;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  success: boolean;
+  error?: string;
+  latencyMs?: number;
+}) {
+  const ctx = _ctx;
+  try {
+    await db.aiPromptLog.create({
+      data: {
+        userId: ctx?.userId ?? null,
+        brandId: ctx?.brandId ?? null,
+        feature: p.feature,
+        ai: p.ai,
+        model: p.model,
+        service: p.service,
+        prompt: p.prompt,
+        response: p.response ?? null,
+        promptTokens: p.promptTokens ?? null,
+        completionTokens: p.completionTokens ?? null,
+        totalTokens: p.totalTokens ?? null,
+        success: p.success,
+        error: p.error ?? null,
+        latencyMs: p.latencyMs ?? null,
+      },
+    });
+  } catch {
+    // Logging should never fail the main request
+    console.error("[ai] failed to write AiPromptLog:", p.feature);
+  }
+}
+
+// ── Public API ───────────────────────────────────────────────────────────────
+
 /** Stream-free chat completion that returns plain text. */
 export async function llmChat(
   messages: ChatMessage[],
   opts?: { temperature?: number; max_tokens?: number }
 ): Promise<string> {
-  const client = await getClient();
-  const resp = await client.chat.completions.create({
-    messages,
+  const resp = await callAiModule(messages, {
     temperature: opts?.temperature ?? 0.7,
     max_tokens: opts?.max_tokens ?? 2000,
   });
-  return resp.choices?.[0]?.message?.content ?? "";
+  return resp.data?.content ?? "";
 }
 
 /** Chat completion that returns parsed JSON. Falls back gracefully. */
@@ -54,33 +201,36 @@ export async function llmJson<T = unknown>(
   }
 }
 
-/** Web search wrapper for research module. */
+/** Web search via AI module (limited — falls back to empty results). */
 export async function webSearch(query: string, opts?: { num?: number; recency_days?: number }) {
-  const client = await getClient();
   try {
-    const results = await client.functions.invoke("web_search", {
-      query,
-      num: opts?.num ?? 8,
-      ...(opts?.recency_days ? { recency_days: opts.recency_days } : {}),
-    });
-    // SDK returns SearchFunctionResultItem[] directly
-    return results as { url: string; name: string; snippet: string; host_name: string; date: string }[];
+    const resp = await callAiModule(
+      [
+        {
+          role: "system",
+          content: `Kamu adalah search engine. Cari informasi terbaru tentang query berikut. Balas dengan daftar hasil pencarian dalam format JSON array: [{"name": "...", "url": "...", "snippet": "...", "host_name": "..."}]. Maksimal ${opts?.num ?? 8} hasil.`,
+        },
+        { role: "user", content: query },
+      ],
+      { temperature: 0.3, max_tokens: 3000, service: "Web Search" }
+    );
+    const text = resp.data?.content ?? "";
+    const match = text.match(/\[[\s\S]*\]/);
+    if (match) {
+      return JSON.parse(match[0]) as { url: string; name: string; snippet: string; host_name: string; date: string }[];
+    }
+    return [];
   } catch {
     return [];
   }
 }
 
-/** Image generation wrapper for konten module. Returns data URL (base64). */
+/** Image generation — NOT YET IMPLEMENTED via AI module. Falls back to null. */
 export async function generateImage(
-  prompt: string,
-  opts?: { size?: "1024x1024" | "768x1344" | "864x1152" | "1344x768" | "1152x864" | "1440x720" | "720x1440" }
-) {
-  const client = await getClient();
-  const resp = await client.images.generations.create({
-    prompt,
-    size: opts?.size ?? "1024x1024",
-  });
-  const b64 = resp.data?.[0]?.base64;
-  if (b64) return `data:image/png;base64,${b64}`;
+  _prompt: string,
+  _opts?: { size?: string }
+): Promise<string | null> {
+  // TODO: implement when AI module supports image generation
+  console.warn("[ai] generateImage: not yet supported via AI module");
   return null;
 }

@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/auth";
 import { chargeCredit, refundCredit } from "@/lib/credit";
-import { llmChat, llmJson, generateImage } from "@/lib/ai";
+import { llmChat, llmJson, generateImage, setAiContext } from "@/lib/ai";
 import type { CreditActionKey } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -189,6 +189,9 @@ export async function POST(req: NextRequest) {
   if (!brand || brand.userId !== userId) {
     return NextResponse.json({ error: "brand tidak ditemukan" }, { status: 404 });
   }
+
+  // Set AI context for prompt logging
+  setAiContext({ feature: `content_${type}`, userId, brandId, service: "Content Writer" });
 
   let product: { name: string; description: string | null; type: string; price: number } | null = null;
   if (productId) {

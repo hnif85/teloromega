@@ -459,3 +459,28 @@ model CreditUsageLog {
   @@index([userId])
   @@index([brandId])
 }
+
+// ── AI Prompt Log — stores every AI call for debugging & audit ──────────────
+model AiPromptLog {
+  id               String   @id @default(cuid())
+  userId           String?
+  brandId          String?
+  feature          String   // research | content_caption | content_image | content_video | content_carousel | inbox_reply | inbox_ai_reply | insights_summary | keuangan_projection
+  ai               String   @default("vertex")  // vertex, openai, etc.
+  model            String   // gemini-3.5-flash, etc.
+  service          String   // Marketing Strategi, Content Writer, etc.
+  prompt           String   @db.Text  // serialized messages JSON
+  response         String?  @db.Text  // raw AI response content
+  promptTokens     Int?
+  completionTokens Int?
+  totalTokens      Int?
+  success          Boolean  @default(false)
+  error            String?
+  latencyMs        Int?
+  createdAt        DateTime @default(now())
+
+  @@index([userId])
+  @@index([brandId])
+  @@index([feature])
+  @@index([createdAt])
+}

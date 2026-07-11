@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/auth";
 import { chargeCredit } from "@/lib/credit";
-import { llmChat } from "@/lib/ai";
+import { llmChat, setAiContext } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +25,9 @@ export async function POST(req: NextRequest) {
   if (!brand || brand.userId !== userId) {
     return NextResponse.json({ error: "brand tidak ditemukan" }, { status: 404 });
   }
+
+  // Set AI context
+  setAiContext({ feature: "inbox_ai_reply", userId, brandId, service: "Customer Service" });
 
   // Charge 1 credit
   const charge = await chargeCredit({

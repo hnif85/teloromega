@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/auth";
 import { chargeCredit } from "@/lib/credit";
-import { llmJson } from "@/lib/ai";
+import { llmJson, setAiContext } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +47,9 @@ export async function POST(req: NextRequest) {
   if (!brand || brand.userId !== userId) {
     return NextResponse.json({ error: "brand tidak ditemukan" }, { status: 404 });
   }
+
+  // Set AI context
+  setAiContext({ feature: "insights_summary", userId, brandId, service: "Business Analyst" });
 
   // ── Charge 3 credits (keuangan.proyeksi — analytical action) ──
   const charge = await chargeCredit({

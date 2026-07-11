@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/auth";
 import { chargeCredit } from "@/lib/credit";
-import { llmChat } from "@/lib/ai";
+import { llmChat, setAiContext } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +65,8 @@ ${leadInfo ? `Konteks lead: nama ${leadInfo.name}, tahap ${leadInfo.stage}.` : "
 ${brand.description ? `Info brand: ${brand.description}` : ""}`;
 
     const userPrompt = `Pesan pelanggan: "${inbound.messageText}"\n\nTulis balasan ramah dalam Bahasa Indonesia:`;
+
+    setAiContext({ feature: "inbox_reply", userId, brandId, service: "Customer Service" });
 
     try {
       finalText = await llmChat(

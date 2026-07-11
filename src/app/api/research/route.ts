@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/auth";
 import { chargeCredit, refundCredit } from "@/lib/credit";
+import { setAiContext } from "@/lib/ai";
 import { runResearchPipeline, generateContexts, type BrandLite } from "./_pipeline";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,9 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
+
+    // Set AI context for prompt logging
+    setAiContext({ feature: "research", userId, brandId, service: "Market Research" });
 
     // Step 2: charge credit
     const charge = await chargeCredit({

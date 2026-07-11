@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/auth";
 import { chargeCredit } from "@/lib/credit";
-import { llmJson } from "@/lib/ai";
+import { llmJson, setAiContext } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +52,9 @@ export async function POST(req: NextRequest) {
   if (!brand || brand.userId !== userId) {
     return NextResponse.json({ error: "brand tidak ditemukan" }, { status: 404 });
   }
+
+  // Set AI context
+  setAiContext({ feature: "keuangan_projection", userId, brandId, service: "Financial Analyst" });
 
   const ctx = await db.context.findUnique({
     where: { id: contextId },

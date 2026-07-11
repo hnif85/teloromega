@@ -148,10 +148,28 @@ function RingkasanSection({ brandId, period, open, onToggle }: { brandId: string
         <StatMini label={laba >= 0 ? "Laba Bersih" : "Rugi Bersih"} value={isLoading ? "..." : formatRupiahShort(laba)} icon={<Wallet className="size-4" />} green={laba >= 0} red={laba < 0} />
         <StatMini label="Arus Kas" value={isLoading ? "..." : (s?.cashFlow?.net ?? 0) >= 0 ? `+${formatRupiahShort(s?.cashFlow?.net ?? 0)}` : formatRupiahShort(s?.cashFlow?.net ?? 0)} icon={<ArrowRightLeft className="size-4" />} />
       </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone">
-        {piutangCount > 0 && <span>📥 Piutang: <strong className="text-emerald-700">{formatRupiahShort(piutangTotal)}</strong> ({piutangCount})</span>}
-        {hutangCount > 0 && <span>📤 Hutang: <strong className="text-amber-700">{formatRupiahShort(hutangTotal)}</strong> ({hutangCount})</span>}
-        {biayaCount > 0 && <span>💸 Biaya: <strong className="text-ink">{formatRupiahShort(biayaTotal)}</strong>/bln ({biayaCount} item)</span>}
+      <div className="grid grid-cols-3 gap-2 text-xs text-stone">
+        {piutangCount > 0 && (
+          <div className="flex flex-col items-center p-2 rounded-lg bg-emerald-50/60">
+            <span>📥 Piutang</span>
+            <strong className="text-emerald-700">{formatRupiahShort(piutangTotal)}</strong>
+            <span>({piutangCount})</span>
+          </div>
+        )}
+        {hutangCount > 0 && (
+          <div className="flex flex-col items-center p-2 rounded-lg bg-amber-50/60">
+            <span>📤 Hutang</span>
+            <strong className="text-amber-700">{formatRupiahShort(hutangTotal)}</strong>
+            <span>({hutangCount})</span>
+          </div>
+        )}
+        {biayaCount > 0 && (
+          <div className="flex flex-col items-center p-2 rounded-lg bg-cream-50/60">
+            <span>💸 Biaya</span>
+            <strong className="text-ink">{formatRupiahShort(biayaTotal)}</strong>
+            <span>/bln ({biayaCount} item)</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -407,13 +425,13 @@ export function KeuanganSection() {
       <div className="flex items-center justify-between">
         <PageHeader title="Keuangan" icon="💰" subtitle={`${activeBrand.name}`} />
         <div className="flex items-center gap-2 shrink-0">
-          <div className="flex rounded-lg bg-cream-100 p-0.5">
+          <div className="grid grid-cols-3 gap-1 bg-cream-100 p-1 rounded-lg">
             {(["month", "quarter", "year"] as PeriodKey[]).map((p) => (
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
                 className={cn(
-                  "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors",
+                  "py-1.5 rounded-md text-[11px] font-semibold transition-colors",
                   period === p ? "bg-white text-teal shadow-sm" : "text-stone hover:text-ink"
                 )}
               >

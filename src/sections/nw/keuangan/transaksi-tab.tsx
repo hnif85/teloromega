@@ -24,14 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+
 import { SectionCard, EmptyState } from "@/components/nw/primitives";
 import { Plus, Search, Download, ArrowUpRight, ArrowDownRight, FileText } from "lucide-react";
 import { api } from "@/lib/api";
@@ -241,25 +234,11 @@ export function TransaksiTab({ brandId }: { brandId: string }) {
           </div>
         ) : (
           <>
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-cream-100/60 hover:bg-cream-100/60">
-                  <TableHead className="text-xs text-stone font-semibold">Tipe</TableHead>
-                  <TableHead className="text-xs text-stone font-semibold">Kategori</TableHead>
-                  <TableHead className="text-xs text-stone font-semibold">Deskripsi</TableHead>
-                  <TableHead className="text-xs text-stone font-semibold hidden md:table-cell">
-                    Entitas
-                  </TableHead>
-                  <TableHead className="text-xs text-stone font-semibold hidden sm:table-cell">
-                    Tanggal
-                  </TableHead>
-                  <TableHead className="text-xs text-stone font-semibold text-right">Jumlah</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paged.map((t) => (
-                  <TableRow key={t.id} className="hover:bg-cream-100/40">
-                    <TableCell>
+            <div className="p-3 space-y-2">
+              {paged.map((t) => (
+                <div key={t.id} className="rounded-xl border border-border bg-cream-50/50 p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
                       {t.type === "income" ? (
                         <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 border">
                           <ArrowUpRight className="size-3" /> Masuk
@@ -269,62 +248,29 @@ export function TransaksiTab({ brandId }: { brandId: string }) {
                           <ArrowDownRight className="size-3" /> Keluar
                         </Badge>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs text-stone">
+                      <span className="text-[10px] text-stone">
                         {TX_CATEGORY_LABELS[t.category] ?? t.category}
                       </span>
-                    </TableCell>
-                    <TableCell className="max-w-[280px]">
-                      <div className="text-sm text-ink font-medium truncate">
-                        {t.description ?? "—"}
-                      </div>
-                      {t.costAmount === null && t.type === "income" && (
-                        <span className="text-[10px] text-amber-600 font-medium">
-                          ⚠ HPP belum lengkap
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {t.product ? (
-                        <span className="text-xs text-stone truncate">
-                          📦 {t.product.name}
-                        </span>
-                      ) : t.customer ? (
-                        <span className="text-xs text-stone truncate">
-                          👤 {t.customer.name}
-                        </span>
-                      ) : t.order ? (
-                        <span className="text-xs text-stone">
-                          🛒 Order {t.order.resiNumber ?? t.order.id.slice(-6)}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-stone">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <span className="text-xs text-stone">
-                        {new Date(t.date).toLocaleDateString("id-ID", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "2-digit",
-                        })}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span
-                        className={`text-sm font-bold tabular-nums ${
-                          t.type === "income" ? "text-emerald-700" : "text-rose-700"
-                        }`}
-                      >
-                        {t.type === "income" ? "+" : "−"}
-                        {formatRupiah(t.amount)}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </div>
+                    <span className={`text-sm font-bold tabular-nums ${t.type === "income" ? "text-emerald-700" : "text-rose-700"}`}>
+                      {t.type === "income" ? "+" : "−"}{formatRupiah(t.amount)}
+                    </span>
+                  </div>
+                  <div className="text-sm text-ink font-medium truncate">
+                    {t.description ?? "—"}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1.5 text-[10px] text-stone">
+                    <span>{new Date(t.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "2-digit" })}</span>
+                    {t.product && <span>📦 {t.product.name}</span>}
+                    {t.customer && <span>👤 {t.customer.name}</span>}
+                    {t.order && <span>🛒 Order {t.order.resiNumber ?? t.order.id.slice(-6)}</span>}
+                  </div>
+                  {t.costAmount === null && t.type === "income" && (
+                    <span className="text-[10px] text-amber-600 font-medium mt-1 inline-block">⚠ HPP belum lengkap</span>
+                  )}
+                </div>
+              ))}
+            </div>
 
             {/* Pagination */}
             <div className="flex items-center justify-between px-4 py-3 border-t border-border">

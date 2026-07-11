@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAppStore, registerNavigate, pathToSection } from "@/lib/store";
+import { api } from "@/lib/api";
 import { Sidebar } from "@/components/nw/sidebar";
 import { Topbar } from "@/components/nw/topbar";
 import { BottomTabBar } from "@/components/nw/bottom-tab-bar";
@@ -37,6 +38,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       router.push("/");
     }
   }, [hydrated, isLoggedIn, router]);
+
+  // Hydrate session — handles direct URL access / hard refresh
+  useEffect(() => {
+    if (useAppStore.getState().hydrated) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await api<{
+          user: any;
+          brands: any[];
+          activeBrandId: string | null;
+        }>("/api/init");
+        if (!cancelled) useAppStore.getState().setSession(s);
+      } catch {
+        if (!cancelled) useAppStore.getState().setHydrated(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Don't render until hydrated
   if (!hydrated) return null;

@@ -29,6 +29,34 @@ export function pathToSection(path: string): SectionKey {
 }
 
 export interface Brand {
+  id: string;
+  name: string;
+  slug: string;
+  logoUrl?: string | null;
+  description?: string | null;
+  category: string;
+  toneOfVoice?: string | null;
+  isActive: boolean;
+}
+
+interface SessionUser {
+  id: string;
+  name: string;
+  email: string;
+  creditBalance: number;
+  toneOfVoice?: string | null;
+  isOnboarded: boolean;
+}
+
+interface SessionState {
+  user: SessionUser | null;
+  brands: Brand[];
+  activeBrandId: string | null;
+  section: SectionKey;
+  hydrated: boolean;
+  onboardingOpen: boolean;
+  onboardingStep: number;
+  isLoggedIn: boolean;
 
   setSession: (s: { user: SessionUser; brands: Brand[]; activeBrandId: string | null }) => void;
   setSection: (s: SectionKey) => void;

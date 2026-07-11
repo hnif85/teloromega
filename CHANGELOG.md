@@ -7,6 +7,13 @@
 
 ---
 
+## [0.6.0] — 2026-07-11
+
+### ✨ Added
+- hybrid research — first research forced basic_research (4-tab view + 3 contexts), subsequent use freeform agent (ContentBlock[] output); dynamic intent dispatch with HTML fallback for custom intents
+
+
+
 ## [0.5.0] — 2026-07-11
 
 ### ✨ Added

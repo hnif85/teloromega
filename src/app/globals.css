@@ -330,3 +330,76 @@
   [data-slot="dialog-overlay"] { display: none !important; }
   @page { margin: 0; }
 }
+
+/* ── Styling polish (Task 19-B) ───────────────────────────────────────────
+   Toast entrance animation, card shimmer sweep on hover, pulse glow for
+   important elements, gradient border utility, smooth scroll, focus-visible
+   ring, and selection color. */
+
+/* Toast entrance animations */
+@keyframes toast-slide-in {
+  from { transform: translateX(120%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.toast-slide-in { animation: toast-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Card shimmer effect on hover (for premium feel) */
+.card-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.card-shimmer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(13, 148, 136, 0.08), transparent);
+  transition: left 0.6s ease;
+  pointer-events: none;
+}
+.card-shimmer:hover::before {
+  left: 100%;
+}
+
+/* Pulse glow for important elements (credit balance, notifications) */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(13, 148, 136, 0); }
+}
+.pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+/* Gradient border utility */
+.gradient-border {
+  position: relative;
+  background: var(--card);
+  border-radius: var(--radius);
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, #0D9488, #EA580C);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Smooth scroll for in-page navigation */
+html { scroll-behavior: smooth; }
+
+/* Better focus visible for keyboard users */
+:focus-visible {
+  outline: 2px solid #0D9488;
+  outline-offset: 2px;
+}
+
+/* Selection color */
+::selection {
+  background: rgba(13, 148, 136, 0.2);
+  color: #171412;
+}

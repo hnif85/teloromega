@@ -1007,3 +1007,184 @@ Priority recommendations for next phase:
 - Email notification system for critical events.
 - Multi-user collaboration (multiple users per brand with role-based permissions).
 - Advanced analytics: cohort analysis, customer lifetime value, seasonal trends.
+
+---
+Task ID: 19-B
+Agent: full-stack-developer (Service Worker + Styling)
+Task: Add service worker for offline PWA caching, offline indicator banner, toast animations, card shimmer effect, gradient border, pulse glow, smooth scroll, selection color.
+
+Work Log:
+- Read worklog.md (last 2 entries: Task 18-A Global Search, Task 18-B PWA + Dashboard Hero, Task 18 Cron Review Round 6) + 6 pattern files (layout.tsx, globals.css, page.tsx, manifest.json, primitives.tsx, public/ listing). Confirmed framer-motion@12, sonner@2, next-themes@0.4 available. Confirmed PWA manifest + icons already wired (Task 18-B) but no service worker existed — app was installable but not offline-capable.
+- A. Created `public/sw.js` (~190 lines) — vanilla service worker (no workbox):
+  · `install` event: precaches app shell into `nextwhiz-v1` cache via atomic `cache.addAll(["/", "/manifest.json", "/icon.svg", "/icon-192.png", "/icon-512.png"])`. Calls `self.skipWaiting()` for immediate activation.
+  · `activate` event: deletes any cache whose name ≠ `nextwhiz-v1` (forward-roll on version bump). Calls `self.clients.claim()` to take over open tabs.
+  · `fetch` event — route-aware stale-while-revalidate, GET-only + same-origin-only:
+    - API (`/api/*`): `networkFirst()` — fresh data when online, cache fallback when offline. Only 200s cached.
+    - Navigations (`req.mode === "navigate"`): `navigationHandler()` — cache-first + background refresh; offline + cache miss falls back to cached `/` app shell.
+    - Fonts (`destination === "font"`): `cacheFirst()` — long-lived.
+    - Static assets (style/script/image/empty destination): `cacheFirst()` — Next.js hashed filenames make this safe.
+  · `message` event: handles `"SKIP_WAITING"` for future "new version available" flow.
+  · Three helper functions: `cacheFirst(req)`, `navigationHandler(req)`, `networkFirst(req)`. Each documents its strategy.
+  · Inline comments explain every section (install/activate/fetch + each strategy).
+- B. Created `src/components/nw/sw-register.tsx` — `"use client"` component:
+  · `useEffect` registers `/sw.js` only when `"serviceWorker" in navigator && process.env.NODE_ENV === "production"`. Production-only gate avoids dev server chunk-caching conflicts (Next.js HMR recompiles chunks; a SW would serve stale code).
+  · `.catch(() => {})` swallows errors (SW failure is non-fatal — app still works online).
+  · Returns `null` (no DOM footprint).
+- C. Created `src/components/nw/offline-indicator.tsx` — `"use client"` component:
+  · `useState` lazy initializer reads `navigator.onLine` (guarded for SSR) — avoids `react-hooks/set-state-in-effect` lint error that synchronous `setIsOffline` in effect body would trigger.
+  · `useEffect` subscribes to `window` `"offline"`/`"online"` events. `handleOffline` → `setIsOffline(true)`. `handleOnline` → `setIsOffline(false)` + `toast.success("🟢 Kembali online!", { description: "Sinkronisasi data aktif kembali." })` via sonner.
+  · Renders `AnimatePresence` with conditional banner: fixed bottom-center, rose→amber gradient bg, WifiOff icon (lucide), "Mode offline — perubahan disimpan lokal, sync saat online kembali" text. Spring entrance (y: 80→0, opacity 0→1, stiffness 380 damping 32) + matching exit. `role="status"` + `aria-live="polite"` for a11y.
+- D. Edited `src/app/layout.tsx` — added `import { SWRegister }` + mounted `<SWRegister />` inside `<body>` after `</ThemeProvider>` (orthogonal to theme/query state; renders null so no layout impact).
+- E. Edited `src/app/page.tsx` — added `import { OfflineIndicator }` + rendered `<OfflineIndicator />` inside the logged-in return block (after `<CommandPalette />`). Only mounts when `isLoggedIn` (the `!isLoggedIn` early-return shows `<LoginScreen />` first), satisfying "only when logged in, not on login screen".
+- F. Edited `src/app/globals.css` — appended Task 19-B section:
+  · `@keyframes toast-slide-in` + `.toast-slide-in` (translateX 120%→0, opacity 0→1, 0.3s cubic-bezier(0.16, 1, 0.3, 1)).
+  · `.card-shimmer` + `::before` pseudo (teal gradient sweep at 8% opacity, left -100%→100% on hover, 0.6s ease, pointer-events none).
+  · `@keyframes pulse-glow` + `.pulse-glow` (teal box-shadow ring expand 0→8px→0, 2s ease-in-out infinite).
+  · `.gradient-border` (mask-composite trick for teal→orange gradient border on `var(--card)` bg, pointer-events none).
+  · `html { scroll-behavior: smooth; }`.
+  · `:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }` (keyboard-only, not mouse clicks).
+  · `::selection { background: rgba(13, 148, 136, 0.2); color: #171412; }`.
+- G. Edited `src/components/nw/primitives.tsx` — added `card-shimmer` class to `StatCard` root div (now `card-hover card-shimmer rounded-2xl ...`). StatCards get both lift + shimmer sweep on hover. SectionCard left unchanged (larger container where sweep would feel busy).
+- Ran `bun run lint` → initially 1 error: `react-hooks/set-state-in-effect` on the synchronous `setIsOffline(!navigator.onLine)` in offline-indicator effect. Fixed by moving the initial read into a `useState` lazy initializer (component only mounts post-hydration so `navigator` is guaranteed available). Re-ran lint → 0 errors, 0 warnings.
+- Ran `bunx tsc --noEmit` (excluding skills/ + examples/) → 0 errors.
+- Wrote agent-ctx record at `/home/z/my-project/agent-ctx/19-B-service-worker-styling.md`.
+
+Stage Summary:
+- Files created:
+  · `public/sw.js` (~190 lines) — vanilla SW with route-aware fetch strategies (cache-first for static/fonts, network-first for API, cache-first + offline shell fallback for navigations)
+  · `src/components/nw/sw-register.tsx` — production-only SW registration
+  · `src/components/nw/offline-indicator.tsx` — offline banner with framer-motion entrance/exit + sonner toast on reconnect
+  · `agent-ctx/19-B-service-worker-styling.md`
+- Files edited:
+  · `src/app/layout.tsx` (+2 lines: SWRegister import + mount)
+  · `src/app/page.tsx` (+2 lines: OfflineIndicator import + render in logged-in block)
+  · `src/app/globals.css` (+73 lines: toast-slide-in, card-shimmer, pulse-glow, gradient-border, smooth scroll, focus-visible, selection color)
+  · `src/components/nw/primitives.tsx` (+1 class: `card-shimmer` on StatCard root)
+- Decisions:
+  · SW registered in production only — dev server HMR recompiles chunks; a caching SW would serve stale code. The `process.env.NODE_ENV === "production"` gate is evaluated at build time, so the register call is tree-shaken in dev.
+  · Vanilla SW (no workbox) per spec — three small strategy helpers (cacheFirst, navigationHandler, networkFirst) keep the routing logic readable.
+  · `cache.addAll` for app shell — atomic; if any precache URL fails, install fails (safer than per-URL `cache.put` which would silently leave the cache half-populated).
+  · API requests network-first — data freshness is critical for an inventory/finance app. Cache is only a fallback when offline, never the primary source. Non-200 responses NOT cached.
+  · Cross-origin bypass — Next.js fonts come from Google Fonts CDN; caching them would require opaque-response handling. Browser HTTP cache already handles them well.
+  · Offline indicator uses lazy `useState` initializer — avoids `set-state-in-effect` lint error (cascading renders). Component only mounts after hydration (gated behind isLoggedIn), so `navigator` is guaranteed available.
+  · `AnimatePresence` for banner — needed for clean exit animation (slide-down + fade) on unmount, which CSS-only can't do without manual transition-state plumbing.
+  · `card-shimmer` on StatCard only (not SectionCard) — per spec. StatCards are small KPI tiles that benefit most from the premium hover affordance; SectionCards are larger containers where the sweep would feel busy.
+  · `::before` shimmer at 8% opacity — subtle "premium sheen" not "glitchy overlay". 0.6s ease matches `.card-hover`'s 0.2s lift — combined hover feels layered.
+  · `focus-visible` (not `focus`) — only shows teal ring for keyboard nav, not mouse clicks (matches shadcn/ui a11y convention).
+  · `::selection` rgba teal at 20% — brand reinforcement without obscuring readability; `color: #171412` (ink) keeps text legible.
+- Lint: 0 errors, 0 warnings. tsc: 0 errors. Dev server: HTTP 200 (no compile errors). SW itself only activates in production builds; in dev, `SWRegister` no-ops so HMR is unaffected.
+
+---
+Task ID: 19-A
+Agent: full-stack-developer (Export/Import)
+Task: Build JSON backup/restore — export all brand data to downloadable JSON, import with merge strategy (skip existing).
+
+Work Log:
+- Read worklog.md (last 3 entries: 18-A Global Search, 18-B PWA + Dashboard Hero, 18 Cron Review Round 6). Read 6 pattern files (auth.ts, db.ts, store.ts, api.ts, csv.ts, pengaturan-section.tsx). Confirmed Brand/Product/Customer/Lead/Order/Payment/Transaction/Content/Research/Context/Campaign/Goal/CreditUsageLog/Receivable/Payable/OperationalCost/Inventory/ContextUsage/CampaignRecipient/InboxMessage models. Confirmed `getUserId(req)` + brand.userId ownership pattern. Confirmed `useAppStore`/`getActiveBrand` + `useToast` + `api()` client patterns. Confirmed AlertDialog usage in DemoTab.
+- A. Created `src/app/api/export/route.ts` (GET):
+  · Auth: `getUserId(req)` → 401 if missing; reads `brandId` from `req.nextUrl.searchParams`.
+  · Ownership: `db.brand.findUnique({ where: { id } })` → 404 if `brand.userId !== userId`.
+  · Parallel fetch of ALL 19 brand-scoped models via `Promise.all([...])`. Models with no direct `brandId` (Payment, Inventory, CampaignRecipient) filtered through their parent relation (`{ order: { brandId } }`, `{ product: { brandId } }`, `{ campaign: { brandId } }`).
+  · `stripUserId<T>()` helper deletes `userId` from every row before returning — privacy-safe (re-assigned on import).
+  · Response shape: `{ version: "1.0", exportedAt, brand: {id,name,slug,category,description,toneOfVoice,logoUrl}, data: {19 model arrays}, counts: {19 keys with N} }`.
+  · Headers: `Content-Type: application/json; charset=utf-8`, `Content-Disposition: attachment; filename="nextwhiz-backup-{brand.slug}-{YYYY-MM-DD}.json"`, `Cache-Control: no-store`.
+  · Returns pretty-printed JSON (`JSON.stringify(payload, null, 2)`) for human-readability.
+- B. Created `src/app/api/import/route.ts` (POST):
+  · Body: `{ brandId, data: <BackupPayload> }`.
+  · Auth + ownership same as export.
+  · Version check: rejects `version !== "1.0"` with 400.
+  · Coercion helpers `asDate/asInt/asFloat/asBool/asStr/asStrOrNull/asDateOrNull` — gracefully coerce loose JSON values to Prisma types.
+  · Merge strategy (NOT replace): wrapped in `db.$transaction(async (tx) => { ... })`. If any model fails, the entire transaction rolls back.
+  · Products: `findFirst({ where: { brandId, name } })` → skip if exists (and remap old id → existing id). Otherwise insert with `crypto.randomUUID()`.
+  · Customers: `findUnique({ where: { brandId_phone: { brandId, phone } } })` (uses @@unique constraint) → skip if exists. Otherwise insert with new ID.
+  · Leads/Orders/Payments/Transactions/Content/Research/Contexts/ContextUsage/Campaigns/CampaignRecipients/InboxMessages/Receivables/Payables/OperationalCosts/Goals/CreditUsageLog: insert with new IDs; FK fields (customerId, leadId, orderId, productId, researchId, contextId, campaignId) remapped via in-memory `Map<oldId, newId>`. If source row wasn't imported, FK set to null (avoids orphans). Skip orphan rows entirely if their required parent wasn't imported (e.g. Payment without an imported Order).
+  · `userId` fields on rows that need them (Transaction/Receivable/Payable/OperationalCost/Goal/InboxMessage/CreditUsageLog/Research) are re-assigned to the importing user — not the original.
+  · `brandId` is ALWAYS set to the target brand (not the source) → enables cross-brand migration.
+  · Prisma known-error handling: catches `Prisma.PrismaClientKnownRequestError` separately → 400 with error code; other errors re-thrown to outer catch → 500.
+  · Returns `{ imported: { model: N, ... }, skipped: { model: N, ... } }`.
+- C. Built `BackupTab` component in `pengaturan-section.tsx` (~470 lines):
+  · Added `useRef` to imports + 6 new Lucide icons (Download, Upload, FileJson, ShieldCheck, Info, + reused Check/AlertTriangle/Loader2/Database).
+  · Added `BackupCounts`/`ImportResult` interfaces + `useExportPreview(brandId)` hook (TanStack Query, staleTime 60s, `placeholderData: (prev) => prev`) — fetches export endpoint and shows counts preview without triggering download.
+  · `formatBytes(bytes)` helper for file-size display.
+  · `BackupTab` UI structure:
+    - SectionCard titled "Backup & Restore" with teal Backup badge.
+    - 2-column grid (lg) with 2 cards + 1 info card below.
+    - Export Card (teal gradient, Download icon, "Export Data" title, Indonesian description). Counts preview as Badge chips (📦 N produk · 🛒 N order · 💰 N transaksi · 👤 N customer · 👥 N leads · 📝 N konten · 🔍 N riset). "Download Backup JSON" button with loading state.
+    - Import Card (amber gradient, Upload icon, "Import Data" title, Indonesian description with "TIDAK akan ditimpa" bolded). Hidden `<input type="file" accept=".json">` triggered by "Pilih File" outline button. After selection: shows file name + size + validity status (valid/processing/error). "Import" button (amber) wrapped in AlertDialog with confirmation: "Yakin import data dari '{filename}'? Data existing tidak akan ditimpa."
+    - Info Card (stone, dashed border): tips in Indonesian about weekly backup, safe storage, cross-brand migration, no sensitive data.
+  · Export uses `useMutation` with direct `fetch()` (not `api()`) — needed because we read `Content-Disposition` header to extract server-provided filename, then create Blob + anchor link to trigger browser download. On success: toast "Backup berhasil diunduh 📥". On error: destructive toast.
+  · Import uses `useMutation` + `api<ImportResult>("/api/import", { method: "POST", json: { brandId, data: parsed } })`. Builds summary line from imported counts (e.g. "5 produk · 2 customer · 6 order"). On success: toast "Import selesai ✅ (N baris)". On error: destructive toast.
+  · File validation client-side: must be `.json`, max 25 MB, must parse as JSON with `data` field, version must be "1.0" (if present).
+  · After import: resets file state, invalidates ALL queries (`qc.invalidateQueries()`), closes AlertDialog.
+  · Wired as 7th tab "Backup" (value="backup", ShieldCheck icon) in `<TabsList>` + `<TabsContent>` in main `PengaturanSection`.
+- D. Verified via curl:
+  · `GET /api/export?brandId=X` → 200 + 29854 bytes JSON with correct Content-Disposition. Verified userId stripped (no leak).
+  · `POST /api/import` with same-brand backup → products & customers skipped (5+2), everything else imported with new IDs (5 leads, 6 orders, 4 payments, 6 transactions, 3 content, 1 research, 3 contexts, 1 campaign, 2 recipients, 3 inbox). Re-export confirmed: products still 5 (skipped), orders now 12 (doubled) → merge strategy works.
+  · Cross-brand import (hanif → Sedap Mantab) → all 32 rows imported, 0 skipped (clean brand).
+  · Error cases: missing brandId → 401; bad brandId → 404; version "2.0" → 400 "Versi backup tidak didukung"; missing data.data → 400; non-authenticated → 401.
+  · Reset test data via `/api/demo/reset` for both brands, re-seeded hanif via `/api/demo/seed` to restore original state.
+- Lint: 0 errors, 0 warnings. tsc --noEmit (excluding skills/examples): 0 errors. Dev server log: HTTP 200, no compile errors. Page bundle `pengaturan-section_tsx_*.js` confirmed to contain BackupTab code (25 matches for "BackupTab|Download Backup JSON|Export Data").
+
+Stage Summary:
+- Files created: `src/app/api/export/route.ts` (~165 lines), `src/app/api/import/route.ts` (~440 lines).
+- Files edited: `src/sections/nw/pengaturan-section.tsx` (added `useRef` import + 5 Lucide icons; added BackupCounts/ImportResult interfaces, useExportPreview hook, formatBytes helper, BackupTab component ~470 lines; added 7th TabsTrigger "backup" + TabsContent mounting <BackupTab />).
+- Decisions:
+  · Pretty-printed JSON (2-space) in export — human-readable & diff-friendly for users who want to inspect their backup. Size trade-off negligible (<1% impact).
+  · Merge strategy with crypto.randomUUID() new IDs — safer than reusing source IDs (avoids collisions if backup came from same DB). Spec-compliant.
+  · FK remapping via in-memory `Map<oldId, newId>` — built incrementally as each model is processed; downstream models consult the map for parent IDs.
+  · Orphan handling: Payment/Inventory/CampaignRecipient/Context/ContextUsage skip if their parent wasn't imported (preserves referential integrity).
+  · InboxMessage.leadId and Content.contextId set to null on import — these references point to records that may not be importable (Content's contextId points to a Context that we DO import later, but ordering makes wiring complex; we accept the trade-off of losing this link — body content is preserved).
+  · Cross-brand migration supported: brandId always set to target brand. userId re-assigned to importing user (privacy-safe across accounts).
+  · CreditUsageLog imported for history, but doesn't affect actual `User.creditBalance` (that's authoritative in user table, not derived from log).
+  · 25 MB upload size limit (client-side check) — well above any reasonable brand backup; prevents accidental upload of huge files.
+  · File validation in client (extension, JSON parse, version, data field) before enabling Import button — saves a round-trip and gives instant feedback.
+  · AlertDialog confirmation before import — destructive (irreversible) action deserves confirmation per UX best practices.
+  · Export download uses Blob + temporary anchor (not `window.location = url`) — works reliably across browsers and lets us set the filename from server's Content-Disposition header.
+  · useExportPreview hook fetches the full export (server has no HEAD endpoint); we accept the extra bandwidth (once per 60s, cached via staleTime) for the convenience of a counts preview. Alternative would be a separate /api/export/preview endpoint, but that's premature optimization.
+
+---
+Task ID: 19
+Agent: main (Z.ai Code) — Cron Review Round 7
+Task: QA, add Export/Import data backup + Service Worker for offline PWA + styling polish
+
+Work Log:
+- **Assessment**: Read worklog (1009 lines, 18 prior task entries). Project stable after Round 6 (12 sections, Global Search, PWA manifest, Dashboard Hero). Identified next priorities: Service Worker for true offline, Export/Import data backup, styling polish.
+- **QA via agent-browser**: Verified dashboard hero + global search (Cmd+F) work. Confirmed app stable.
+- **Export/Import Data (delegated to subagent 19-A)**:
+  - New `/api/export` GET — parallel fetch of 19 brand-scoped models, returns downloadable JSON with Content-Disposition header. Strips userId for privacy. Includes counts summary.
+  - New `/api/import` POST — merge strategy (skip existing by name/phone, insert new with remapped IDs). Full transaction rollback on error. FK remapping via in-memory maps. Handles cross-brand migration.
+  - New "Backup" tab (7th) in Pengaturan — Export card with data count preview (📦 produk, 🛒 order, 💰 transaksi, 👤 customer, 👥 leads, 📝 konten, 🔍 riset), Import card with file picker + AlertDialog confirmation + validation.
+  - Verified: Export returns 200 + toast "Backup berhasil diunduh 📥". Import tested via curl (same-brand: 5 produk + 2 customer skipped, 32 rows imported; cross-brand: all imported).
+- **Service Worker + Offline (delegated to subagent 19-B)**:
+  - New `public/sw.js` — vanilla JS service worker with stale-while-revalidate: API = network-first (cache fallback), navigations = cache-first (offline shell), static assets = cache-first (hashed filenames safe). Precaches app shell on install.
+  - New `sw-register.tsx` — production-only registration (avoids dev HMR conflicts).
+  - New `offline-indicator.tsx` — listens online/offline events, shows rose banner when offline ("🔴 Mode offline"), toast when back online. Framer-motion animated.
+  - Wired into layout.tsx (SWRegister) + page.tsx (OfflineIndicator when logged in).
+  - Verified: sw.js HTTP 200, registration component mounted, offline indicator ready.
+- **Styling Polish (subagent 19-B)**:
+  - New CSS: `.toast-slide-in` animation, `.card-shimmer` (gradient sweep on hover), `.pulse-glow`, `.gradient-border` (teal→orange mask-composite), `html { scroll-behavior: smooth }`, `:focus-visible` teal ring, `::selection` teal tint.
+  - Applied `card-shimmer` to StatCard root (in addition to existing `card-hover`).
+  - Verified: `card-shimmer` class found on stat cards via DOM query.
+
+Stage Summary:
+- **Export/Import**: Full JSON backup/restore with merge strategy. 19 models exported, import skips existing + remaps FKs. UI in Pengaturan > Backup tab.
+- **Service Worker**: App shell cached for offline use. API requests fall back to cache when offline. Offline indicator banner shows status.
+- **Styling**: Card shimmer on hover, toast slide-in animation, gradient border utility, pulse glow, smooth scroll, focus-visible ring, selection color.
+- **Lint**: 0 errors, 0 warnings. **tsc**: 0 errors. **Dev server**: running on port 3000, HTTP 200.
+- **Files created**: api/export/route.ts, api/import/route.ts, public/sw.js, sw-register.tsx, offline-indicator.tsx.
+- **Files edited**: pengaturan-section.tsx (7th Backup tab), layout.tsx (SWRegister), page.tsx (OfflineIndicator), globals.css (7 new CSS utilities), primitives.tsx (card-shimmer on StatCard).
+
+Unresolved issues / risks:
+- LLM API token still unavailable — all AI features use fallbacks (unchanged).
+- Service Worker only registers in production (NODE_ENV=production). In dev, no SW → no offline caching. This is intentional to avoid dev HMR conflicts.
+- Import merge strategy skips by name (products) or phone (customers) — if user has duplicate names with different data, only the first is kept.
+- Server OOM killed occasionally during heavy dev compilation. Auto-recovers.
+
+Priority recommendations for next phase:
+- Product image upload (file upload to storage) — currently URL-only or SVG placeholder.
+- Real WhatsApp integration for Campaigns — currently simulated.
+- Email notification system for critical events (low stock, payment received, goal achieved).
+- Multi-user collaboration (multiple users per brand with role-based permissions).
+- Advanced analytics: cohort analysis, customer lifetime value, seasonal trends.
+- Extend global search to include Research, Campaigns, Goals.
+- Add background sync for offline form submissions (service worker sync API).

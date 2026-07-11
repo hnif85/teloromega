@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAppStore, getActiveBrand, type Brand } from "@/lib/store";
 import { api } from "@/lib/api";
@@ -78,6 +78,11 @@ import {
   Clock,
   ChevronDown,
   TrendingUp,
+  Download,
+  Upload,
+  FileJson,
+  ShieldCheck,
+  Info,
 } from "lucide-react";
 import {
   CATEGORIES,
@@ -2061,6 +2066,481 @@ function GoalCard({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Tab 7: Backup & Restore — JSON export/import for data safety & migration
+// ─────────────────────────────────────────────────────────────────────────────
+interface BackupCounts {
+  products?: number;
+  orders?: number;
+  transactions?: number;
+  customers?: number;
+  leads?: number;
+  content?: number;
+  research?: number;
+  campaigns?: number;
+  inboxMessages?: number;
+  goals?: number;
+  receivables?: number;
+  payables?: number;
+  operationalCosts?: number;
+}
+
+interface ImportResult {
+  imported: Record<string, number>;
+  skipped: Record<string, number>;
+}
+
+// Fetch the export counts as a lightweight preview (HEAD-like via GET parse).
+// We just want the `counts` field, so we parse JSON without persisting it.
+function useExportPreview(brandId: string | null | undefined) {
+  return useQuery<BackupCounts>({
+    queryKey: ["export-preview", brandId],
+    queryFn: async () => {
+      if (!brandId) return {};
+      // Reuse the export endpoint but only read counts; we re-fetch when the
+      // user actually clicks download (separate fetch so the browser triggers
+      // the attachment download).
+      const res = await fetch(`/api/export?brandId=${encodeURIComponent(brandId)}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("Gagal memuat preview");
+      const json = (await res.json()) as { counts?: BackupCounts };
+      return json.counts ?? {};
+    },
+    enabled: !!brandId,
+    staleTime: 60_000, // 1 min — counts don't change that fast
+    placeholderData: (prev) => prev,
+  });
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function BackupTab() {
+  const { brands, activeBrandId } = useAppStore();
+  const activeBrand = brands.find((b) => b.id === activeBrandId) ?? brands[0] ?? null;
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  // ── Export preview (counts) ──────────────────────────────────────────────
+  const previewQ = useExportPreview(activeBrand?.id);
+  const counts = previewQ.data ?? {};
+  const totalRows = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0);
+
+  // ── Import state ──────────────────────────────────────────────────────────
+  const [file, setFile] = useState<File | null>(null);
+  const [parsed, setParsed] = useState<unknown>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function refreshAll() {
+    qc.invalidateQueries();
+  }
+
+  // ── Export handler — direct fetch (triggers attachment download) ──────────
+  const exportMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeBrand) throw new Error("Brand belum dipilih");
+      const res = await fetch(
+        `/api/export?brandId=${encodeURIComponent(activeBrand.id)}`,
+        { cache: "no-store" }
+      );
+      if (!res.ok) {
+        let msg = `Gagal export (${res.status})`;
+        try {
+          const e = await res.json();
+          if (e?.error) msg = e.error;
+        } catch {
+          /* ignore */
+        }
+        throw new Error(msg);
+      }
+      // Pull filename from Content-Disposition header (fallback to default).
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      const m = cd.match(/filename="?([^"]+)"?/i);
+      const filename =
+        m?.[1] ??
+        `nextwhiz-backup-${activeBrand.slug}-${new Date().toISOString().slice(0, 10)}.json`;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Backup berhasil diunduh 📥",
+        description: "Simpan file JSON di tempat aman (cloud / flashdisk / email).",
+      });
+    },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "Gagal export data";
+      toast({ title: "Gagal export", description: msg, variant: "destructive" });
+    },
+  });
+
+  // ── File selection + parse ────────────────────────────────────────────────
+  async function handleFileSelected(f: File | null) {
+    setFile(f);
+    setParsed(null);
+    setParseError(null);
+    if (!f) return;
+    if (!f.name.toLowerCase().endsWith(".json")) {
+      setParseError("File harus berekstensi .json");
+      return;
+    }
+    if (f.size > 25 * 1024 * 1024) {
+      setParseError("Ukuran file melebihi 25 MB. Backup terlalu besar.");
+      return;
+    }
+    try {
+      const text = await f.text();
+      const json = JSON.parse(text);
+      if (!json || typeof json !== "object" || !("data" in json)) {
+        setParseError("Format backup tidak valid: field 'data' tidak ditemukan.");
+        return;
+      }
+      if (json.version && json.version !== "1.0") {
+        setParseError(`Versi backup "${json.version}" tidak didukung (hanya "1.0").`);
+        return;
+      }
+      setParsed(json);
+    } catch {
+      setParseError("File bukan JSON valid. Pastikan file backup tidak rusak.");
+    }
+  }
+
+  // ── Import mutation ───────────────────────────────────────────────────────
+  const importMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeBrand) throw new Error("Brand belum dipilih");
+      if (!parsed) throw new Error("Belum ada file backup yang valid");
+      return api<ImportResult>("/api/import", {
+        method: "POST",
+        json: { brandId: activeBrand.id, data: parsed },
+      });
+    },
+    onSuccess: (data) => {
+      const imported = data.imported ?? {};
+      const skipped = data.skipped ?? {};
+      const totalImported = Object.values(imported).reduce((a, b) => a + (b ?? 0), 0);
+      const totalSkipped = Object.values(skipped).reduce((a, b) => a + (b ?? 0), 0);
+      // Build a concise summary line.
+      const parts: string[] = [];
+      if (imported.products) parts.push(`${imported.products} produk`);
+      if (imported.customers) parts.push(`${imported.customers} customer`);
+      if (imported.orders) parts.push(`${imported.orders} order`);
+      if (imported.transactions) parts.push(`${imported.transactions} transaksi`);
+      if (imported.leads) parts.push(`${imported.leads} leads`);
+      if (imported.content) parts.push(`${imported.content} konten`);
+      if (imported.research) parts.push(`${imported.research} riset`);
+      const summary = parts.length > 0 ? parts.join(" · ") : "Tidak ada data baru.";
+      toast({
+        title: `Import selesai ✅ (${totalImported} baris)`,
+        description:
+          totalSkipped > 0
+            ? `${summary}. ${totalSkipped} baris dilewati (sudah ada).`
+            : summary,
+      });
+      // Reset state.
+      setFile(null);
+      setParsed(null);
+      setParseError(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setConfirmOpen(false);
+      refreshAll();
+    },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : "Gagal import data";
+      toast({ title: "Gagal import", description: msg, variant: "destructive" });
+      setConfirmOpen(false);
+    },
+  });
+
+  if (!activeBrand) {
+    return (
+      <SectionCard title="Backup & Restore">
+        <EmptyState
+          icon={<Database className="size-6 text-stone" />}
+          title="Belum ada brand aktif"
+          desc="Buat brand dulu di tab Brand untuk mengelola backup data."
+        />
+      </SectionCard>
+    );
+  }
+
+  const exporting = exportMutation.isPending;
+  const importing = importMutation.isPending;
+
+  return (
+    <SectionCard
+      title="Backup & Restore"
+      desc={`Export / import semua data brand "${activeBrand.name}" sebagai file JSON.`}
+      right={
+        <Badge variant="outline" className="text-[10px] gap-1 border-teal/30 text-teal">
+          <ShieldCheck className="size-3" /> Backup
+        </Badge>
+      }
+    >
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* ── Card 1: Export Data (teal) ─────────────────────────────────── */}
+        <div className="rounded-2xl border border-teal/20 bg-gradient-to-b from-teal-50/60 to-card p-5 flex flex-col gap-3">
+          <div className="flex items-start gap-3">
+            <div className="size-11 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center shrink-0">
+              <Download className="size-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-ink">Export Data</h3>
+              <p className="text-xs text-stone mt-1 leading-snug">
+                Download semua data brand (produk, order, customer, transaksi,
+                konten, riset, dll) sebagai file JSON backup.
+              </p>
+            </div>
+          </div>
+
+          {/* Counts preview */}
+          <div className="rounded-lg bg-card border border-border p-3">
+            {previewQ.isLoading ? (
+              <div className="flex items-center gap-2 text-xs text-stone">
+                <Loader2 className="size-3.5 animate-spin" /> Menghitung data…
+              </div>
+            ) : previewQ.isError ? (
+              <div className="text-xs text-rose-600">Gagal memuat preview data.</div>
+            ) : totalRows === 0 ? (
+              <div className="text-xs text-stone">
+                Brand ini belum punya data. Export akan menghasilkan file kosong.
+              </div>
+            ) : (
+              <div className="text-xs text-stone leading-relaxed">
+                <span className="font-semibold text-ink">Estimasi isi backup:</span>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {counts.products ? (
+                    <Badge variant="secondary" className="text-[10px] gap-1">
+                      📦 {counts.products} produk
+                    </Badge>
+                  ) : null}
+                  {counts.orders ? (
+                    <Badge variant="secondary" className="text-[10px] gap-1">
+                      🛒 {counts.orders} order
+                    </Badge>
+                  ) : null}
+                  {counts.transactions ? (
+                    <Badge variant="secondary" className="text-[10px] gap-1">
+                      💰 {counts.transactions} transaksi
+                    </Badge>
+                  ) : null}
+                  {counts.customers ? (
+                    <Badge variant="secondary" className="text-[10px] gap-1">
+                      👤 {counts.customers} customer
+                    </Badge>
+                  ) : null}
+                  {counts.leads ? (
+                    <Badge variant="secondary" className="text-[10px] gap-1">
+                      👥 {counts.leads} leads
+                    </Badge>
+                  ) : null}
+                  {counts.content ? (
+                    <Badge variant="secondary" className="text-[10px] gap-1">
+                      📝 {counts.content} konten
+                    </Badge>
+                  ) : null}
+                  {counts.research ? (
+                    <Badge variant="secondary" className="text-[10px] gap-1">
+                      🔍 {counts.research} riset
+                    </Badge>
+                  ) : null}
+                </div>
+                <div className="mt-2 text-[11px] text-stone/80">
+                  Total ±{totalRows.toLocaleString("id-ID")} baris data.
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Button
+            className="bg-teal hover:bg-teal-600 text-white gap-1.5 mt-1"
+            onClick={() => exportMutation.mutate()}
+            disabled={exporting || importing}
+          >
+            {exporting ? (
+              <>
+                <Loader2 className="size-4 animate-spin" /> Menyiapkan…
+              </>
+            ) : (
+              <>
+                <Download className="size-4" /> Download Backup JSON
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* ── Card 2: Import Data (amber) ────────────────────────────────── */}
+        <div className="rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50/60 to-card p-5 flex flex-col gap-3">
+          <div className="flex items-start gap-3">
+            <div className="size-11 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+              <Upload className="size-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-ink">Import Data</h3>
+              <p className="text-xs text-stone mt-1 leading-snug">
+                Restore data dari file JSON backup. Data yang sudah ada{" "}
+                <strong>TIDAK akan ditimpa</strong> — hanya data baru yang
+                ditambahkan.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 flex items-start gap-2">
+            <AlertTriangle className="size-3.5 mt-0.5 shrink-0" />
+            <span>
+              Import akan menambahkan data ke brand{" "}
+              <strong>{activeBrand.name}</strong>. Produk dengan nama sama &
+              customer dengan nomor HP sama akan <strong>dilewati</strong>.
+            </span>
+          </div>
+
+          {/* Hidden file input + button row */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              void handleFileSelected(f);
+            }}
+          />
+
+          {/* Selected file preview / errors */}
+          {file && (
+            <div className="rounded-lg bg-card border border-border p-3 space-y-1.5">
+              <div className="flex items-center gap-2 text-xs">
+                <FileJson className="size-4 text-amber-600 shrink-0" />
+                <span className="font-semibold text-ink truncate flex-1">{file.name}</span>
+                <span className="text-stone tabular-nums">{formatBytes(file.size)}</span>
+              </div>
+              {parseError ? (
+                <div className="text-[11px] text-rose-600 flex items-start gap-1.5">
+                  <AlertTriangle className="size-3 mt-0.5 shrink-0" />
+                  <span>{parseError}</span>
+                </div>
+              ) : parsed ? (
+                <div className="text-[11px] text-emerald-700 flex items-center gap-1.5">
+                  <Check className="size-3" />
+                  <span>
+                    File valid ·{" "}
+                    {(() => {
+                      const c =
+                        ((parsed as { counts?: Record<string, number> }).counts) ?? {};
+                      const n = Object.values(c).reduce((a, b) => a + (b ?? 0), 0);
+                      return `${n.toLocaleString("id-ID")} baris siap diimpor`;
+                    })()}
+                  </span>
+                </div>
+              ) : (
+                <div className="text-[11px] text-stone flex items-center gap-1.5">
+                  <Loader2 className="size-3 animate-spin" />
+                  <span>Memproses file…</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Action row */}
+          <div className="flex flex-wrap gap-2 mt-1">
+            <Button
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={exporting || importing}
+            >
+              <FileJson className="size-4" /> Pilih File
+            </Button>
+
+            <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+              <AlertDialogTrigger asChild>
+                <Button
+                  className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5"
+                  disabled={!parsed || exporting || importing}
+                >
+                  {importing ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" /> Mengimpor…
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="size-4" /> Import
+                    </>
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    Yakin import data dari “{file?.name}”?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Data akan ditambahkan ke brand{" "}
+                    <strong>{activeBrand.name}</strong>. Data existing{" "}
+                    <strong>tidak akan ditimpa</strong> — produk/customer yang
+                    sudah ada akan dilewati. Proses tidak bisa dibatalkan
+                    setelah dimulai.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={importing}>Batal</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(e) => {
+                      e.preventDefault();
+                      importMutation.mutate();
+                    }}
+                    disabled={importing}
+                    className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5"
+                  >
+                    {importing ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" /> Mengimpor…
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="size-4" /> Ya, Import
+                      </>
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Info Card (stone/muted) ────────────────────────────────────── */}
+      <div className="mt-4 rounded-xl border border-dashed border-border bg-cream-100/50 p-4 flex items-start gap-3">
+        <div className="size-9 rounded-lg bg-cream-200 text-stone flex items-center justify-center shrink-0">
+          <Info className="size-4" />
+        </div>
+        <div className="text-xs text-stone leading-relaxed">
+          <strong className="text-ink">Tips backup berkala:</strong> lakukan
+          backup mingguan untuk keamanan data. Simpan file JSON di tempat aman
+          (Google Drive, email, flashdisk). Import bisa dipakai untuk pindah
+          data <strong>antar brand</strong> atau <strong>antar device</strong>{" "}
+          — cukup export dari satu brand, lalu import ke brand lain. Backup
+          tidak menyertakan data sensitif seperti password atau saldo kredit.
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main section
 // ─────────────────────────────────────────────────────────────────────────────
 export function PengaturanSection() {
@@ -2094,6 +2574,9 @@ export function PengaturanSection() {
           <TabsTrigger value="target" className="gap-1.5">
             <Target className="size-3.5" /> Target
           </TabsTrigger>
+          <TabsTrigger value="backup" className="gap-1.5">
+            <ShieldCheck className="size-3.5" /> Backup
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="brand" className="mt-4">
@@ -2113,6 +2596,9 @@ export function PengaturanSection() {
         </TabsContent>
         <TabsContent value="target" className="mt-4">
           <TargetTab />
+        </TabsContent>
+        <TabsContent value="backup" className="mt-4">
+          <BackupTab />
         </TabsContent>
       </Tabs>
     </div>

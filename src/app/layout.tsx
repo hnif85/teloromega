@@ -6,6 +6,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryProvider } from "@/lib/query-provider";
 import { ThemeProvider } from "@/components/theme-provider";
+import { SWRegister } from "@/components/nw/sw-register";
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -81,6 +82,7 @@ export default function RootLayout({
             />
           </QueryProvider>
         </ThemeProvider>
+        <SWRegister />
       </body>
     </html>
   );

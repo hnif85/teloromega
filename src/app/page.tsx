@@ -24,6 +24,7 @@ import { PengaturanSection } from "@/sections/nw/pengaturan-section";
 import { BantuanSection } from "@/sections/nw/bantuan-section";
 import { AktivitasSection } from "@/sections/nw/aktivitas-section";
 import { Skeleton } from "@/components/ui/skeleton";
+import { OfflineIndicator } from "@/components/nw/offline-indicator";
 
 export default function Home() {
   const {
@@ -127,6 +128,7 @@ export default function Home() {
       {onboardingOpen && <OnboardingDialog />}
       <OnboardingTour />
       <CommandPalette />
+      <OfflineIndicator />
     </div>
   );
 }

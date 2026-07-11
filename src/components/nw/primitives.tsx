@@ -57,7 +57,7 @@ export function StatCard({
   // If value is a plain number, animate the count-up.
   const isNumeric = typeof value === "number";
   return (
-    <div className="card-hover rounded-2xl bg-card border border-border p-4 hover:border-teal/30">
+    <div className="card-hover card-shimmer rounded-2xl bg-card border border-border p-4 hover:border-teal/30">
       <div className="flex items-center justify-between mb-2">
         <div className={cn("size-9 rounded-lg flex items-center justify-center text-lg", accents[accent])}>
           {icon}

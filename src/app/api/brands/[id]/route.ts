@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/auth";
+import { slugify, CATEGORIES } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -15,15 +16,45 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   const body = await req.json();
   const { name, description, category, logoUrl, toneOfVoice } = body;
+
+  // Validate category if provided
+  if (category !== undefined && !CATEGORIES.includes(category as typeof CATEGORIES[number])) {
+    return NextResponse.json({ error: "kategori tidak valid" }, { status: 400 });
+  }
+
+  const data: Record<string, unknown> = {};
+  if (name !== undefined) {
+    const trimmed = String(name).trim();
+    if (!trimmed) {
+      return NextResponse.json({ error: "nama brand tidak boleh kosong" }, { status: 400 });
+    }
+    data.name = trimmed;
+    // Update slug if name changed
+    if (trimmed !== brand.name) {
+      const base = slugify(trimmed);
+      let slug = base;
+      let n = 2;
+      while (true) {
+        const existing = await db.brand.findUnique({ where: { slug } });
+        if (!existing || existing.id === id) break;
+        slug = `${base}-${n}`;
+        n += 1;
+      }
+      data.slug = slug;
+    }
+  }
+  if (description !== undefined) data.description = description?.trim() || null;
+  if (category !== undefined) data.category = category;
+  if (logoUrl !== undefined) data.logoUrl = logoUrl?.trim() || null;
+  if (toneOfVoice !== undefined) data.toneOfVoice = toneOfVoice;
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: "tidak ada field untuk diupdate" }, { status: 400 });
+  }
+
   const updated = await db.brand.update({
     where: { id },
-    data: {
-      ...(name !== undefined ? { name } : {}),
-      ...(description !== undefined ? { description } : {}),
-      ...(category !== undefined ? { category } : {}),
-      ...(logoUrl !== undefined ? { logoUrl } : {}),
-      ...(toneOfVoice !== undefined ? { toneOfVoice } : {}),
-    },
+    data,
   });
   return NextResponse.json({ brand: updated });
 }

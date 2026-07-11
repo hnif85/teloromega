@@ -20,6 +20,7 @@ export interface SessionUser {
   email: string;
   creditBalance: number;
   toneOfVoice: string;
+  isOnboarded: boolean;
 }
 
 export interface SessionState {
@@ -30,18 +31,21 @@ export interface SessionState {
   hydrated: boolean;
   onboardingOpen: boolean;
   isLoggedIn: boolean;
+  onboardingStep: number;
 
   setSession: (s: { user: SessionUser; brands: Brand[]; activeBrandId: string | null }) => void;
   setSection: (s: SectionKey) => void;
   setActiveBrand: (id: string) => void;
   setOnboardingOpen: (open: boolean) => void;
+  setOnboardingStep: (step: number) => void;
   updateCredit: (delta: number) => void;
   setCredit: (balance: number) => void;
-  addBrand: (b: Brand) => void;
+  addBrand: (b: Brand, skipOnboardingClose?: boolean) => void;
   updateBrand: (b: Brand) => void;
   setHydrated: (h: boolean) => void;
   logout: () => void;
   clearBrands: () => void;
+  completeOnboarding: () => void;
 }
 
 export const useAppStore = create<SessionState>((set) => ({
@@ -52,6 +56,7 @@ export const useAppStore = create<SessionState>((set) => ({
   hydrated: false,
   onboardingOpen: false,
   isLoggedIn: false,
+  onboardingStep: 0,
 
   setSession: (s) =>
     set({
@@ -60,7 +65,8 @@ export const useAppStore = create<SessionState>((set) => ({
       activeBrandId: s.activeBrandId ?? s.brands[0]?.id ?? null,
       hydrated: true,
       isLoggedIn: true,
-      onboardingOpen: s.brands.length === 0,
+      onboardingOpen: !s.user.isOnboarded,
+      onboardingStep: s.user.isOnboarded ? 0 : (s.brands.length > 0 ? 2 : 1),
     }),
   setSection: (s) => set({ section: s }),
   setActiveBrand: (id) => set({ activeBrandId: id }),
@@ -69,11 +75,22 @@ export const useAppStore = create<SessionState>((set) => ({
     set((st) => (st.user ? { user: { ...st.user, creditBalance: st.user.creditBalance + delta } } : {})),
   setCredit: (balance) =>
     set((st) => (st.user ? { user: { ...st.user, creditBalance: balance } } : {})),
-  addBrand: (b) =>
-    set((st) => ({ brands: [...st.brands, b], activeBrandId: b.id, onboardingOpen: false })),
+  addBrand: (b, skipOnboardingClose = false) =>
+    set((st) => ({
+      brands: [...st.brands, b],
+      activeBrandId: b.id,
+      onboardingOpen: skipOnboardingClose ? st.onboardingOpen : false,
+    })),
   updateBrand: (b) =>
     set((st) => ({ brands: st.brands.map((x) => (x.id === b.id ? b : x)) })),
   setHydrated: (h) => set({ hydrated: h }),
+  setOnboardingStep: (step) => set({ onboardingStep: step }),
+  completeOnboarding: () =>
+    set((st) => ({
+      user: st.user ? { ...st.user, isOnboarded: true } : null,
+      onboardingOpen: false,
+      onboardingStep: 0,
+    })),
   logout: () =>
     set({
       user: null,

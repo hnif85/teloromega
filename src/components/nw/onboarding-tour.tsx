@@ -38,56 +38,101 @@ interface TourStep {
   modal?: boolean;
 }
 
-const STEPS: TourStep[] = [
-  {
-    title: "Selamat datang di usahaku.ai! 🎉",
-    description:
-      "Aku akan kenalin kamu ke fitur-fitur utama. Klik 'Lanjut' untuk mulai tour.",
-    modal: true,
-  },
-  {
-    selector: '[data-tour="sidebar-nav"]',
-    title: "Navigasi Utama",
-    description:
-      "Ini navigasi utama. Kamu bisa pindah antar modul: Beranda, Insights, Produk, Riset, Konten, Toko, Keuangan.",
-  },
-  {
-    selector: '[data-tour="brand-switcher"]',
-    title: "Brand Switcher",
-    description:
-      "Brand aktif kamu ada di sini. Klik untuk ganti brand atau buat brand baru. Semua data di usahaku.ai di-filter per brand.",
-  },
-  {
-    selector: '[data-tour="credit-button"]',
-    title: "Credit",
-    description:
-      "Credit dipakai untuk aksi AI (riset, generate konten, campaign). Klik untuk top-up atau cek riwayat pemakaian.",
-  },
-  {
-    selector: '[data-tour="command-palette"]',
-    title: "Command Palette",
-    description:
-      "Tekan Cmd+K (atau Ctrl+K) kapan saja untuk buka command palette — navigasi cepat ke mana saja.",
-  },
-  {
-    selector: '[data-tour="notifications"]',
-    title: "Notifikasi",
-    description:
-      "Notifikasi penting muncul di sini: stok menipis, pembayaran pending, leads yang perlu follow-up.",
-  },
-  {
-    selector: '[data-tour="theme-toggle"]',
-    title: "Theme Toggle",
-    description:
-      "Klik untuk ganti mode terang/gelap. Pilihan kamu disimpan otomatis.",
-  },
-  {
-    title: "Sudut kanan bawah",
-    description:
-      "Itulah dasar-dasarnya! 💡 Tips: mulai dari Riset untuk dapat rekomendasi konten + harga + proyeksi keuangan otomatis. Atau klik 'Muat Data Demo' di Pengaturan untuk eksplorasi dengan data contoh. Selamat berjualan! 🚀",
-    modal: true,
-  },
-];
+function getSteps(): TourStep[] {
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+
+  const mobileSteps: TourStep[] = [
+    {
+      title: "Selamat datang di usahaku.ai! 🎉",
+      description:
+        "Aku akan kenalin kamu ke fitur-fitur utama. Klik 'Lanjut' untuk mulai tour.",
+      modal: true,
+    },
+    {
+      selector: '[data-tour="mobile-menu"]',
+      title: "Navigasi Utama",
+      description:
+        "Klik ikon ☰ ini untuk buka navigasi. Kamu bisa pindah antar modul: Beranda, Insights, Produk, Riset, Konten, Toko, Keuangan.",
+    },
+    {
+      selector: '[data-tour="credit-button"]',
+      title: "Credit",
+      description:
+        "Credit dipakai untuk aksi AI (riset, generate konten, campaign). Klik untuk top-up atau cek riwayat pemakaian.",
+    },
+    {
+      selector: '[data-tour="command-palette"]',
+      title: "Command Palette",
+      description:
+        "Tekan Cmd+K (atau Ctrl+K) kapan saja untuk buka command palette — navigasi cepat ke mana saja.",
+    },
+    {
+      selector: '[data-tour="notifications"]',
+      title: "Notifikasi",
+      description:
+        "Notifikasi penting muncul di sini: stok menipis, pembayaran pending, leads yang perlu follow-up.",
+    },
+    {
+      title: "Siap untuk mulai!",
+      description:
+        "Itulah dasar-dasarnya! 💡 Tips: mulai dari Riset untuk dapat rekomendasi konten + harga + proyeksi keuangan otomatis. Selamat berjualan! 🚀",
+      modal: true,
+    },
+  ];
+
+  const desktopSteps: TourStep[] = [
+    {
+      title: "Selamat datang di usahaku.ai! 🎉",
+      description:
+        "Aku akan kenalin kamu ke fitur-fitur utama. Klik 'Lanjut' untuk mulai tour.",
+      modal: true,
+    },
+    {
+      selector: '[data-tour="sidebar-nav"]',
+      title: "Navigasi Utama",
+      description:
+        "Ini navigasi utama. Kamu bisa pindah antar modul: Beranda, Insights, Produk, Riset, Konten, Toko, Keuangan.",
+    },
+    {
+      selector: '[data-tour="brand-switcher"]',
+      title: "Brand Switcher",
+      description:
+        "Brand aktif kamu ada di sini. Klik untuk ganti brand atau buat brand baru. Semua data di usahaku.ai di-filter per brand.",
+    },
+    {
+      selector: '[data-tour="credit-button"]',
+      title: "Credit",
+      description:
+        "Credit dipakai untuk aksi AI (riset, generate konten, campaign). Klik untuk top-up atau cek riwayat pemakaian.",
+    },
+    {
+      selector: '[data-tour="command-palette"]',
+      title: "Command Palette",
+      description:
+        "Tekan Cmd+K (atau Ctrl+K) kapan saja untuk buka command palette — navigasi cepat ke mana saja.",
+    },
+    {
+      selector: '[data-tour="notifications"]',
+      title: "Notifikasi",
+      description:
+        "Notifikasi penting muncul di sini: stok menipis, pembayaran pending, leads yang perlu follow-up.",
+    },
+    {
+      selector: '[data-tour="theme-toggle"]',
+      title: "Theme Toggle",
+      description:
+        "Klik untuk ganti mode terang/gelap. Pilihan kamu disimpan otomatis.",
+    },
+    {
+      title: "Siap untuk mulai!",
+      description:
+        "Itulah dasar-dasarnya! 💡 Tips: mulai dari Riset untuk dapat rekomendasi konten + harga + proyeksi keuangan otomatis. Atau klik 'Muat Data Demo' di Pengaturan untuk eksplorasi dengan data contoh. Selamat berjualan! 🚀",
+      modal: true,
+    },
+  ];
+
+  return isMobile ? mobileSteps : desktopSteps;
+}
 
 const TOOLTIP_WIDTH = 360;
 const SPOTLIGHT_PAD = 8;
@@ -155,9 +200,10 @@ export function OnboardingTour() {
   }, [markCompleted]);
 
   const next = useCallback(() => {
+    const steps = getSteps();
     setStep((s) => {
       if (s === null) return s;
-      if (s >= STEPS.length - 1) {
+      if (s >= steps.length - 1) {
         markCompleted();
         return null;
       }
@@ -202,6 +248,9 @@ export function OnboardingTour() {
   // Compute the spotlight rect directly from the DOM during render (read-only).
   // This avoids the "setState in effect" anti-pattern. Re-renders are triggered
   // by the `tick` state above (bumped on scroll/resize/interval).
+  // Recompute steps each render so mobile/desktop detection is fresh
+  const STEPS = getSteps();
+
   const isModal =
     step !== null && (STEPS[step].modal || !STEPS[step].selector);
 
@@ -262,7 +311,7 @@ export function OnboardingTour() {
         {showPrompt && step === null && (
           <motion.div
             key="tour-prompt"
-            className="fixed bottom-4 right-4 z-[110] w-[340px] max-w-[calc(100vw-2rem)]"
+            className="fixed bottom-4 right-4 z-[90] w-[340px] max-w-[calc(100vw-2rem)]"
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
@@ -376,7 +425,7 @@ export function OnboardingTour() {
                 {/* Tooltip */}
                 <motion.div
                   key={`tooltip-${step}`}
-                  className="fixed z-[101] bg-card border border-border rounded-xl shadow-2xl p-4"
+                  className="fixed z-[101] bg-card border border-border rounded-xl shadow-2xl p-4 pointer-events-auto"
                   style={tooltipStyle}
                   initial={{ opacity: 0, scale: 0.92, y: arrowBelow ? -6 : 6 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -425,7 +474,7 @@ export function OnboardingTour() {
                 <div className="fixed inset-0 bg-black/50 pointer-events-auto" />
                 <motion.div
                   key={`modal-${step}`}
-                  className="fixed z-[101] left-1/2 top-1/2 bg-card border border-border rounded-2xl shadow-2xl p-6 w-[440px] max-w-[calc(100vw-2rem)]"
+                  className="fixed z-[101] left-1/2 top-1/2 bg-card border border-border rounded-2xl shadow-2xl p-6 w-[440px] max-w-[calc(100vw-2rem)] pointer-events-auto"
                   style={{
                     transform: "translate(-50%, -50%)",
                   }}

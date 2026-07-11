@@ -314,7 +314,7 @@ export function Topbar() {
         {/* Mobile menu */}
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="md:hidden">
+            <Button variant="ghost" size="icon" className="md:hidden" data-tour="mobile-menu">
               <Menu className="size-5" />
             </Button>
           </SheetTrigger>

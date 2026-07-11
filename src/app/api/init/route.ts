@@ -1,31 +1,20 @@
-// GET /api/init — auto-create demo user + return session (mock SSO with mwxmarket.ai)
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+// GET /api/init — return session data dari cookie (no auto-create)
+import { NextRequest, NextResponse } from "next/server";
+import { getUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const email = "ibu.ani@usahaku.ai";
-  let user = await db.user.findFirst({ where: { email } });
+export async function GET(req: NextRequest) {
+  const user = await getUser(req);
   if (!user) {
-    user = await db.user.create({
-      data: { email, name: "Ibu Ani", creditBalance: 47 },
-    });
-  } else {
-    user = await db.user.update({
-      where: { id: user.id },
-      data: { lastLogin: new Date() },
-    });
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // Set cookie (mock JWT) — httpOnly, sameSite lax
-  const jar = await cookies();
-  jar.set("nw_user_id", user.id, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30, // 30 days
+  // Update lastLogin
+  await db.user.update({
+    where: { id: user.id },
+    data: { lastLogin: new Date() },
   });
 
   const brands = await db.brand.findMany({
@@ -40,6 +29,7 @@ export async function GET() {
       email: user.email,
       creditBalance: user.creditBalance,
       toneOfVoice: user.toneOfVoice,
+      isOnboarded: user.isOnboarded,
     },
     brands: brands.map((b) => ({
       id: b.id,

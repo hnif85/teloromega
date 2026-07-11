@@ -20,7 +20,7 @@ function daysAgo(n: number, hour = 10, minute = 0): Date {
 
 // ── static research fallback (mirrors _pipeline.ts fallback shape) ──────────
 const DEMO_RESEARCH_RESULT = {
-  intent: "market_trend",
+  intent: "basic_research",
   target_audience: [
     {
       name: "Anak Muda",
@@ -812,7 +812,7 @@ export async function POST(req: NextRequest) {
         userId,
         brandId,
         query: "Tren cemilan pedas Indonesia 2026",
-        intent: "market_trend",
+        intent: "basic_research",
         resultJson: JSON.stringify(DEMO_RESEARCH_RESULT),
         status: "completed",
         createdAt: daysAgo(7, 9, 0),

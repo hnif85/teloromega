@@ -4,17 +4,27 @@ import { db } from "@/lib/db";
 import { getUserId } from "@/lib/auth";
 import { chargeCredit, refundCredit } from "@/lib/credit";
 import { setAiContext } from "@/lib/ai";
+import { normalizeResearchResult } from "@/lib/research-normalize";
 import { runResearchPipeline, generateContexts, type BrandLite } from "./_pipeline";
+import { runFreeformResearch } from "./_agent_freeform";
 
 export const dynamic = "force-dynamic";
 
 // ─── Background: process research job after response is sent ──────────────────
+// `forceBasic` decides which pipeline runs:
+//  - true  → "basic_research": the comprehensive agentic/manual pipeline,
+//            always run for a brand's very first research, or whenever the
+//            user explicitly asks for it again via "Complete Research".
+//  - false → "non_basic": free-form agent (ContentBlock[] output), no
+//            context generation — every research after the first, unless
+//            explicitly re-run as complete.
 async function processJob(
   jobId: string,
   brandId: string,
   userId: string,
   query: string,
-  chargeBalanceBefore: number
+  chargeBalanceBefore: number,
+  forceBasic: boolean
 ) {
   try {
     const brand = await db.brand.findUnique({ where: { id: brandId } });
@@ -35,27 +45,51 @@ async function processJob(
       await db.researchJob.update({ where: { id: jobId }, data: { status, progress, progressMessage: message } });
     };
 
-    const pipelineResult = await runResearchPipeline(brandLite, query, updateProgress);
+    if (forceBasic) {
+      const pipelineResult = await runResearchPipeline(brandLite, query, updateProgress);
 
-    const research = await db.research.create({
-      data: {
-        userId, brandId, query,
-        intent: pipelineResult.intent,
-        resultJson: JSON.stringify(pipelineResult.result),
-        status: "completed", jobId,
-      },
-    });
+      const research = await db.research.create({
+        data: {
+          userId, brandId, query,
+          intent: pipelineResult.intent,
+          resultJson: JSON.stringify(pipelineResult.result),
+          status: "completed", jobId,
+        },
+      });
 
-    await generateContexts(research.id, brandId, brandLite, pipelineResult.result);
+      await generateContexts(research.id, brandId, brandLite, pipelineResult.result);
 
-    await db.researchJob.update({
-      where: { id: jobId },
-      data: {
-        status: "completed", progress: 100,
-        progressMessage: "Riset selesai!",
-        resultJson: JSON.stringify(pipelineResult.result),
-      },
-    });
+      await db.researchJob.update({
+        where: { id: jobId },
+        data: {
+          status: "completed", progress: 100,
+          progressMessage: "Riset selesai!",
+          resultJson: JSON.stringify(pipelineResult.result),
+        },
+      });
+    } else {
+      await updateProgress("searching", 20, "Mencari & menganalisis...");
+      const freeform = await runFreeformResearch(brandLite, query);
+      const resultJson = JSON.stringify({ intent: "non_basic", blocks: freeform.blocks });
+
+      await db.research.create({
+        data: {
+          userId, brandId, query,
+          intent: "non_basic",
+          resultJson,
+          status: "completed", jobId,
+        },
+      });
+
+      // No generateContexts() — non-basic research doesn't feed the
+      // Konten/Toko/Keuangan context engine, only the brand's baseline
+      // (basic_research) results do.
+
+      await db.researchJob.update({
+        where: { id: jobId },
+        data: { status: "completed", progress: 100, progressMessage: "Riset selesai!", resultJson },
+      });
+    }
   } catch (err) {
     console.error("[research] background pipeline failed:", err);
     await db.researchJob.update({
@@ -75,7 +109,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { brandId, query } = body as { brandId: string; query: string };
+    const { brandId, query, mode } = body as { brandId: string; query: string; mode?: string };
 
     if (!brandId || !query?.trim()) {
       return NextResponse.json({ error: "brandId dan query wajib" }, { status: 400 });
@@ -85,6 +119,14 @@ export async function POST(req: NextRequest) {
     if (!brand || brand.userId !== userId) {
       return NextResponse.json({ error: "brand tidak ditemukan" }, { status: 404 });
     }
+
+    // First research ever for this brand is always forced basic_research —
+    // every module downstream (Konten/Toko/Keuangan context) needs that
+    // baseline to exist. After that, "Complete Research" (mode: "complete")
+    // is the only other way to re-run the comprehensive pipeline; anything
+    // else is free-form (non_basic).
+    const existingResearchCount = await db.research.count({ where: { brandId } });
+    const forceBasic = existingResearchCount === 0 || mode === "complete";
 
     const charge = await chargeCredit({ userId, brandId, actionKey: "riset.pasar" });
     if (!charge.ok) {
@@ -102,7 +144,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Kick off async processing (runs after response is sent — works on node server.js)
-    processJob(job.id, brandId, userId, query.trim(), charge.balanceAfter + 5).catch((err) => {
+    processJob(job.id, brandId, userId, query.trim(), charge.balanceAfter + 5, forceBasic).catch((err) => {
       console.error("[research] background processJob failed:", err);
     });
 
@@ -149,15 +191,20 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.json({
-    research: rows.map((r) => ({
-      id: r.id,
-      query: r.query,
-      intent: r.intent,
-      status: r.status,
-      createdAt: r.createdAt,
-      contextsCount: r._count.contexts,
-      result: safeParse(r.resultJson),
-    })),
+    research: rows.map((r) => {
+      const { result, summary, extras } = normalizeResearchResult(safeParse(r.resultJson), r.intent);
+      return {
+        id: r.id,
+        query: r.query,
+        intent: r.intent,
+        status: r.status,
+        createdAt: r.createdAt,
+        contextsCount: r._count.contexts,
+        result,
+        summary,
+        extras,
+      };
+    }),
   });
 }
 

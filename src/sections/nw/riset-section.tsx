@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type ComponentType } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAppStore, getActiveBrand } from "@/lib/store";
 import { api } from "@/lib/api";
@@ -27,6 +27,18 @@ import {
 import { toast } from "sonner";
 import { CREDIT_COST } from "@/lib/constants";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import type {
+  NormalizedResearchResult,
+  NormalizedPersona,
+  NormalizedCompetitor,
+  NormalizedContentRec,
+} from "@/lib/research-normalize";
+import { isContentBlockArray, type ContentBlock } from "@/lib/content-blocks";
+import {
   Search,
   Sparkles,
   Zap,
@@ -50,51 +62,14 @@ import {
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface Persona {
-  name: string;
-  demography: string;
-  platform: string;
-  pain: string;
-  trigger: string;
-}
-interface Competitor {
-  name: string;
-  price_range: string;
-  social_activity: string;
-  marketplace_strength: string;
-  threat_level: string;
-}
-interface ContentRec {
-  title: string;
-  platform: string;
-  angle: string;
-  hashtags: string[];
-  best_time: string;
-}
-interface ResearchResult {
-  intent: string;
-  target_audience: Persona[];
-  swot: {
-    strengths: string[];
-    weaknesses: string[];
-    opportunities: string[];
-    threats: string[];
-  };
-  competitors: Competitor[];
-  keywords: { hot: string[]; stable: string[] };
-  market_trend: {
-    labels: string[];
-    values: number[];
-    stats: { growth_pct: number; peak: string };
-  };
-  content_recommendations: ContentRec[];
-  pricing: {
-    market_avg: string;
-    lowest: string;
-    highest: string;
-    recommendation: string;
-  };
-}
+// Persona/Competitor/ContentRec/ResearchResult now come from the shared
+// normalizer (@/lib/research-normalize) — the API always returns results
+// already normalized into this one shape, whatever the underlying pipeline
+// (agentic, manual, or older intent-specific shapes) actually produced.
+type Persona = NormalizedPersona;
+type Competitor = NormalizedCompetitor;
+type ContentRec = NormalizedContentRec;
+type ResearchResult = NormalizedResearchResult;
 
 interface ResearchItem {
   id: string;
@@ -104,16 +79,17 @@ interface ResearchItem {
   createdAt: string;
   contextsCount: number;
   result: ResearchResult | null;
+  /** Free-text summary extracted from legacy/alternate result shapes, if any. */
+  summary: string | null;
+  /** Raw fields the normalizer didn't recognize — shown generically, never dropped. */
+  extras: Record<string, unknown>;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const COST = CREDIT_COST["riset.pasar"]; // 5
 
 const INTENT_LABEL: Record<string, string> = {
-  market_trend: "Tren Pasar",
-  competitor_analysis: "Analisis Kompetitor",
-  keyword_research: "Riset Keyword",
-  pricing: "Analisis Harga",
+  basic_research: "Riset Pasar",
 };
 
 const PLATFORM_META: Record<string, { icon: string; color: string }> = {
@@ -202,13 +178,16 @@ export function RisetSection() {
   }, [jobStatus?.isReady, jobStatus?.isFailed]);
 
   // Submit: create job (instant)
-  const runSearch = async (q: string) => {
+  // `mode: "complete"` forces the comprehensive basic_research pipeline even
+  // when this brand already has research history (normally only the very
+  // first research for a brand gets that treatment automatically).
+  const runSearch = async (q: string, mode?: "complete") => {
     if (!q.trim()) return;
     setIsSubmitting(true);
     try {
       const res = await api<{ jobId: string; creditBalanceAfter: number }>(
         "/api/research",
-        { method: "POST", json: { brandId: activeBrand!.id, query: q.trim() } }
+        { method: "POST", json: { brandId: activeBrand!.id, query: q.trim(), mode } }
       );
       useAppStore.getState().setCredit(res.creditBalanceAfter);
       setJobId(res.jobId);
@@ -385,6 +364,25 @@ export function RisetSection() {
                   </>
                 )}
               </Button>
+              {researchList.length > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 gap-1.5 shrink-0 border-teal/30 text-teal hover:bg-teal-50"
+                      disabled={isGenerating || !query.trim()}
+                      onClick={() => runSearch(query, "complete")}
+                    >
+                      <TrendingUp className="size-4" />
+                      <span className="hidden sm:inline">Complete Research</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Riset pasar lengkap (audiens, SWOT, kompetitor, harga) — refresh baseline & bikin 3 context baru untuk brand ini.
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </form>
 
             {/* Suggestion chips */}
@@ -490,7 +488,7 @@ export function RisetSection() {
 
           {/* Result view */}
           {!isGenerating && selected && selected.result && (
-            <ResearchView
+            <ResearchResultDispatcher
               research={selected}
               brandName={activeBrand.name}
               onSimpan={() =>
@@ -508,18 +506,168 @@ export function RisetSection() {
   );
 }
 
-// ─── Research result view with tabs + sticky CTA ──────────────────────────────
-function ResearchView({
-  research,
-  brandName,
-  onSimpan,
-  setSection,
-}: {
+// ─── Renderer dispatch ─────────────────────────────────────────────────────────
+// "Basic riset" (intent = basic_research, the comprehensive audience/SWOT/
+// competitor/keyword/pricing research the agent always produces today) gets
+// the static tab view below — it's a deliberately fixed layout, not meant to
+// auto-adapt.
+//
+// Any other intent — future research types this app doesn't have a
+// purpose-built template for yet — falls back to a hybrid: render agent-
+// supplied HTML if present (sanitized — this is AI output seeded from web
+// search results, so it's untrusted input, never rendered raw), otherwise
+// fall back to the same tab view, which already degrades safely for
+// unrecognized shapes via the normalizer + "Info Tambahan".
+//
+// Adding a dedicated template for a new intent later is just adding an entry
+// to this map — nothing else in the dispatch logic needs to change.
+interface ResearchViewProps {
   research: ResearchItem;
   brandName: string;
   onSimpan: () => void;
   setSection: (s: "konten" | "toko" | "keuangan") => void;
-}) {
+}
+
+const RESEARCH_RENDERERS: Record<string, ComponentType<ResearchViewProps>> = {
+  basic_research: ResearchViewImpl,
+};
+
+function ResearchResultDispatcher(props: ResearchViewProps) {
+  const { research } = props;
+  const Renderer = RESEARCH_RENDERERS[research.intent ?? "basic_research"];
+  if (Renderer) return <Renderer {...props} />;
+
+  const rawBlocks = research.extras?.blocks;
+  if (isContentBlockArray(rawBlocks) && rawBlocks.length > 0) {
+    return <BlockContentView {...props} blocks={rawBlocks} />;
+  }
+
+  return <ResearchViewImpl {...props} />;
+}
+
+// ─── Non-basic research view — renders agent output as ContentBlock[] ────────
+// Never trusts raw HTML from the model: every block type maps to a fixed,
+// hand-written React element, so there's nothing here an AI response could
+// inject beyond the plain text it supplies.
+function ContentBlockView({ block }: { block: ContentBlock }) {
+  switch (block.type) {
+    case "heading":
+      return <h3 className="text-base font-bold text-ink mt-2">{block.text}</h3>;
+    case "paragraph":
+      return <p className="text-sm text-ink-700 leading-relaxed">{block.text}</p>;
+    case "list":
+      return (
+        <ul className="list-disc list-inside space-y-1 text-sm text-ink-700">
+          {block.items.map((item, i) => (
+            <li key={i}>{item}</li>
+          ))}
+        </ul>
+      );
+    case "table":
+      return (
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-cream-100">
+                {block.headers.map((h, i) => (
+                  <th key={i} className="text-left font-semibold text-ink px-3 py-2">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows.map((row, i) => (
+                <tr key={i} className="border-t border-border">
+                  {row.map((cell, j) => (
+                    <td key={j} className="px-3 py-2 text-ink-700">
+                      {cell}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    case "stat":
+      return (
+        <div className="rounded-lg bg-teal-50 border border-teal/20 px-3 py-2 inline-flex flex-col">
+          <span className="text-[10px] uppercase tracking-wider text-stone">{block.label}</span>
+          <span className="text-lg font-bold text-teal">{block.value}</span>
+        </div>
+      );
+    case "quote":
+      return (
+        <blockquote className="border-l-2 border-teal/40 pl-3 text-sm italic text-ink-700">
+          {block.text}
+        </blockquote>
+      );
+    default:
+      return null;
+  }
+}
+
+function BlockContentView({
+  research,
+  brandName,
+  onSimpan,
+  setSection,
+  blocks,
+}: ResearchViewProps & { blocks: ContentBlock[] }) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 border border-teal/20 p-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="size-10 rounded-xl bg-teal text-white flex items-center justify-center shrink-0">
+            <Sparkles className="size-5" />
+          </div>
+          <div>
+            <div className="font-bold text-ink leading-snug">{research.query}</div>
+            <div className="text-xs text-ink-500 mt-0.5 flex items-center gap-2 flex-wrap">
+              {research.intent && (
+                <Badge variant="outline" className="text-[10px] py-0 h-4 border-teal/30 text-teal">
+                  {INTENT_LABEL[research.intent] ?? research.intent}
+                </Badge>
+              )}
+              <span>·</span>
+              <span>{brandName}</span>
+              <span>·</span>
+              <span>{timeAgoShort(research.createdAt)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+        {blocks.map((block, i) => (
+          <ContentBlockView key={i} block={block} />
+        ))}
+      </div>
+
+      {/* ─── Sticky CTA bar ──────────────────────────────────────────────── */}
+      <div className="sticky bottom-4 z-30">
+        <div className="rounded-2xl border border-border bg-card/95 backdrop-blur shadow-lg p-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs text-stone">
+            <CheckCircle2 className="size-4 text-emerald-600" />
+            <span>Riset sudah tersimpan otomatis.</span>
+          </div>
+          <Button size="sm" variant="ghost" onClick={onSimpan} className="text-xs">
+            Simpan
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Research result view with tabs + sticky CTA ("basic riset" template) ─────
+function ResearchViewImpl({
+  research,
+  brandName,
+  onSimpan,
+  setSection,
+}: ResearchViewProps) {
   const r = research.result!;
   // Safe fallbacks for missing sub-objects in research result
   const mt = r.market_trend ?? { labels: [], values: [], stats: { peak: "—", growth_pct: 0 } };
@@ -572,6 +720,18 @@ function ResearchView({
           </div>
         )}
       </div>
+
+      {/* Summary — present across every result shape seen so far (legacy or
+          agentic). Shown even when the structured fields below are sparse,
+          so there's always something readable instead of a blank card. */}
+      {research.summary && (
+        <div className="rounded-2xl border border-border bg-card p-4 flex items-start gap-3">
+          <div className="size-8 rounded-lg bg-teal-100 text-teal flex items-center justify-center shrink-0">
+            <Sparkles className="size-4" />
+          </div>
+          <p className="text-sm text-ink leading-relaxed">{research.summary}</p>
+        </div>
+      )}
 
       {/* Tabs */}
       <Tabs defaultValue="pasar" className="w-full">
@@ -881,6 +1041,14 @@ function ResearchView({
         </TabsContent>
       </Tabs>
 
+      {/* Info Tambahan — anything the normalizer couldn't map into the tabs
+          above. Collapsed by default so it never clutters the common case
+          (empty for current agentic results), but nothing from an unusual
+          result shape is ever silently thrown away. */}
+      {Object.keys(research.extras ?? {}).length > 0 && (
+        <ExtrasCard extras={research.extras} />
+      )}
+
       {/* ─── Sticky CTA bar ──────────────────────────────────────────────── */}
       <div className="sticky bottom-4 z-30">
         <div className="rounded-2xl border border-border bg-card/95 backdrop-blur shadow-lg p-3 flex flex-wrap items-center justify-between gap-2">
@@ -921,6 +1089,63 @@ function ResearchView({
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Extras — generic fallback for fields the normalizer didn't recognize ────
+function ExtrasValue({ value }: { value: unknown }) {
+  if (value == null) return <span className="text-stone">—</span>;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-stone">—</span>;
+    return (
+      <ul className="list-disc list-inside space-y-0.5">
+        {value.map((v, i) => (
+          <li key={i}>{typeof v === "object" ? JSON.stringify(v) : String(v)}</li>
+        ))}
+      </ul>
+    );
+  }
+  if (typeof value === "object") {
+    return (
+      <div className="space-y-1 pl-3 border-l-2 border-border">
+        {Object.entries(value as Record<string, unknown>).map(([k, v]) => (
+          <div key={k}>
+            <span className="text-stone">{k}:</span> <ExtrasValue value={v} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return <span>{String(value)}</span>;
+}
+
+function ExtrasCard({ extras }: { extras: Record<string, unknown> }) {
+  const [open, setOpen] = useState(false);
+  const keys = Object.keys(extras);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <div className="rounded-2xl border border-dashed border-border bg-cream-100/40 overflow-hidden">
+        <CollapsibleTrigger asChild>
+          <button className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-ink hover:bg-cream-100 transition-colors">
+            <span className="flex items-center gap-2">
+              <Lightbulb className="size-4 text-stone" />
+              Info Tambahan ({keys.length})
+            </span>
+            <ChevronRight className={`size-4 text-stone transition-transform ${open ? "rotate-90" : ""}`} />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="px-4 pb-4 space-y-2.5 text-xs text-ink-700">
+            {keys.map((k) => (
+              <div key={k}>
+                <div className="font-semibold text-ink mb-0.5">{k}</div>
+                <ExtrasValue value={extras[k]} />
+              </div>
+            ))}
+          </div>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
   );
 }
 

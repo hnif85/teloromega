@@ -10,11 +10,11 @@ import * as z from "zod";
 import { HumanMessage } from "@langchain/core/messages";
 
 const TAVILY_URL = "https://api.tavily.com/search";
-const TAVILY_KEY = "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";
+const TAVILY_KEY = process.env.TAVILY_API_KEY || "";
 
 // ─── Tool: Tavily web search ─────────────────────────────────────────────────
 
-const tavilySearchTool = tool(
+export const tavilySearchTool = tool(
   async ({ query, maxResults = 5 }: { query: string; maxResults?: number }) => {
     const res = await fetch(TAVILY_URL, {
       method: "POST",
@@ -78,6 +78,7 @@ BRAND CONTEXT:
 TUGAS:
 Lakukan riset pasar menyeluruh untuk brand di atas. Gunakan tool "web_search" untuk mencari data real-time.
 Kamu BEBAS menentukan berapa kali search dan query apa yang dipakai — jangan terpaku pola tertentu.
+Riset ini SELALU riset pasar umum menyeluruh (basic_research) — bukan kamu yang menentukan jenis intent.
 
 WAJIB dilakukan:
 1. Cari tren pasar dan pertumbuhan industri
@@ -88,6 +89,7 @@ WAJIB dilakukan:
 OUTPUT — harus JSON persis dengan struktur ini (tidak boleh ada teks lain):
 
 {
+  "intent": "basic_research",
   "market_trend": {
     "labels": ["Jan","Feb","Mar","Apr","Mei","Jun"],
     "values": [50,55,60,58,70,75],
@@ -238,7 +240,7 @@ export async function runAgenticResearch(
 
   // Normalize with safe defaults
   return {
-    intent: (parsed as any).intent || "market_trend",
+    intent: "basic_research",
     target_audience: Array.isArray(parsed.target_audience) ? parsed.target_audience.slice(0, 4) : [],
     swot: {
       strengths: Array.isArray((parsed as any).swot?.strengths) ? (parsed as any).swot.strengths : [],

@@ -2,7 +2,7 @@
 // Replaces the LLM-hallucinated "web search" in lib/ai.ts.
 
 const TAVILY_URL = "https://api.tavily.com/search";
-const TAVILY_KEY = "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";
+const TAVILY_KEY = process.env.TAVILY_API_KEY || "";
 
 export interface TavilyResult {
   title: string;

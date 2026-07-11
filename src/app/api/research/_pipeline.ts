@@ -9,6 +9,8 @@ import { runAgenticResearch, type AgentResearchResult } from "./_agent";
 
 export interface ResearchResult {
   intent: string;
+  /** HTML siap render untuk intent khusus — dilempar ke extras via normalizer */
+  html?: string;
   target_audience: {
     name: string;
     demography: string;
@@ -59,17 +61,13 @@ export interface BrandLite {
 }
 
 const INTENT_VALUES = [
-  "market_trend",
-  "competitor_analysis",
-  "keyword_research",
-  "pricing",
+  "basic_research",
 ] as const;
 
 function safeIntent(raw: unknown): string {
-  if (typeof raw !== "string") return "market_trend";
-  return INTENT_VALUES.includes(raw as (typeof INTENT_VALUES)[number])
-    ? raw
-    : "market_trend";
+  if (typeof raw !== "string") return "basic_research";
+  // Pass through unknown intents — frontend handles them via hybrid dispatch (HTML fallback / template per intent)
+  return raw;
 }
 
 function safeArr(val: unknown, max = 12): string[] {
@@ -100,7 +98,7 @@ export async function classifyIntent(
         {
           role: "system",
           content:
-            "Kamu classifier sederhana. Pilih SATU intent dari: market_trend | competitor_analysis | keyword_research | pricing. " +
+            "Kamu classifier sederhana. Pilih SATU intent dari: basic_research. " +
             "Balas JSON {\"intent\": \"...\"}. Hanya itu.",
         },
         {
@@ -113,12 +111,7 @@ export async function classifyIntent(
     );
     return safeIntent(out.intent);
   } catch {
-    // Fallback heuristic
-    const q = query.toLowerCase();
-    if (/(harga|murah|mahal|modal|jual|cost)/.test(q)) return "pricing";
-    if (/(saingan|kompetitor|brand lain)/.test(q)) return "competitor_analysis";
-    if (/(keyword|kata kunci|seo|trending kata)/.test(q)) return "keyword_research";
-    return "market_trend";
+    return "basic_research";
   }
 }
 
@@ -151,7 +144,7 @@ ${snippetBlob || "(tidak ada data web — gunakan pengetahuan umum tentang pasar
 
 Tugasmu: sintesa hasil riset pasar yang konkret, faktual, dan siap pakai untuk UMKM Indonesia. 
 Gunakan Bahasa Indonesia. Jangan generik — sesuaikan dengan kategori "${brand.category}".
-Untuk market_trend, buat 6 titik data bulanan (labels: nama bulan singkat seperti "Jan", "Feb"; values: angka indeks 0-100).
+Untuk market_trend (field data — trend chart), buat 6 titik data bulanan (labels: nama bulan singkat seperti "Jan", "Feb"; values: angka indeks 0-100).
 Untuk pricing, gunakan format Rupiah realistis (mis. "Rp 25.000 - Rp 45.000").
 Untuk platform, pilih salah satu: TikTok | Instagram | Facebook | WhatsApp | Twitter/X.
 
@@ -420,7 +413,7 @@ export async function runResearchPipeline(
 
     // Map agent result back to ResearchResult format
     const result: ResearchResult = {
-      intent: agentResult.intent || "market_trend",
+      intent: agentResult.intent || "basic_research",
       target_audience: agentResult.target_audience,
       swot: agentResult.swot || { strengths: [], weaknesses: [], opportunities: [], threats: [] },
       competitors: agentResult.competitors,
@@ -437,7 +430,7 @@ export async function runResearchPipeline(
 
     await onProgress?.("completed", 95, "Menyimpan hasil & membuat rekomendasi...");
 
-    return { intent: agentResult.intent || "market_trend", result, searchCount: -1 }; // -1 = agent decides count
+    return { intent: agentResult.intent || "basic_research", result, searchCount: -1 }; // -1 = agent decides count
   } catch (agentErr) {
     console.error("[research] Agentic pipeline failed, falling back to manual:", agentErr instanceof Error ? agentErr.message : "unknown");
 

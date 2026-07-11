@@ -7,6 +7,31 @@
 
 ---
 
+## [0.1.0] — 2026-07-11
+
+### ✨ Added
+- mobile redesign — bottom tab bar, trimmed nav, hidden texts
+- upload button + thumbnail preview in product form
+- safer image compression with graceful fallback
+- client-side image compression for upload
+- Supabase Storage for product images
+- MWX AI image generation via AI module
+- integrate MWX AI Module + prompt audit logging
+- App Router navigation for all sections
+- auth module, onboarding wizard, responsive tour, brand edit
+
+### 🐛 Fixed
+- add session hydration to dashboard layout, restore store types
+- move supabase createClient inside function to avoid build error
+- repair self-referencing declarations from replaceAll
+- full null-safety for research result sub-objects
+- null-safe market_trend access in riset ResearchView
+- use supabase-js client instead of ssr for storage
+- use JWT anon key for Supabase Storage REST API
+- bypass Supabase client RLS — use raw REST API for uploads
+
+
+
 ## [0.2.0] — 2026-07-11 (Current Alpha)
 
 ### ✨ Added — Fitur Baru

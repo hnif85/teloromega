@@ -7,6 +7,13 @@
 
 ---
 
+## [0.5.0] — 2026-07-11
+
+### ✨ Added
+- LangChain agentic pipeline — DeepSeek + Tavily tool, agent decides search strategy autonomously
+
+
+
 ## [0.4.0] — 2026-07-11
 
 ### ✨ Added

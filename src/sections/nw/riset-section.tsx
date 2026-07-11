@@ -437,12 +437,20 @@ function ResearchView({
   setSection: (s: "konten" | "toko" | "keuangan") => void;
 }) {
   const r = research.result!;
-  const mt = r.market_trend;
-  const trendData = mt?.labels?.map((l, i) => ({
+  // Safe fallbacks for missing sub-objects in research result
+  const mt = r.market_trend ?? { labels: [], values: [], stats: { peak: "—", growth_pct: 0 } };
+  const keywords = keywords ?? { hot: [], stable: [] };
+  const competitors = competitors ?? [];
+  const targetAudience = targetAudience ?? [];
+  const swot = swot ?? { strengths: [], weaknesses: [], opportunities: [], threats: [] };
+  const contentRecs = contentRecs ?? [];
+  const pricing = pricing ?? { lowest: "—", market_avg: "—", highest: "—", recommendation: "Belum tersedia" };
+
+  const trendData = mt.labels.map((l, i) => ({
     name: l,
-    value: mt.values?.[i] ?? 0,
-  })) ?? [];
-  const growth = mt?.stats?.growth_pct ?? 0;
+    value: mt.values[i] ?? 0,
+  }));
+  const growth = mt.stats.growth_pct ?? 0;
 
   return (
     <div className="space-y-4">
@@ -503,11 +511,12 @@ function ResearchView({
           <div className="grid md:grid-cols-3 gap-4">
             <SectionCard
               title="Tren Pasar 6 Bulan"
-              desc={`Indeks minat pasar · puncak: ${r.market_trend.stats.peak}`}
+              desc={`Indeks minat pasar · puncak: ${mt?.stats?.peak ?? "—"}`}
               className="md:col-span-2"
               bodyClassName="p-4"
             >
               <div className="h-[240px] w-full">
+                {trendData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={trendData} margin={{ top: 10, right: 8, left: -10, bottom: 0 }}>
                     <XAxis
@@ -537,14 +546,17 @@ function ResearchView({
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-sm text-stone">Data tren belum tersedia</div>
+                )}
               </div>
             </SectionCard>
 
             <SectionCard title="Ringkasan" desc="Statistik kunci" bodyClassName="p-4 space-y-3">
               <Stat label="Pertumbuhan" value={`${growth > 0 ? "+" : ""}${growth}%`} accent="teal" />
-              <Stat label="Puncak tren" value={r.market_trend.stats.peak} accent="orange" />
-              <Stat label="Kompetitor terpantau" value={`${r.competitors.length}`} accent="violet" />
-              <Stat label="Hot keywords" value={`${r.keywords.hot.length}`} accent="rose" />
+              <Stat label="Puncak tren" value={mt?.stats?.peak ?? "—"} accent="orange" />
+              <Stat label="Kompetitor terpantau" value={`${competitors?.length ?? 0}`} accent="violet" />
+              <Stat label="Hot keywords" value={`${keywords?.hot?.length ?? 0}`} accent="rose" />
             </SectionCard>
           </div>
 
@@ -555,10 +567,10 @@ function ResearchView({
             bodyClassName="p-4"
           >
             <div className="flex flex-wrap gap-1.5 mb-4">
-              {r.keywords.hot.length === 0 && (
+              {keywords.hot.length === 0 && (
                 <p className="text-sm text-stone">Tidak ada hot keyword.</p>
               )}
-              {r.keywords.hot.map((k, i) => (
+              {keywords.hot.map((k, i) => (
                 <span
                   key={`hot-${k}-${i}`}
                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700"
@@ -570,10 +582,10 @@ function ResearchView({
             <div className="border-t border-border pt-3">
               <div className="text-[11px] text-stone mb-2">STABLE KEYWORDS</div>
               <div className="flex flex-wrap gap-1.5">
-                {r.keywords.stable.length === 0 && (
+                {keywords.stable.length === 0 && (
                   <p className="text-sm text-stone">Tidak ada stable keyword.</p>
                 )}
-                {r.keywords.stable.map((k, i) => (
+                {keywords.stable.map((k, i) => (
                   <span
                     key={`st-${k}-${i}`}
                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-stone-100 text-stone-700"
@@ -588,11 +600,11 @@ function ResearchView({
 
         {/* ─── Tab: Audiens ──────────────────────────────────────────────── */}
         <TabsContent value="audiens" className="mt-4">
-          {r.target_audience.length === 0 ? (
+          {targetAudience.length === 0 ? (
             <EmptyState icon="👥" title="Belum ada persona" desc="AI belum sempat bikin persona audiens." />
           ) : (
             <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {r.target_audience.map((p, i) => {
+              {targetAudience.map((p, i) => {
                 const pm = platformMeta(p.platform);
                 return (
                   <div
@@ -639,10 +651,10 @@ function ResearchView({
           {/* Competitor table */}
           <SectionCard
             title="Peta Kompetitor"
-            desc={`${r.competitors.length} kompetitor terpantau`}
+            desc={`${competitors.length} kompetitor terpantau`}
             bodyClassName="p-0"
           >
-            {r.competitors.length === 0 ? (
+            {competitors.length === 0 ? (
               <div className="p-6 text-center text-sm text-stone">Belum ada data kompetitor.</div>
             ) : (
               <div className="overflow-x-auto">
@@ -657,7 +669,7 @@ function ResearchView({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {r.competitors.map((c, i) => (
+                    {competitors.map((c, i) => (
                       <tr key={i} className="hover:bg-cream-100/40">
                         <td className="px-4 py-3 font-medium text-ink">{c.name}</td>
                         <td className="px-4 py-3 text-ink-500 tabular-nums">{c.price_range}</td>
@@ -687,25 +699,25 @@ function ResearchView({
               title="Strengths"
               icon={<Shield className="size-4" />}
               color="emerald"
-              items={r.swot.strengths}
+              items={swot.strengths}
             />
             <SwotCard
               title="Weaknesses"
               icon={<AlertOctagon className="size-4" />}
               color="rose"
-              items={r.swot.weaknesses}
+              items={swot.weaknesses}
             />
             <SwotCard
               title="Opportunities"
               icon={<Lightbulb className="size-4" />}
               color="sky"
-              items={r.swot.opportunities}
+              items={swot.opportunities}
             />
             <SwotCard
               title="Threats"
               icon={<AlertTriangle className="size-4" />}
               color="amber"
-              items={r.swot.threats}
+              items={swot.threats}
             />
           </div>
         </TabsContent>
@@ -715,14 +727,14 @@ function ResearchView({
           {/* Content recommendations */}
           <SectionCard
             title="Rekomendasi Konten"
-            desc={`${r.content_recommendations.length} ide konten siap pakai`}
+            desc={`${contentRecs.length} ide konten siap pakai`}
             bodyClassName="p-4"
           >
-            {r.content_recommendations.length === 0 ? (
+            {contentRecs.length === 0 ? (
               <p className="text-sm text-stone">Belum ada rekomendasi konten.</p>
             ) : (
               <div className="grid sm:grid-cols-2 gap-3">
-                {r.content_recommendations.map((c, i) => {
+                {contentRecs.map((c, i) => {
                   const pm = platformMeta(c.platform);
                   return (
                     <div
@@ -768,16 +780,16 @@ function ResearchView({
             bodyClassName="p-4 space-y-4"
           >
             <div className="grid grid-cols-3 gap-3">
-              <PriceCell label="Termurah" value={r.pricing.lowest} accent="rose" />
-              <PriceCell label="Rata-rata Pasar" value={r.pricing.market_avg} accent="teal" highlight />
-              <PriceCell label="Termahal" value={r.pricing.highest} accent="orange" />
+              <PriceCell label="Termurah" value={pricing.lowest} accent="rose" />
+              <PriceCell label="Rata-rata Pasar" value={pricing.market_avg} accent="teal" highlight />
+              <PriceCell label="Termahal" value={pricing.highest} accent="orange" />
             </div>
             <div className="rounded-xl bg-teal-50 border border-teal/20 p-3">
               <div className="flex items-start gap-2">
                 <Lightbulb className="size-4 text-teal shrink-0 mt-0.5" />
                 <div>
                   <div className="text-xs font-semibold text-teal-700 mb-1">Rekomendasi usahaku.ai</div>
-                  <div className="text-sm text-ink leading-snug">{r.pricing.recommendation}</div>
+                  <div className="text-sm text-ink leading-snug">{pricing.recommendation}</div>
                 </div>
               </div>
             </div>

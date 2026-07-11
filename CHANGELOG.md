@@ -7,6 +7,13 @@
 
 ---
 
+## [0.4.0] — 2026-07-11
+
+### ✨ Added
+- POC async pipeline with real Tavily web search + job queue + polling UI
+
+
+
 ## [0.3.0] — 2026-07-11
 
 ### ✨ Added

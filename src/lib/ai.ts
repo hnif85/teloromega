@@ -225,12 +225,95 @@ export async function webSearch(query: string, opts?: { num?: number; recency_da
   }
 }
 
-/** Image generation — NOT YET IMPLEMENTED via AI module. Falls back to null. */
+/** Image generation via AI module. Returns base64 data URL, or null on failure. */
 export async function generateImage(
-  _prompt: string,
-  _opts?: { size?: string }
+  prompt: string,
+  opts?: { size?: string }
 ): Promise<string | null> {
-  // TODO: implement when AI module supports image generation
-  console.warn("[ai] generateImage: not yet supported via AI module");
-  return null;
+  const ctx = _ctx;
+  const model = "gemini-2.5-flash-image";
+  const service = ctx?.service ?? "Image Generator";
+  // Convert pixel size to ratio: "1024x1024" → "1:1", "1344x768" → "16:9", etc.
+  const size = toRatioSize(opts?.size ?? "1024x1024");
+  const t0 = Date.now();
+
+  try {
+    const form = new FormData();
+    form.append("ai", AI_DEFAULT_PROVIDER);
+    form.append("model", model);
+    form.append("prompt", prompt);
+    form.append("n", "1");
+    form.append("size", size);
+    form.append("response_format", "url");
+
+    const res = await fetch(`${AI_BASE}/images/generation`, {
+      method: "POST",
+      headers: {
+        "accept": "application/json",
+        "x-key": AI_KEY,
+      },
+      body: form,
+    });
+
+    const latencyMs = Date.now() - t0;
+    const json = await res.json() as { status: number; data?: { url?: string; base64?: string }[]; usage?: { total_tokens: number } };
+
+    if (!res.ok || !json.data?.[0]?.url) {
+      await _logAiCall({
+        feature: ctx?.feature ?? "unknown",
+        ai: AI_DEFAULT_PROVIDER,
+        model,
+        service,
+        prompt,
+        success: false,
+        error: `Image generation failed: ${JSON.stringify(json).slice(0, 300)}`,
+        latencyMs,
+      });
+      return null;
+    }
+
+    // The URL from the AI module is a base64 data URL
+    const imageUrl = json.data[0].url as string;
+
+    await _logAiCall({
+      feature: ctx?.feature ?? "unknown",
+      ai: AI_DEFAULT_PROVIDER,
+      model,
+      service,
+      prompt,
+      response: "[image]",
+      totalTokens: json.usage?.total_tokens ?? null,
+      success: true,
+      latencyMs,
+    });
+
+    return imageUrl;
+  } catch (err: any) {
+    const latencyMs = Date.now() - t0;
+    await _logAiCall({
+      feature: ctx?.feature ?? "unknown",
+      ai: AI_DEFAULT_PROVIDER,
+      model,
+      service,
+      prompt,
+      success: false,
+      error: `Network error: ${err.message}`,
+      latencyMs,
+    });
+    return null;
+  }
+}
+
+/** Convert pixel size like "1024x1024" to ratio format like "1:1" */
+function toRatioSize(size: string): string {
+  const map: Record<string, string> = {
+    "1024x1024": "1:1",
+    "1344x768": "16:9",
+    "1440x720": "2:1",
+    "768x1344": "9:16",
+    "1152x864": "4:3",
+    "864x1152": "3:4",
+    "720x1440": "1:2",
+  };
+  return map[size] ?? "1:1";
 }

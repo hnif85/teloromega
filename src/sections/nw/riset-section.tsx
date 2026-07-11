@@ -439,12 +439,12 @@ function ResearchView({
   const r = research.result!;
   // Safe fallbacks for missing sub-objects in research result
   const mt = r.market_trend ?? { labels: [], values: [], stats: { peak: "—", growth_pct: 0 } };
-  const keywords = keywords ?? { hot: [], stable: [] };
-  const competitors = competitors ?? [];
-  const targetAudience = targetAudience ?? [];
-  const swot = swot ?? { strengths: [], weaknesses: [], opportunities: [], threats: [] };
-  const contentRecs = contentRecs ?? [];
-  const pricing = pricing ?? { lowest: "—", market_avg: "—", highest: "—", recommendation: "Belum tersedia" };
+  const keywords = r.keywords ?? { hot: [], stable: [] };
+  const competitors = r.competitors ?? [];
+  const targetAudience = r.target_audience ?? [];
+  const swot = r.swot ?? { strengths: [], weaknesses: [], opportunities: [], threats: [] };
+  const contentRecs = r.content_recommendations ?? [];
+  const pricing = r.pricing ?? { lowest: "—", market_avg: "—", highest: "—", recommendation: "Belum tersedia" };
 
   const trendData = mt.labels.map((l, i) => ({
     name: l,

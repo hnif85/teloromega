@@ -3,18 +3,11 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore, getActiveBrand } from "@/lib/store";
-import { NAV_ITEMS, PROFILE_MENU, type SectionKey, timeAgo } from "@/lib/constants";
+import { type SectionKey, timeAgo } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { Bell, Menu, Zap, Plus, Command, LogOut, Search, Sparkles, ArrowRight, RefreshCw } from "lucide-react";
+import { Bell, Zap, Plus, Command, LogOut, Search, Sparkles, ArrowRight, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/nw/theme-toggle";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -75,7 +68,6 @@ export function Topbar() {
     setCredit,
   } = useAppStore();
   const activeBrand = getActiveBrand(useAppStore.getState());
-  const [open, setOpen] = useState(false);
   // Track dismissed notification IDs for this session — "Tandai semua dibaca"
   // pushes every current notification id into this set so the badge count drops
   // to 0 until the next dashboard refetch surfaces new items.
@@ -230,110 +222,25 @@ export function Topbar() {
     } catch {
       /* ignore — clear local state anyway */
     }
-    setOpen(false);
     useAppStore.getState().logout();
     toast({ title: "Berhasil logout", description: "Sampai jumpa lagi! 👋" });
-  }
-
-  function MobileNav() {
-    // Items already in bottom tab bar: beranda, riset, konten, toko, keuangan
-    const bottomTabKeys = new Set(["beranda", "riset", "konten", "toko", "keuangan"]);
-    const secondaryItems = [...NAV_ITEMS, ...PROFILE_MENU].filter((item) => !bottomTabKeys.has(item.key));
-
-    return (
-      <div className="flex flex-col gap-1">
-        {secondaryItems.map((item) => (
-          <button
-            key={item.key}
-            onClick={() => {
-              setSection(item.key as SectionKey);
-              setOpen(false);
-            }}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left",
-              section === item.key
-                ? "bg-teal text-white"
-                : "text-ink hover:bg-cream-200"
-            )}
-          >
-            <span className="text-lg">{item.icon}</span>
-            <span>{item.label}</span>
-            {item.key === "credit" && (
-              <span className="ml-auto text-[11px] font-bold bg-cream-200 px-1.5 py-0.5 rounded-md text-teal">
-                {user?.creditBalance ?? 0}
-              </span>
-            )}
-          </button>
-        ))}
-        <div className="h-px bg-border my-2" />
-        <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-stone font-semibold">
-          Brand aktif
-        </div>
-        {brands.map((b) => (
-          <button
-            key={b.id}
-            onClick={() => {
-              setActiveBrand(b.id);
-              setOpen(false);
-            }}
-            className={cn(
-              "flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left",
-              b.id === activeBrandId ? "bg-cream-200" : "hover:bg-cream-100"
-            )}
-          >
-            <div className="size-6 rounded bg-teal/10 text-teal text-[10px] font-bold flex items-center justify-center">
-              {b.name[0]?.toUpperCase()}
-            </div>
-            <span className="flex-1 truncate">{b.name}</span>
-            {b.id === activeBrandId && <span className="text-teal text-xs">✓</span>}
-          </button>
-        ))}
-
-        <div className="h-px bg-border my-2" />
-        <div className="flex items-center gap-2 px-3 py-2 mb-1">
-          <div className="size-8 rounded-full bg-gradient-to-br from-teal to-teal-600 text-white text-xs font-bold flex items-center justify-center">
-            {user?.name?.[0]?.toUpperCase() ?? "U"}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-ink truncate">{user?.name}</div>
-            <div className="text-[10px] text-stone truncate">{user?.email}</div>
-          </div>
-        </div>
-        <button
-          onClick={() => {
-            handleLogout();
-          }}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors text-left"
-        >
-          <LogOut className="size-4" />
-          <span>Keluar</span>
-        </button>
-      </div>
-    );
   }
 
   return (
     <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border">
       <div className="flex items-center gap-3 px-4 md:px-6 py-3">
-        {/* Mobile menu */}
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="md:hidden" data-tour="mobile-menu">
-              <Menu className="size-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-72 p-4">
-            <SheetHeader className="mb-3">
-              <SheetTitle className="flex items-center gap-2">
-                <div className="size-8 rounded-xl bg-teal text-white font-extrabold flex items-center justify-center text-xs">
-                  U
-                </div>
-                usahaku.ai
-              </SheetTitle>
-            </SheetHeader>
-            <MobileNav />
-          </SheetContent>
-        </Sheet>
+        {/* Mobile: user avatar → navigates to Pengaturan hub */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
+          onClick={() => setSection("pengaturan")}
+          aria-label="Pengaturan"
+        >
+          <div className="size-8 rounded-full bg-gradient-to-br from-teal to-teal-600 text-white text-xs font-bold flex items-center justify-center">
+            {user?.name?.[0]?.toUpperCase() ?? "U"}
+          </div>
+        </Button>
 
         {/* Brand pill */}
         <div className="flex items-center gap-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAppStore, getActiveBrand, type Brand } from "@/lib/store";
 import { api } from "@/lib/api";
@@ -83,6 +83,11 @@ import {
   FileJson,
   ShieldCheck,
   Info,
+  ArrowLeft,
+  LogOut,
+  Sun,
+  Moon,
+  History,
 } from "lucide-react";
 import {
   CATEGORIES,
@@ -93,6 +98,7 @@ import {
   type ToneKey,
 } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 import { startTour } from "@/components/nw/onboarding-tour";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2541,66 +2547,399 @@ function BackupTab() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Hub sub‑views — each gets a back button and full‑width content
+// ─────────────────────────────────────────────────────────────────────────────
+
+function HubBackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 text-sm text-teal hover:text-teal-600 font-medium mb-4 transition-colors"
+    >
+      <ArrowLeft className="size-4" /> Kembali
+    </button>
+  );
+}
+
+function HubSubView({ title, children, onBack }: { title: string; children: React.ReactNode; onBack: () => void }) {
+  return (
+    <div className="space-y-4">
+      <HubBackButton onClick={onBack} />
+      <h2 className="text-lg font-bold text-ink">{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hub item: Credit (inline)
+// ─────────────────────────────────────────────────────────────────────────────
+function CreditHubContent() {
+  const { user, setCredit } = useAppStore();
+  const { toast } = useToast();
+  const { data: packages } = useQuery({
+    queryKey: ["credit-packages"],
+    queryFn: () => api<{ packages: typeof CREDIT_PACKAGES }>("/api/credit/packages"),
+  });
+
+  async function topup(pkg: (typeof CREDIT_PACKAGES)[number]) {
+    try {
+      const r = await api<{ balance: number }>("/api/credit/topup", {
+        method: "POST",
+        json: { packageId: pkg.id, credits: pkg.credits, price: pkg.price },
+      });
+      setCredit(r.balance);
+      toast({ title: "Top‑up berhasil", description: `+${pkg.credits} credit ditambahkan` });
+    } catch (e) {
+      toast({ title: "Gagal", description: e instanceof Error ? e.message : "Terjadi kesalahan", variant: "destructive" });
+    }
+  }
+
+  return (
+    <SectionCard>
+      <div className="mb-4 flex items-center gap-3">
+        <div className="size-12 rounded-xl bg-teal-100 text-teal flex items-center justify-center">
+          <Crown className="size-6" />
+        </div>
+        <div>
+          <div className="text-2xl font-extrabold text-ink">{user?.creditBalance ?? 0}</div>
+          <div className="text-xs text-stone">Credit tersedia</div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {(packages?.packages ?? CREDIT_PACKAGES).map((pkg) => (
+          <Button
+            key={pkg.id}
+            variant="outline"
+            className="h-auto flex-col gap-0.5 py-3 border-teal/20 hover:bg-teal-50"
+            onClick={() => topup(pkg)}
+          >
+            <span className="text-sm font-bold text-teal">{pkg.credits}</span>
+            <span className="text-[10px] text-stone">{formatRupiah(pkg.price)}</span>
+          </Button>
+        ))}
+      </div>
+    </SectionCard>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hub item: Aktivitas (inline — last 5 activities)
+// ─────────────────────────────────────────────────────────────────────────────
+function AktivitasHubContent() {
+  const activeBrand = getActiveBrand(useAppStore.getState());
+  const { data, isLoading } = useQuery({
+    queryKey: ["activity", "recent", activeBrand?.id],
+    queryFn: () => api<{ rows: any[] }>(`/api/activity?brandId=${activeBrand?.id}&limit=5`),
+    enabled: !!activeBrand?.id,
+  });
+
+  if (isLoading) {
+    return (
+      <SectionCard>
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full rounded-lg" />
+          ))}
+        </div>
+      </SectionCard>
+    );
+  }
+
+  if (!data?.rows?.length) {
+    return <SectionCard><EmptyState icon="📋" title="Belum ada aktivitas" message="Aktivitas terbaru akan muncul di sini" /></SectionCard>;
+  }
+
+  return (
+    <SectionCard>
+      <div className="space-y-1">
+        {data.rows.map((a: any) => (
+          <div key={a.id} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-cream-100 transition-colors">
+            <div className="size-8 rounded-lg bg-teal-50 text-teal flex items-center justify-center shrink-0 text-sm">
+              {a.icon ?? "📌"}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-ink truncate">{a.description ?? a.action ?? "Aktivitas"}</div>
+              <div className="text-[10px] text-stone">{a.createdAt ? timeAgo(a.createdAt) : "—"}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </SectionCard>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hub item: Bantuan (inline — quick FAQ)
+// ─────────────────────────────────────────────────────────────────────────────
+function BantuanHubContent() {
+  return (
+    <SectionCard>
+      <Accordion type="single" collapsible className="w-full">
+        <AccordionItem value="1">
+          <AccordionTrigger className="text-sm font-medium">Apa itu usahaku.ai?</AccordionTrigger>
+          <AccordionContent className="text-sm text-stone leading-relaxed">
+            usahaku.ai adalah AI Co-pilot untuk UMKM Indonesia. Bantu riset pasar, buat konten pemasaran, kelola toko, dan analisa keuangan — semua dalam satu platform.
+          </AccordionContent>
+        </AccordionItem>
+        <AccordionItem value="2">
+          <AccordionTrigger className="text-sm font-medium">Bagaimana cara top‑up credit?</AccordionTrigger>
+          <AccordionContent className="text-sm text-stone leading-relaxed">
+            Buka menu Credit di Pengaturan, pilih paket yang diinginkan, dan lakukan pembayaran. Credit akan langsung masuk ke akun Anda.
+          </AccordionContent>
+        </AccordionItem>
+        <AccordionItem value="3">
+          <AccordionTrigger className="text-sm font-medium">Bagaimana cara ganti brand?</AccordionTrigger>
+          <AccordionContent className="text-sm text-stone leading-relaxed">
+            Klik nama brand di bagian bawah menu Pengaturan, lalu pilih brand yang ingin digunakan. Anda juga bisa tambah brand baru dari menu Brand.
+          </AccordionContent>
+        </AccordionItem>
+        <AccordionItem value="4">
+          <AccordionTrigger className="text-sm font-medium">Apakah data saya aman?</AccordionTrigger>
+          <AccordionContent className="text-sm text-stone leading-relaxed">
+            Data Anda disimpan dengan aman di server terenkripsi. Kami juga menyediakan fitur Backup & Restore untuk keamanan ekstra. Data sensitif seperti password tidak disimpan dalam backup.
+          </AccordionContent>
+        </AccordionItem>
+        <AccordionItem value="5">
+          <AccordionTrigger className="text-sm font-medium">Bagaimana cara memulai tur?</AccordionTrigger>
+          <AccordionContent className="text-sm text-stone leading-relaxed">
+            Klik tombol "Mulai Tur" di halaman ini atau buka halaman Bantuan untuk panduan lengkap. Tur interaktif akan memandu Anda melalui semua fitur utama.
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+
+      <div className="mt-4 flex flex-col gap-2">
+        <Button variant="outline" className="gap-2 justify-start" onClick={() => startTour()}>
+          <Sparkles className="size-4 text-teal" /> Mulai Tur Interaktif
+        </Button>
+        <Button variant="outline" className="gap-2 justify-start" asChild>
+          <a href="mailto:support@usahaku.ai">
+            <Mail className="size-4 text-teal" /> Hubungi Support
+          </a>
+        </Button>
+      </div>
+    </SectionCard>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sidebar‑style hub menu
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface HubItem {
+  key: string;
+  icon: string;
+  label: string;
+  badge?: React.ReactNode;
+}
+
+function HubMenuRow({
+  item,
+  onClick,
+}: {
+  item: HubItem;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left text-ink hover:bg-cream-100"
+    >
+      <span className="text-lg shrink-0">{item.icon}</span>
+      <span className="flex-1">{item.label}</span>
+      {item.badge && <span className="shrink-0">{item.badge}</span>}
+      <ChevronDown className="size-3.5 -rotate-90 text-cream-400 shrink-0" />
+    </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main section
 // ─────────────────────────────────────────────────────────────────────────────
 export function PengaturanSection() {
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const { user, brands, activeBrandId, setActiveBrand, logout, setOnboardingOpen, addBrand } = useAppStore();
   const activeBrand = getActiveBrand(useAppStore.getState());
+  const { theme, setTheme } = useTheme();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // ── Sub‑view routing ────────────────────────────────────────────────
+  if (activeMenu) {
+    const back = () => setActiveMenu(null);
+
+    switch (activeMenu) {
+      case "profil":
+        return <HubSubView title="Profil" onBack={back}><ProfilTab /></HubSubView>;
+      case "brand":
+        return <HubSubView title="Brand" onBack={back}><BrandTab /></HubSubView>;
+      case "credit":
+        return <HubSubView title="Credit" onBack={back}><CreditHubContent /></HubSubView>;
+      case "tone":
+        return <HubSubView title="Tone of Voice" onBack={back}><ToneTab /></HubSubView>;
+      case "notif":
+        return <HubSubView title="Notifikasi" onBack={back}><NotifikasiTab /></HubSubView>;
+      case "aktivitas":
+        return <HubSubView title="Aktivitas" onBack={back}><AktivitasHubContent /></HubSubView>;
+      case "target":
+        return <HubSubView title="Target Bisnis" onBack={back}><TargetTab /></HubSubView>;
+      case "bantuan":
+        return <HubSubView title="Bantuan" onBack={back}><BantuanHubContent /></HubSubView>;
+      case "backup":
+        return <HubSubView title="Backup & Restore" onBack={back}><BackupTab /></HubSubView>;
+      default:
+        setActiveMenu(null);
+        return null;
+    }
+  }
+
+  // ── Hub menu items ──────────────────────────────────────────────────
+  const menuItems: HubItem[] = [
+    { key: "profil", icon: "👤", label: "Profil" },
+    { key: "brand", icon: "📦", label: "Brand" },
+    {
+      key: "credit",
+      icon: "⚡",
+      label: "Credit",
+      badge: (
+        <span className="text-[11px] font-bold bg-teal-100 text-teal px-2 py-0.5 rounded-full">
+          {user?.creditBalance ?? 0}
+        </span>
+      ),
+    },
+    { key: "tone", icon: "🎨", label: "Tone Suara" },
+    { key: "notif", icon: "🔔", label: "Notifikasi" },
+    { key: "aktivitas", icon: "📋", label: "Aktivitas" },
+    { key: "target", icon: "🎯", label: "Target Bisnis" },
+    { key: "bantuan", icon: "❓", label: "Bantuan" },
+    { key: "backup", icon: "💾", label: "Backup & Restore" },
+  ];
+
+  async function quickCreateBrand() {
+    const name = window.prompt("Nama brand baru?");
+    if (!name) return;
+    try {
+      const r = await api<{ brand: any }>("/api/brands", {
+        method: "POST",
+        json: { name, category: "Lainnya" },
+      });
+      addBrand({
+        id: r.brand.id,
+        name: r.brand.name,
+        slug: r.brand.slug,
+        logoUrl: r.brand.logoUrl,
+        description: r.brand.description,
+        category: r.brand.category,
+        toneOfVoice: r.brand.toneOfVoice,
+        isActive: r.brand.isActive,
+      });
+      toast({ title: "Brand dibuat", description: r.brand.name });
+    } catch (e: any) {
+      toast({ title: "Gagal", description: e.message, variant: "destructive" });
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await api("/api/logout", { method: "POST" });
+    } catch {
+      /* ignore */
+    }
+    logout();
+    toast({ title: "Berhasil logout", description: "Sampai jumpa lagi! 👋" });
+  }
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Pengaturan"
-        subtitle={`Atur brand, profil, tone of voice, target & notifikasi${activeBrand ? ` · ${activeBrand.name}` : ""}`}
-        icon="⚙️"
-      />
+      <PageHeader title="Pengaturan" icon="⚙️" subtitle="Semua pengaturan dalam satu tempat" />
 
-      <Tabs defaultValue="brand" className="w-full">
-        <TabsList className="bg-cream-200/60 h-auto p-1 flex-wrap">
-          <TabsTrigger value="brand" className="gap-1.5">
-            <Store className="size-3.5" /> Brand
-          </TabsTrigger>
-          <TabsTrigger value="profil" className="gap-1.5">
-            <User className="size-3.5" /> Profil
-          </TabsTrigger>
-          <TabsTrigger value="tone" className="gap-1.5">
-            <Palette className="size-3.5" /> Tone of Voice
-          </TabsTrigger>
-          <TabsTrigger value="notif" className="gap-1.5">
-            <Bell className="size-3.5" /> Notifikasi
-          </TabsTrigger>
-          <TabsTrigger value="demo" className="gap-1.5">
-            <Database className="size-3.5" /> Data Demo
-          </TabsTrigger>
-          <TabsTrigger value="target" className="gap-1.5">
-            <Target className="size-3.5" /> Target
-          </TabsTrigger>
-          <TabsTrigger value="backup" className="gap-1.5">
-            <ShieldCheck className="size-3.5" /> Backup
-          </TabsTrigger>
-        </TabsList>
+      {/* ── Sidebar‑style hub menu ────────────────────────────────────── */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        {/* User info at top */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-cream-50/50">
+          <div className="size-10 rounded-full bg-gradient-to-br from-teal to-teal-600 text-white text-sm font-bold flex items-center justify-center shrink-0">
+            {user?.name?.[0]?.toUpperCase() ?? "U"}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-ink truncate">{user?.name ?? "Pengguna"}</div>
+            <div className="text-[11px] text-stone truncate">{user?.email ?? "—"}</div>
+          </div>
+        </div>
 
-        <TabsContent value="brand" className="mt-4">
-          <BrandTab />
-        </TabsContent>
-        <TabsContent value="profil" className="mt-4">
-          <ProfilTab />
-        </TabsContent>
-        <TabsContent value="tone" className="mt-4">
-          <ToneTab />
-        </TabsContent>
-        <TabsContent value="notif" className="mt-4">
-          <NotifikasiTab />
-        </TabsContent>
-        <TabsContent value="demo" className="mt-4">
-          <DemoTab />
-        </TabsContent>
-        <TabsContent value="target" className="mt-4">
-          <TargetTab />
-        </TabsContent>
-        <TabsContent value="backup" className="mt-4">
-          <BackupTab />
-        </TabsContent>
-      </Tabs>
+        {/* Menu items */}
+        <div className="p-2 space-y-0.5">
+          {menuItems.map((item) => (
+            <HubMenuRow
+              key={item.key}
+              item={item}
+              onClick={() => setActiveMenu(item.key)}
+            />
+          ))}
+        </div>
+
+        {/* Divider */}
+        <div className="h-px bg-border mx-3" />
+
+        {/* Bottom section: theme + brand + logout */}
+        <div className="p-3 space-y-2">
+          {/* Theme toggle */}
+          <div className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-cream-100 transition-colors">
+            <div className="flex items-center gap-3">
+              <span className="text-lg">{theme === "dark" ? "🌙" : "🌞"}</span>
+              <span className="text-sm font-medium text-ink">Tema</span>
+            </div>
+            <button
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="relative inline-flex h-6 w-10 items-center rounded-full transition-colors bg-cream-300"
+            >
+              <span
+                className={`inline-block size-5 rounded-full bg-white shadow-sm transition-transform ${
+                  theme === "dark" ? "translate-x-[18px]" : "translate-x-[2px]"
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Brand switcher */}
+          <div className="px-3 py-2">
+            <div className="text-[10px] uppercase tracking-wider text-stone font-semibold mb-1.5">
+              Brand aktif
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {brands.map((b) => (
+                <button
+                  key={b.id}
+                  onClick={() => setActiveBrand(b.id)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    b.id === activeBrandId
+                      ? "bg-teal text-white"
+                      : "bg-cream-100 text-ink hover:bg-cream-200"
+                  }`}
+                >
+                  <span>{b.name[0]?.toUpperCase()}</span>
+                  <span>{b.name}</span>
+                  {b.id === activeBrandId && <Check className="size-3" />}
+                </button>
+              ))}
+              <button
+                onClick={quickCreateBrand}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-teal border border-dashed border-teal/30 hover:bg-teal-50 transition-colors"
+              >
+                <Plus className="size-3" /> Baru
+              </button>
+            </div>
+          </div>
+
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors text-left"
+          >
+            <LogOut className="size-4" />
+            <span>Keluar</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

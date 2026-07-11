@@ -126,7 +126,7 @@ export function SectionCard({
   bodyClassName?: string;
 }) {
   return (
-    <div className={cn("card-hover rounded-2xl bg-card border border-border", className)}>
+    <div className={cn("card-hover table-row-hover rounded-2xl bg-card border border-border", className)}>
       {(title || right) && (
         <div className="flex items-center justify-between gap-2 px-5 pt-4 pb-3 border-b border-border">
           <div>

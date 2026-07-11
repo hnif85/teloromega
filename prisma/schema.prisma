@@ -28,6 +28,7 @@ model User {
   creditUsageLog CreditUsageLog[]
   inboxMessages  InboxMessage[]
   goals          Goal[]
+  notifications  Notification[]
 }
 
 // ─── Brand & Product ────────────────────────────────────────────────────────
@@ -404,6 +405,26 @@ model Goal {
 
   @@index([brandId])
   @@index([status])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  brandId   String?
+  type      String   // low_stock | payment_pending | stale_lead | research_completed | goal_achieved | order_new | campaign_sent | system
+  title     String
+  message   String
+  severity  String   @default("info") // info | warning | success | error
+  readAt    DateTime?
+  actionUrl String?  // e.g., "/toko" or "/keuangan"
+  actionLabel String?
+  metadata  String?  // JSON string for extra context
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, readAt])
 }
 
 // ─── Credit (Next Whiz side; balance otoritatif di mwxmarket.ai — mocked) ────

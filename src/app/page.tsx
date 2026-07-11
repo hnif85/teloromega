@@ -23,6 +23,7 @@ import { CreditSection } from "@/sections/nw/credit-section";
 import { PengaturanSection } from "@/sections/nw/pengaturan-section";
 import { BantuanSection } from "@/sections/nw/bantuan-section";
 import { AktivitasSection } from "@/sections/nw/aktivitas-section";
+import { NotifikasiSection } from "@/sections/nw/notifikasi-section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OfflineIndicator } from "@/components/nw/offline-indicator";
 
@@ -104,6 +105,7 @@ export default function Home() {
               {section === "pengaturan" && <PengaturanSection />}
               {section === "bantuan" && <BantuanSection />}
               {section === "aktivitas" && <AktivitasSection />}
+              {section === "notifikasi" && <NotifikasiSection />}
             </SectionTransition>
           </main>
         </div>

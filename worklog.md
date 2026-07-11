@@ -1188,3 +1188,160 @@ Priority recommendations for next phase:
 - Advanced analytics: cohort analysis, customer lifetime value, seasonal trends.
 - Extend global search to include Research, Campaigns, Goals.
 - Add background sync for offline form submissions (service worker sync API).
+
+---
+Task ID: 20-B
+Agent: full-stack-developer (Advanced Analytics + Styling)
+Task: Build CLV, Cohort Retention, Seasonal Trends, Product Performance (BCG matrix) APIs + Insights section tabs. Chart animations, table hover, heatmap cells.
+
+Work Log:
+- Read worklog (Task 19 context), constants.ts (formatRupiah/Short), auth.ts (getUserId), db.ts (Prisma client), primitives.tsx (StatCard/SectionCard), insights-section.tsx (existing analytics section), api/insights/route.ts (patterns for parallel queries + Indonesian month/day names), prisma/schema.prisma (Customer/Order/Transaction/Product models — Customer has totalSpent/totalOrders/firstOrderAt, Order has items JSON + status, Transaction has type/date/amount, Product has price/costPrice/type).
+- A. Created 4 new analytics API routes under `/api/analytics/`:
+  · `clv/route.ts` — Customer Lifetime Value. Fetches all customers + their non-cancelled orders. Computes per-customer: totalSpent (from Customer), orderCount, avgOrderValue, firstOrder/lastOrder (ISO), daysActive (first order → now), avgGap (days between consecutive orders), predictedCLV = avgOrderValue × projectedOrders (annualFrequency × 365 if ≥2 orders, else 1). Aggregates: avgCLV (mean totalSpent), top 10 by totalSpent, distribution buckets (0-50rb / 50rb-100rb / 100rb-500rb / 500rb+), retentionRate (% customers with >1 order), avgDaysBetweenOrders (mean of customer-level avgGap, only customers with ≥2 orders). Returns CLVResponse.
+  · `cohort/route.ts` — Cohort retention. Accepts `?months=6` (default 6, max 24). Groups buyers by first-order month (cohort). For each cohort, builds retention[] from M0..M_maxOffset where M_i = number/percent of cohort members who placed an order in the (cohort_month + i) month. Only considers cohorts in the last N months window. Returns cohorts[] with cohortMonth (YYYY-MM), cohortLabel (Jan 2026), size, retention[] (offset, label "M0"/"M1", activeCustomers, retentionRate).
+  · `seasonal/route.ts` — Seasonal trends. Aggregates income transactions + non-cancelled orders over 12-month window. byMonth (12 buckets, Indonesian short month names Jan..Des), byDayOfWeek (Mon..Sun reorder from JS getDay), byHour (0-23 from order createdAt). Computes bestMonth/worstMonth (by revenue), peakDay (by revenue), peakHour (by orders). Seasonality rating via coefficient of variation of monthly revenue: high (cv≥0.5), medium (cv≥0.25), low.
+  · `products/route.ts` — Product performance + BCG matrix. Aggregates per-product: unitsSold, revenue, cost, profit, marginPct, orderCount (orders containing this product), uniqueCustomers (distinct customerIds), avgQtyPerOrder, lastSoldAt, daysSinceLastSale. BCG classification using median split: star (high rev + high margin), cash_cow (high rev + low margin), question_mark (low rev + high margin), dog (low rev + low margin). Median computed only from products with revenue > 0. Products with zero sales → dog. Summary: totalProducts, starProducts, cashCowProducts, avgMargin, topPerformer, underperformer.
+- B. Enhanced insights-section.tsx with 5 tabs (was single view):
+  · Imported Scatter/ScatterChart/ZAxis (already present), 7 new Lucide icons (Award, Calendar, Clock, Crown, Flame, Grid3x3, Star), Tabs + Table shadcn/ui components.
+  · Wrapped existing "Main content" block (metrics row + charts grid + recent activity) in `<Tabs defaultValue="overview">` with 5 TabsTriggers: Overview (Activity icon), CLV (Crown), Cohort (Grid3x3), Seasonal (Calendar), Produk (Package). TabsList uses h-auto + flex-wrap for mobile responsiveness.
+  · Added CLVTab component: 4 StatCards (avgCLV, retentionRate, avgDaysBetweenOrders, top customer spent) + Top 10 customers Table (rank/name/phone/totalSpent/orderCount/AOV/daysActive/predictedCLV) + CLVDistributionChart (BarChart with bucket on X, count on Y, multi-color cells).
+  · Added CohortTab component: 4 StatCards (cohort count, avg retention M1/M3/M6) + Heatmap Table (rows=cohorts, cols=M0..M_maxOffset, each cell is a `heatmap-cell` size-12 colored box: emerald >50%, amber 25-50%, rose 1-24%, stone 0%). Legend below. Sticky first column for horizontal scroll.
+  · Added SeasonalTab component: 4 StatCards (best/worst month, peak day, peak hour) + Seasonality banner (Flame icon + label Tinggi/Sedang/Rendah) + SeasonalMonthlyChart (12-month BarChart, peak highlighted teal) + 2-col grid with SeasonalDayChart (BarChart orange, peak highlighted) and SeasonalHourChart (LineChart filtered to hours 6-22 for readability).
+  · Added ProductsPerfTab component: 4 StatCards (total/star/cashCow/avgMargin) + BCGScatterChart (ScatterChart with XAxis=revenue, YAxis=marginPct, ZAxis=unitsSold range[40,360], 4 Scatter series by quadrant with semantic colors emerald/amber/sky/rose, custom Tooltip showing name/revenue/margin/units) + Top Performer & Underperformer gradient cards + Product performance Table (sticky header, max-h-560px scroll, 10 columns: product/kategori/harga/unit/omzet/profit/margin/order/pelanggan/BCG badge) + BCG legend explaining 4 quadrants.
+  · Each tab has its own useQuery (60s staleTime), loading skeleton (TabSkeleton), error state with retry, and empty state. Chart containers use `chart-animate` class for entrance animation.
+  · Added types for all 4 API responses (CLVResponse, CohortResponse, SeasonalResponse, ProductPerfResponse) + BCGQuadrant union.
+  · Added BCG_CONFIG constant (label/color/bg/border/desc per quadrant) + BCGBadge component + BCG_COLOR map (hex colors for scatter).
+- C. Added 3 CSS utilities to globals.css (after Selection color block): `.chart-animate` (chart-draw keyframe, 0.5s ease-out, opacity+translateY), `.table-row-hover tbody tr` (transition + teal-tinted hover bg rgba(13,148,136,0.04)), `.heatmap-cell` (transition + scale(1.05) on hover with z-index:1).
+- D. Added `table-row-hover` class to SectionCard root in primitives.tsx — class is scoped to `tbody tr` so it's a no-op for non-table content; tables inside any SectionCard now get the hover effect automatically.
+- E. Verified via curl:
+  · `GET /api/analytics/clv?brandId=hanif` → 200 + `{avgCLV:30000, topCustomers:[2 customers with predictedCLV], distribution:[4 buckets], retentionRate:50%, avgDaysBetweenOrders:4}`.
+  · `GET /api/analytics/cohort?brandId=hanif&months=6` → 200 + 2 cohorts (Jun 2026 with M0=100%/M1=100%, Jul 2026 with M0=100%).
+  · `GET /api/analytics/seasonal?brandId=hanif` → 200 + 12-month data (Jun/Jul have revenue 30k each), day-of-week (Senin=30k, Jumat=18k, Minggu=12k), hour-of-day (orders spread 9/11/13/14/16h), seasonality=low (cv < 0.25).
+  · `GET /api/analytics/products?brandId=hanif` → 200 + 4 products with BCG classification (Paket Foto Produk UMKM = star, Keripik Singkong Pedas = cash_cow, Basreng Keju = dog, Makaroni Melting = question_mark). Summary: totalProducts=4, starProducts=1, cashCowProducts=1, avgMargin=47, topPerformer=Paket Foto Produk UMKM.
+  · All endpoints return 401 if no cookie, 404 if brand not found / not owned by user, empty response if no brandId.
+- Lint: 0 errors, 0 warnings. tsc --noEmit (excluding skills/examples): 0 errors. Dev server: HTTP 200 on home page, all 4 analytics endpoints return 200 with valid JSON.
+
+Stage Summary:
+- Files created: `src/app/api/analytics/clv/route.ts` (~165 lines), `src/app/api/analytics/cohort/route.ts` (~140 lines), `src/app/api/analytics/seasonal/route.ts` (~165 lines), `src/app/api/analytics/products/route.ts` (~210 lines).
+- Files edited: `src/sections/nw/insights-section.tsx` (added 9 imports + 4 type interfaces + 4 tab components + BCG helpers + wrapped existing content in Tabs; ~880 lines added), `src/app/globals.css` (added 3 CSS utilities: chart-animate, table-row-hover, heatmap-cell — ~30 lines), `src/components/nw/primitives.tsx` (added `table-row-hover` class to SectionCard root div — 1 line change).
+- Decisions:
+  · Used Tabs (not separate routes) for the 4 new analytics views — keeps single-route architecture intact, allows sharing PageHeader/AI summary/loading states, lazy-loads each tab's data via separate useQuery (60s staleTime). Each tab fetches only when activated (TanStack Query `enabled` not needed — TabsContent mounts/unmounts on tab change which naturally controls fetching).
+  · CLV predictedCLV uses annualFrequency × 365-day horizon for customers with ≥2 orders (extrapolation), else 1 projected order (conservative). This avoids wild predictions for new customers.
+  · Cohort retention counts a customer as "active" in any month where they placed an order (using a Set of YYYY-MM keys). firstOrderAt is also counted as active month even if no Order row exists (defensive — some customers may have firstOrderAt set without a matching Order record due to legacy data).
+  · Cohort window is last N months — cohorts older than window are excluded. maxOffset per cohort = months from cohort month to current month, capped at months-1. So latest cohort only shows M0, older cohorts show M0..M_n.
+  · Seasonal byHour shows hours 6-22 only when there's data in that range (typical business hours). Falls back to all 24 hours if no data in 6-22 range. Improves chart readability.
+  · BCG matrix uses median (not mean) as the high/low threshold for revenue and marginPct — median is robust to outliers (a single top-selling product would skew the mean). Median computed only from products with revenue > 0 to avoid diluting the split with unsold products.
+  · BCG scatter uses 4 separate Scatter series (one per quadrant) instead of single Scatter with Cell colors — enables the Legend to show quadrant names with color swatches, and supports hover isolation per quadrant.
+  · ZAxis range [40, 360] for bubble sizes — keeps small products visible (min 40px area) while preventing huge bubbles from obscuring others. unitsSold clamped to min 20 to avoid degenerate cases.
+  · Heatmap cells use semantic colors (emerald/amber/rose/stone) matching the BCG palette philosophy — green = healthy retention, red = concerning. Cell shows both % and absolute count for context. `heatmap-cell` class adds scale(1.05) on hover for tactile feedback.
+  · Sticky first column in cohort heatmap (bg-card z-10) — keeps cohort label visible when scrolling horizontally through month columns.
+  · Sticky table header in product performance table (max-h-560px overflow-y-auto) — keeps column headers visible when scrolling through many products.
+  · All chart containers use `chart-animate` class for entrance animation (0.5s ease-out fade+translateY) — subtle but adds polish when switching tabs.
+  · StatCard "accent" prop reused for semantic coloring: teal=neutral/info, success=healthy, warning=concerning, orange=insight, stone=neutral-data. Same palette as existing overview metrics.
+  · `table-row-hover` added to SectionCard root (not as a wrapper prop) — globally enables hover effect for all tables inside SectionCards. Class is scoped to `tbody tr` so non-table content is unaffected. This is a non-breaking enhancement.
+  · Cohort avgM1/M3/M6 summary averages only over cohorts that HAVE a retention point at that offset with activeCustomers > 0 — avoids penalizing the average with cohorts that haven't reached that month yet (e.g. M6 only exists for cohorts ≥6 months old).
+  · Indonesian localization preserved: month names (Jan..Des), day names (Senin..Minggu), all UI labels in Indonesian (Pelanggan, Omzet, Profit, Margin, Hari Aktif, Prediksi CLV, etc.). Matches existing Insights section voice.
+
+---
+Task ID: 20-A
+Agent: full-stack-developer (Notification Center)
+Task: Build Notification model + API + Notifikasi section with history, mark-as-read, preferences. Enhance topbar bell.
+
+Work Log:
+- Read worklog.md (last 3 entries: 19-B SW + Styling, 19-A Export/Import, 19 Cron Round 7). Read 7 pattern files: constants.ts (SectionKey, SECONDARY_NAV), store.ts (useAppStore, getActiveBrand), auth.ts (getUserId), db.ts (Prisma client), topbar.tsx (bell dropdown with derived notifications from dashboard), api/dashboard/route.ts (low stock + pending payments + stale leads + recent research queries), prisma/schema.prisma (Goal/CreditRate/User models). Confirmed `getUserId(req)` + brand.userId ownership pattern, `api()` client helper, TanStack Query patterns, PageHeader/StatCard/EmptyState/SectionCard primitives, Switch + Tabs + ScrollArea shadcn components available.
+- A. Schema: Edited `prisma/schema.prisma`:
+  · Added `notifications Notification[]` to User model (line 31).
+  · Added `Notification` model after Goal, before CreditRate (lines 410-428). Fields: id (cuid), userId, brandId (nullable for system-wide), type, title, message, severity (info/warning/success/error, default info), readAt (nullable), actionUrl, actionLabel, metadata (JSON string), createdAt. Two indexes: `@@index([userId])` and `@@index([userId, readAt])`. Relation: `user User @relation(fields: [userId], references: [id], onDelete: Cascade)`.
+  · Ran `bun run db:push` → "Your database is now in sync with your Prisma schema" (47ms). Prisma Client regenerated.
+- B. Notifications API (4 routes):
+  · `src/app/api/notifications/route.ts` (~170 lines) — GET list (?unreadOnly=true&brandId=Y&limit=N, defaults 50 capped 200) returns `{ notifications: [...with read:bool], unreadCount, total }`. POST create validates type against `NOTIFICATION_TYPES` enum + severity against `NOTIFICATION_SEVERITIES` enum; optional brandId ownership check; title truncated 200 chars, message 1000. Returns 201 with `{ notification }`.
+  · `src/app/api/notifications/[id]/route.ts` (~100 lines) — PATCH `{ read: boolean }` sets readAt to now() (read) or null (unread), ownership check. DELETE ownership check + 204.
+  · `src/app/api/notifications/read-all/route.ts` (~30 lines) — POST bulk mark-read via `db.notification.updateMany({ where: { userId, readAt: null }, data: { readAt: now } })`. Optional `?brandId` scope. Returns `{ updated: N }`.
+  · `src/app/api/notifications/generate/route.ts` (~220 lines) — POST scans dashboard data in parallel (low stock products, pending payments > 2 days, stale leads > 3 days, recent research last 24h, achieved goals). `buildDedupIndex()` fetches UNREAD notifications for user+brand, parses metadata JSON for referenceId, builds Map<type, Set<referenceId>> for O(1) dedup. Per-type preference filter (opt-out model: undefined → true, false → skip). Dedup rule: skip if same type+referenceId already UNREAD. Bulk create via `createMany`. Returns `{ generated, duplicates, scanned: {...} }`.
+- C. Preferences API — `src/app/api/notification-preferences/route.ts` (~100 lines):
+  · Per spec, preferences stored CLIENT-SIDE in localStorage to avoid another schema migration. This API provides a server-side mirror via long-lived cookie (`nw_notif_prefs`, 1 year, lax same-site, httpOnly=false so client can also read).
+  · GET — returns prefs from cookie (or DEFAULT_PREFERENCES if absent).
+  · PATCH — accepts partial NotificationPreferences, merges with current cookie, validates each key (only booleans for known keys; garbage ignored), sets cookie, returns merged object.
+  · Shape: 8 type flags (lowStock, paymentPending, staleLead, researchCompleted, goalAchieved, orderNew, campaignSent, system) + 2 channel flags (emailEnabled, pushEnabled). Defaults: all true.
+- D. Notifikasi section — `src/sections/nw/notifikasi-section.tsx` (~700 lines):
+  · 3 tabs: Semua / Belum Dibaca / Preferensi. PageHeader with "Tandai Semua Dibaca" + "Generate Notifikasi" buttons. 4 StatCards (Total, Belum Dibaca, Hari Ini, Minggu Ini).
+  · Notification cards: severity-colored icon circle (teal/amber/emerald/rose), bold title (unread) or medium (read), message line-clamped, type badge, time-ago, "Baru" badge if unread, action button → setSection, mark-read toggle (Check/Circle), delete (Trash2). Card click → mark read + navigate. ScrollArea max 68vh.
+  · Preferensi tab: SectionCard "Jenis Notifikasi" (8 toggle Switches per type) + SectionCard "Channel Pengiriman" (Email + Push Notification switches, both labeled demo). localStorage persistence (`nw_notif_prefs_v1`) with API cookie mirror sync (fire-and-forget PATCH).
+  · Empty states: distinct for "all" (suggests Generate) vs "unread" (congratulates). TanStack Query + mutations invalidate `["notifications"]` queries. All copy in Indonesian.
+- E. Topbar enhancement — `src/components/nw/topbar.tsx`:
+  · Added `useMutation` + `useQueryClient` imports + `Sparkles, ArrowRight, RefreshCw` icons.
+  · Added `useQuery` for `/api/notifications?unreadOnly=true&limit=1` (60s refetch) — drives persistent badge count.
+  · Added `useMutation` for `/api/notifications/generate` — invalidates notifications queries + toast (3 cases: generated > 0, duplicates > 0, neither).
+  · Badge: `unread = Math.max(visibleNotifications.length, persistentUnread)` — takes larger of derived vs persistent so badge never under-reports.
+  · Dropdown: header shows "N baru" teal pill when persistentUnread > 0. Body handles 3 cases: no alerts at all, derived alerts visible, only persistent alerts (special "N notifikasi belum dibaca" message with link). Footer: 50/50 button row — "Generate" (ghost stone, Sparkles) + "Lihat Semua" (ghost teal, ArrowRight → setSection("notifikasi")).
+  · `dismissAll()` now dual-action: session-dismiss derived (existing) + call `/api/notifications/read-all` POST for persistent set.
+- F. Page routing — `src/app/page.tsx`: added `NotifikasiSection` import + render branch `{section === "notifikasi" && <NotifikasiSection />}`.
+- G. Constants — `src/lib/constants.ts`: added `"notifikasi"` to SectionKey type + `{ key: "notifikasi", label: "Notifikasi", icon: "🔔" }` to SECONDARY_NAV (between Credit and Pengaturan). Sidebar auto-picks up.
+- Verification: lint 0 errors/0 warnings (initial 1 warning about unused eslint-disable directive fixed by removing the directive since the rule wasn't actually firing). tsc 0 errors. All API endpoints verified via curl (list, create, mark-read, read-all, delete, generate with/without preferences, error cases 400/404). Dev server HTTP 200, no compile errors.
+- Wrote agent-ctx record at `/home/z/my-project/agent-ctx/20-A-notification-center.md`.
+
+Stage Summary:
+- Files created: `prisma/schema.prisma` (Notification model — schema only, not new file), `src/app/api/notifications/route.ts`, `src/app/api/notifications/[id]/route.ts`, `src/app/api/notifications/read-all/route.ts`, `src/app/api/notifications/generate/route.ts`, `src/app/api/notification-preferences/route.ts`, `src/sections/nw/notifikasi-section.tsx`, `agent-ctx/20-A-notification-center.md`.
+- Files edited: `prisma/schema.prisma` (+19 lines: Notification model + User.notifications relation), `src/lib/constants.ts` (+2 lines: SectionKey + SECONDARY_NAV), `src/app/page.tsx` (+2 lines: import + render branch), `src/components/nw/topbar.tsx` (+~70 lines: 2 new queries/mutations, enhanced dropdown).
+- Decisions:
+  · Dedup rule: UNREAD + same type+referenceId (from metadata.referenceId). Read notifications can be re-generated — useful after mark-as-unread or after fixing the underlying issue.
+  · Preferences: localStorage primary (client source of truth), cookie mirror on server (for future email/push features). `/api/notifications/generate` reads preferences from request body — client sends from localStorage. No schema migration needed.
+  · `createMany` for batch insert in generate endpoint — single INSERT for efficiency.
+  · Badge = max(derived, persistent) — never under-reports. If user has 5 unread in DB and 3 derived alerts on screen, badge shows 5.
+  · Dismiss-all dual action: session-dismiss derived + call /api/notifications/read-all for persistent set.
+  · Severity colors: teal/amber/emerald/rose — no indigo/blue per design rules.
+  · Mobile-friendly: unread dot shown inline next to title on mobile (left-side dot hidden on sm:hidden); card padding tighter on mobile.
+  · Fire-and-forget prefs sync: syncPrefsMut is non-blocking; client localStorage updated immediately on toggle (optimistic). API failure is non-fatal.
+  · actionUrl maps to SectionKey via URL_TO_SECTION map; action button only renders if actionUrl + actionLabel + valid section all present (defensive).
+- Lint: 0 errors, 0 warnings. tsc: 0 errors. Dev server: HTTP 200, no compile errors, all API routes respond correctly. Notification model synced to SQLite via db:push.
+
+---
+Task ID: 20
+Agent: main (Z.ai Code) — Cron Review Round 8
+Task: QA, add Notification Center + Advanced Analytics (CLV, Cohort, Seasonal, BCG) + styling polish
+
+Work Log:
+- **Assessment**: Read worklog (1190 lines, 19 prior task entries). Project stable after Round 7 (12 sections, Export/Import, Service Worker, styling polish). Identified next priorities: Notification Center, Advanced Analytics, more styling.
+- **QA via agent-browser**: Verified all 12 sections present, search works. Confirmed app stable.
+- **Notification Center (delegated to subagent 20-A)**:
+  - New Prisma `Notification` model (type, title, message, severity, readAt, actionUrl, metadata). Added to User. Ran db:push.
+  - 4 new API routes: `/api/notifications` (GET list + POST create), `/api/notifications/[id]` (PATCH mark read/unread + DELETE), `/api/notifications/read-all` (POST bulk), `/api/notifications/generate` (POST scan dashboard → create dedup notifications).
+  - New `/api/notification-preferences` (GET + PATCH) — stored in cookie + localStorage.
+  - New Notifikasi section (13th) with 3 tabs: Semua (list), Belum Dibaca (filter), Preferensi (8 type toggles + email/push).
+  - Enhanced topbar bell: shows persistent + derived count, "Generate" button, "Lihat Semua" link.
+  - Verified: Generate creates 1 notification, "Belum Dibaca 1" tab badge appears.
+- **Advanced Analytics (delegated to subagent 20-B)**:
+  - 4 new API routes under `/api/analytics/`:
+    - `/clv` — Customer Lifetime Value (avgCLV, top 10 customers with predictedCLV, distribution buckets, retention rate, avg days between orders)
+    - `/cohort` — Cohort retention (group by first-order month, M0/M1/M2 retention rates)
+    - `/seasonal` — Seasonal trends (12-month, day-of-week, hour-of-day patterns, best/worst month, peak day/hour)
+    - `/products` — Product performance + BCG matrix (star/cash_cow/question_mark/dog classification using median split)
+  - Enhanced Insights section with 5 tabs: Overview (existing), CLV, Cohort (heatmap), Seasonal (3 charts), Produk (BCG scatter + table).
+  - Verified: CLV shows Avg CLV Rp 30rb, 50% retention, top customers table. Cohort shows M0/M1 heatmap. All tabs render.
+- **Styling Polish (subagent 20-B)**:
+  - New CSS: `.chart-animate` (entrance animation), `.table-row-hover` (teal-tinted row hover), `.heatmap-cell` (scale-on-hover).
+  - Applied `table-row-hover` to SectionCard root.
+
+Stage Summary:
+- **Notification Center**: New 🔔 section (13th) with persistent notifications, mark-as-read, generate-from-data, preferences. Bell dropdown enhanced with persistent + derived counts.
+- **Advanced Analytics**: 4 new analytics APIs + 4 new Insights tabs (CLV, Cohort heatmap, Seasonal trends, Product BCG matrix). Total Insights tabs: 5.
+- **Styling**: Chart entrance animations, table row hover effects, heatmap cell interactions.
+- **Lint**: 0 errors, 0 warnings. **tsc**: 0 errors. **Dev server**: running on port 3000, HTTP 200.
+- **Total sections**: 13 (Beranda, Insights, Produk, Riset, Konten, Toko, Keuangan, Kalender, Credit, Notifikasi, Pengaturan, Bantuan, Aktivitas).
+- **Files created**: 6 API routes (4 notifications + 1 preferences + 4 analytics), notifikasi-section.tsx.
+- **Files edited**: prisma/schema.prisma (Notification model), constants.ts (Notifikasi nav), page.tsx (route + Notifikasi), topbar.tsx (bell enhancement), insights-section.tsx (5 tabs), globals.css (chart + table + heatmap CSS), primitives.tsx (table-row-hover).
+
+Unresolved issues / risks:
+- LLM API token still unavailable — all AI features use fallbacks (unchanged).
+- Notification generation is manual (user clicks "Generate"). Could be automated via cron job.
+- Cohort analysis limited by data volume (needs multiple months of orders for meaningful retention curves).
+- BCG matrix uses median split (not industry benchmarks) — classification is relative to this brand's own products.
+
+Priority recommendations for next phase:
+- Automate notification generation via cron job (hourly scan).
+- Product image upload (file upload to storage).
+- Real WhatsApp integration for Campaigns.
+- Multi-user collaboration (multiple users per brand with role-based permissions).
+- Extend global search to include Research, Campaigns, Goals, Notifications.
+- Add background sync for offline form submissions.
+- Export analytics reports as PDF.

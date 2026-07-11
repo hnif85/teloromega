@@ -403,3 +403,34 @@ html { scroll-behavior: smooth; }
   background: rgba(13, 148, 136, 0.2);
   color: #171412;
 }
+
+/* ── Chart & table polish (Task 20-B) ────────────────────────────────────
+   Chart entrance animation, table row hover, heatmap cell interactions. */
+
+/* Chart entrance animation */
+@keyframes chart-draw {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.chart-animate { animation: chart-draw 0.5s ease-out; }
+
+/* Table row hover effect */
+.table-row-hover tbody tr {
+  transition: background-color 0.15s ease;
+}
+.table-row-hover tbody tr:hover {
+  background-color: rgba(13, 148, 136, 0.04);
+}
+
+/* Heatmap cell animation */
+@keyframes heatmap-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+.heatmap-cell {
+  transition: transform 0.15s ease;
+}
+.heatmap-cell:hover {
+  transform: scale(1.05);
+  z-index: 1;
+}

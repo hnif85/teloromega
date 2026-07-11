@@ -6,7 +6,7 @@ import { getUserId } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY!;
 
 export async function POST(
   req: NextRequest,
@@ -60,7 +60,7 @@ export async function POST(
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${SUPABASE_KEY}`,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         },
         body: uploadForm,
       }

@@ -2,11 +2,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/auth";
+import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY!;
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+);
 
 export async function POST(
   req: NextRequest,
@@ -17,7 +20,6 @@ export async function POST(
 
   const { id } = await params;
 
-  // Verify product ownership
   const product = await db.product.findUnique({
     where: { id },
     include: { brand: { select: { userId: true } } },
@@ -51,36 +53,28 @@ export async function POST(
   const filePath = `${userId}/${product.id}.${ext}`;
 
   try {
-    // Upload via raw Supabase Storage REST API
-    const uploadForm = new FormData();
-    uploadForm.append("file", file);
+    const { error: uploadError } = await supabase.storage
+      .from("product-images")
+      .upload(filePath, file, {
+        upsert: true,
+        contentType: file.type,
+      });
 
-    const res = await fetch(
-      `${SUPABASE_URL}/storage/v1/object/product-images/${filePath}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-        body: uploadForm,
-      }
-    );
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "unknown");
-      console.error("[product-image] upload failed:", res.status, errText);
+    if (uploadError) {
+      console.error("[product-image] upload failed:", uploadError.message);
       return NextResponse.json({ error: "gagal upload gambar" }, { status: 500 });
     }
 
-    const imageUrl = `${SUPABASE_URL}/storage/v1/object/public/product-images/${filePath}`;
+    const { data: urlData } = supabase.storage
+      .from("product-images")
+      .getPublicUrl(filePath);
 
-    // Update product with new image URL
     await db.product.update({
       where: { id },
-      data: { imageUrl },
+      data: { imageUrl: urlData.publicUrl },
     });
 
-    return NextResponse.json({ imageUrl });
+    return NextResponse.json({ imageUrl: urlData.publicUrl });
   } catch (err: any) {
     console.error("[product-image] error:", err);
     return NextResponse.json({ error: "gagal upload gambar" }, { status: 500 });

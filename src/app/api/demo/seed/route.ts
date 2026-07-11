@@ -680,47 +680,80 @@ export async function POST(req: NextRequest) {
     ]);
 
     // ════════════════════════════════════════════════════════════════════
-    // 7) CONTENT (3) — caption × 2 (IG, TikTok), gambar × 1 (TikTok)
+    // 7) CONTENT (10) — gambar × 7, video × 1, caption × 2
     // ════════════════════════════════════════════════════════════════════
-    const [c1, c2, c3] = await Promise.all([
+    const pic = (seed: string) => `https://picsum.photos/seed/${seed}/512/512`;
+    const [c1, c2, c3, c4, c5, c6, c7, c8, c9, c10] = await Promise.all([
+      // ── Gambar (7) ──────────────────────────────────────────────────
       db.content.create({
-        data: {
-          brandId,
-          productId: keripik.id,
-          type: "caption",
-          body:
-            "Hai Sob! 🔥 Yuk cobain Keripik Singkong Pedas level 3 kami — renyahnya juara, pedasnya nampol! 🌶️\n\n" +
-            "Perfect banget buat nemenin ngopi sore atau maraton Netflix malam. Stok 80 pack ready, langkah buruan checkout sebelum habis! 🏃‍♂️💨\n\n" +
-            "Hanya Rp 15.000/pack. DM atau WA aja ya kak 📲\n\n" +
-            "#keripikpedas #cemilansiang #jajananviral #pedasbanget #keripikviral",
-          platform: "Instagram",
-          createdAt: daysAgo(10, 12, 0),
-        },
+        data: { brandId, productId: keripik.id, type: "gambar",
+          assetUrl: pic("keripikpedas1"),
+          body: "Siapa yang kuat level 3? 🔥🌶️ Keripik Singkong Pedas kami bukan mainan — renyah, gurih, pedasnya nempel di lidah! Cocok buat nemenin sore sambil ngopi atau ngemil santai.\n\n#keripikpedas #pedasviral #snackindo #keripiksingkong",
+          platform: "Instagram", createdAt: daysAgo(10, 12, 0) },
       }),
       db.content.create({
-        data: {
-          brandId,
-          productId: basreng.id,
-          type: "gambar",
-          assetUrl: svgPlaceholder("Basreng Keju 🧀", "#FB923C"),
-          body: "Visual AI untuk post TikTok — Basreng Keju dengan tagline 'Renyah, Lumer, Nagih!'",
-          platform: "TikTok",
-          createdAt: daysAgo(7, 15, 0),
-        },
+        data: { brandId, productId: basreng.id, type: "gambar",
+          assetUrl: pic("basrengkeju1"),
+          body: "Basreng Keju — perpaduan sempurna antara gurihnya basreng dan lumer nya keju! 🧀✨ Satu gigitan langsung nagih.\n\n#basrengkeju #snackviral #cemilankekinian #jajanmurah",
+          platform: "TikTok", createdAt: daysAgo(9, 14, 0) },
       }),
       db.content.create({
-        data: {
-          brandId,
-          productId: makaroni.id,
-          type: "caption",
-          body:
-            "Cemilan anak kos paling worth it! 🍝🔥 Makaroni Melting kami dijamin nagih — renyah di luar, melting di dalam.\n\n" +
-            "Cuma Rp 12rb udah dapet rasa bintang 5 ⭐⭐⭐⭐⭐\n\n" +
-            "Yang udah cobain komen di bawah ya! 👇\n\n" +
-            "#makaronimelting #cemilankos #jajananmurah #pedasviral",
-          platform: "TikTok",
-          createdAt: daysAgo(3, 18, 0),
-        },
+        data: { brandId, productId: makaroni.id, type: "gambar",
+          assetUrl: pic("makaroni1"),
+          body: "Makaroni Melting favorit sejuta umat! 🍝 Renyah di luar, lumer di dalem. Auto repeat order tiap minggu. Cobain deh!\n\n#makaronimelting #snackpedas #pedasmurah #makaroniviral",
+          platform: "Instagram", createdAt: daysAgo(7, 10, 0) },
+      }),
+      db.content.create({
+        data: { brandId, productId: keripik.id, type: "gambar",
+          assetUrl: pic("chips1"),
+          body: "Paket hemat 3 rasa — Pedas, Balado, BBQ. Tinggal pilih mood kamu hari ini! 💥 Cuma Rp 15rb-an udah dapet 3 varian.\n\n#pakethemat #snackbox #hadiahunik #oleholeh",
+          platform: "Facebook", createdAt: daysAgo(5, 16, 0) },
+      }),
+      db.content.create({
+        data: { brandId, productId: basreng.id, type: "gambar",
+          assetUrl: pic("snackbox1"),
+          body: "Mau ngirim hadiah buat temen? Snack Box spesial dari kami solusinya 🎁✨ Isinya full snack best-seller, packaging kece, siap kirim seluruh Indonesia!\n\n#snackbox #giftideas #hadiahunik #boxsnack",
+          platform: "Instagram", createdAt: daysAgo(4, 9, 0) },
+      }),
+      db.content.create({
+        data: { brandId, productId: makaroni.id, type: "gambar",
+          assetUrl: pic("pedas1"),
+          body: "Yang suka pedes merapat! 🔥 Makaroni level max — pedesnya bikin merinding tapi nagih pol! Berani coba? Share foto kamu makan ini ya!\n\n#pedasbanget #tantanganpedas #makaroniviral #makanpedas",
+          platform: "TikTok", createdAt: daysAgo(2, 20, 0) },
+      }),
+      db.content.create({
+        data: { brandId, productId: keripik.id, type: "gambar",
+          assetUrl: pic("snackdisplay1"),
+          body: "Ready stok penuh nih! 📦 Cek etalase kami buat liat semua varian. Bisa custom isi juga lho — cocok buat jualan lagi atau hampers.\n\n#readyStok #grosirSnack #snackmurah #etalasesnack",
+          platform: "Instagram", createdAt: daysAgo(1, 11, 0) },
+      }),
+      // ── Video Script (1) ────────────────────────────────────────────
+      db.content.create({
+        data: { brandId, productId: keripik.id, type: "video",
+          body: JSON.stringify({
+            script: "Video 24 detik review Keripik Singkong Pedas level 3 — opening dengan reaksi pedas, close-up kerenyahan, dan CTA di akhir.",
+            scenes: [
+              { duration_sec: 3, visual: "Close-up tangan buka kemasan keripik, slow motion", voiceover: "Wait... ini pedas banget gak sih?", text_overlay: "Level 3 🔥" },
+              { duration_sec: 5, visual: "Shot keripik diangkat, lighting dramatis, tekstur renyah terlihat jelas", voiceover: "Lihat teksturnya — renyah maksimal, bukan keripik biasa!", text_overlay: "" },
+              { duration_sec: 6, visual: "Seseorang makan, reaksi kaget tapi senang, mata melebar", voiceover: "Pedasnya nampol tapi nagih! Sekali coba pasti repeat.", text_overlay: "Nampol! 🌶️" },
+              { duration_sec: 5, visual: "B-roll berbagai varian di meja dengan dekorasi estetik", voiceover: "Ada level 1, 2, 3. Semua pakai resep rumahan asli.", text_overlay: "3 Level Pedas" },
+              { duration_sec: 5, visual: "CTA dengan logo brand, nomor WA, dan produk display", voiceover: "Pesan sekarang! Stok terbatas tiap batch. DM/WA ya kak 👆", text_overlay: "DM/WA Sekarang!" },
+            ],
+            hashtags: ["#keripikpedas", "#reviewmakanan", "#fyp", "#snackviral", "#umkm"],
+            hooks: ["Wait... ini pedas banget?", "Keripik singkong tapi level dewa?", "Jangan salah pilih level!", "Ini snack paling berbahaya yang pernah ada 😱"],
+          }),
+          platform: "TikTok", createdAt: daysAgo(6, 19, 0) },
+      }),
+      // ── Caption (2) ─────────────────────────────────────────────────
+      db.content.create({
+        data: { brandId, productId: keripik.id, type: "caption",
+          body: "Hai Sob! 🔥 Yuk cobain Keripik Singkong Pedas level 3 kami — renyahnya juara, pedasnya nampol! 🌶️\n\nPerfect banget buat nemenin ngopi sore atau maraton Netflix malam. Stok 80 pack ready, buruan checkout sebelum habis! 🏃‍♂️💨\n\nHanya Rp 15.000/pack. DM atau WA aja ya kak 📲\n\n#keripikpedas #cemilansiang #jajananviral #pedasbanget #keripikviral",
+          platform: "Instagram", createdAt: daysAgo(10, 12, 0) },
+      }),
+      db.content.create({
+        data: { brandId, productId: makaroni.id, type: "caption",
+          body: "Cemilan anak kos paling worth it! 🍝🔥 Makaroni Melting kami dijamin nagih — renyah di luar, melting di dalam.\n\nCuma Rp 12rb udah dapet rasa bintang 5 ⭐⭐⭐⭐⭐\n\nYang udah cobain komen di bawah ya! 👇\n\n#makaronimelting #cemilankos #jajananmurah #pedasviral",
+          platform: "TikTok", createdAt: daysAgo(3, 18, 0) },
       }),
     ]);
 
@@ -855,7 +888,7 @@ export async function POST(req: NextRequest) {
       orders: 6,
       payments: 4, // p1-p4 (o5 and o6 have no payment)
       transactions: 3 + 3, // 3 income (t1-t3) + 3 manual expenses
-      content: 3, // c1-c3
+      content: 10, // c1-c10 (7 gambar, 1 video, 2 caption)
       inbox: 3, // msgA1, msgA2, msgB1
       research: 1,
       campaigns: 1,
@@ -866,7 +899,7 @@ export async function POST(req: NextRequest) {
     // are only read inside this function for id references above.
     void [
       paketFoto, o5, o6, p1, p2, p3, p4, t1, t2, t3,
-      expBahan, expOperasional, expMarketing, c1, c2, c3,
+      expBahan, expOperasional, expMarketing, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10,
       msgA1, msgA2, msgB1, ctxKonten, ctxToko, ctxKeuangan, leadSiti,
     ];
 

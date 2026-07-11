@@ -1,41 +1,17 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/lib/store";
 import { api } from "@/lib/api";
-import { Sidebar } from "@/components/nw/sidebar";
-import { Topbar } from "@/components/nw/topbar";
-import { OnboardingDialog } from "@/components/nw/onboarding";
-import { OnboardingTour } from "@/components/nw/onboarding-tour";
-import { SectionTransition } from "@/components/nw/section-transition";
-import { CommandPalette } from "@/components/nw/command-palette";
 import { LoginScreen } from "@/components/nw/login-screen";
-import { BerandaSection } from "@/sections/nw/beranda-section";
-import { InsightsSection } from "@/sections/nw/insights-section";
-import { ProdukSection } from "@/sections/nw/produk-section";
-import { RisetSection } from "@/sections/nw/riset-section";
-import { KontenSection } from "@/sections/nw/konten-section";
-import { TokoSection } from "@/sections/nw/toko-section";
-import { KeuanganSection } from "@/sections/nw/keuangan-section";
-import { CreditSection } from "@/sections/nw/credit-section";
-import { PengaturanSection } from "@/sections/nw/pengaturan-section";
-import { BantuanSection } from "@/sections/nw/bantuan-section";
-import { AktivitasSection } from "@/sections/nw/aktivitas-section";
-import { NotifikasiSection } from "@/sections/nw/notifikasi-section";
 import { Skeleton } from "@/components/ui/skeleton";
-import { OfflineIndicator } from "@/components/nw/offline-indicator";
 
 export default function Home() {
-  const {
-    hydrated,
-    isLoggedIn,
-    section,
-    setSession,
-    setHydrated,
-    onboardingOpen,
-  } = useAppStore();
+  const { hydrated, isLoggedIn, setSession, setHydrated } = useAppStore();
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   useEffect(() => {
     let cancelled = false;
@@ -46,7 +22,9 @@ export default function Home() {
           brands: any[];
           activeBrandId: string | null;
         }>("/api/init");
-        if (!cancelled) setSession(s);
+        if (!cancelled) {
+          setSession(s);
+        }
       } catch (e) {
         if (!cancelled) setHydrated(true);
       }
@@ -56,12 +34,18 @@ export default function Home() {
     };
   }, []);
 
-  // Clear all cached queries when user logs out — prevents 401s from stale queries
   useEffect(() => {
     if (!isLoggedIn) {
       queryClient.clear();
     }
   }, [isLoggedIn, queryClient]);
+
+  // Redirect to dashboard once logged in
+  useEffect(() => {
+    if (hydrated && isLoggedIn) {
+      router.replace("/beranda");
+    }
+  }, [hydrated, isLoggedIn, router]);
 
   if (!hydrated) {
     return (
@@ -79,56 +63,14 @@ export default function Home() {
     );
   }
 
-  // Show login screen when not logged in
   if (!isLoggedIn) {
     return <LoginScreen />;
   }
 
+  // Hydrated + logged in — will redirect in useEffect above
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <div className="flex flex-1">
-        <Sidebar />
-        <div className="flex-1 flex flex-col min-w-0">
-          <Topbar />
-          <main className="flex-1 px-4 md:px-6 py-6 max-w-[1400px] w-full mx-auto">
-            <SectionTransition sectionKey={section}>
-              {section === "beranda" && <BerandaSection />}
-              {section === "insights" && <InsightsSection />}
-              {section === "produk" && <ProdukSection />}
-              {section === "riset" && <RisetSection />}
-              {section === "konten" && <KontenSection />}
-              {section === "toko" && <TokoSection />}
-              {section === "keuangan" && <KeuanganSection />}
-              {section === "credit" && <CreditSection />}
-              {section === "pengaturan" && <PengaturanSection />}
-              {section === "bantuan" && <BantuanSection />}
-              {section === "aktivitas" && <AktivitasSection />}
-              {section === "notifikasi" && <NotifikasiSection />}
-            </SectionTransition>
-          </main>
-        </div>
-      </div>
-      <footer className="mt-auto border-t border-border bg-cream-100/60">
-        <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-4 flex flex-wrap items-center justify-between gap-2 text-xs text-stone">
-          <div className="flex items-center gap-2">
-            <div className="size-5 rounded-md bg-teal text-white text-[10px] font-bold flex items-center justify-center">
-              U
-            </div>
-            <span>© 2026 usahaku.ai · AI Co-pilot untuk UMKM Indonesia</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="hidden sm:inline">v0.1.1 · MVP</span>
-            <span className="flex items-center gap-1">
-              <span className="size-1.5 rounded-full bg-success animate-pulse" />
-              Sistem operasional
-            </span>
-          </div>
-        </div>
-      </footer>
-      {onboardingOpen && <OnboardingDialog />}
-      <OnboardingTour />
-      <CommandPalette />
-      <OfflineIndicator />
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <Skeleton className="h-10 w-40 rounded-xl" />
     </div>
   );
 }

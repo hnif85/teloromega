@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useAppStore, getActiveBrand } from "@/lib/store";
-import { NAV_ITEMS, type SectionKey } from "@/lib/constants";
+import { NAV_ITEMS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { ChevronDown, Plus, Zap } from "lucide-react";
 import {
@@ -17,7 +19,9 @@ import { SidebarThemeToggle } from "@/components/nw/sidebar-theme-toggle";
 import { UserMenu } from "@/components/nw/user-menu";
 
 export function Sidebar() {
-  const { section, setSection, brands, activeBrandId, setActiveBrand, setOnboardingOpen, addBrand } =
+  const pathname = usePathname();
+  const currentSection = pathname.replace(/^\//, "").split("/")[0] || "beranda";
+  const { setSection, brands, activeBrandId, setActiveBrand, setOnboardingOpen, addBrand } =
     useAppStore();
   const activeBrand = getActiveBrand(useAppStore.getState());
   const { toast } = useToast();
@@ -127,17 +131,15 @@ export function Sidebar() {
       {/* Primary nav */}
       <nav data-tour="sidebar-nav" className="sidebar-scroll px-3 flex-1 overflow-y-auto flex flex-col gap-1 pt-2">
         {NAV_ITEMS.map((item) => (
-          <div
+          <Link
             key={item.key}
-            className={navClass(section === item.key)}
-            onClick={() => setSection(item.key as SectionKey)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === "Enter" && setSection(item.key as SectionKey)}
+            href={`/${item.key}`}
+            className={navClass(currentSection === item.key)}
+            onClick={() => setSection(item.key)}
           >
             <span className="text-base">{item.icon}</span>
             <span>{item.label}</span>
-          </div>
+          </Link>
         ))}
       </nav>
 

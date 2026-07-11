@@ -3,35 +3,32 @@
 import { create } from "zustand";
 import type { SectionKey } from "@/lib/constants";
 
+// ── Navigate bridge ──────────────────────────────────────────────────────────
+// Allows the dashboard layout to register a router.push() callback so that
+// store.setSection() navigates the browser URL AND updates the store state.
+// This way all existing code (80+ call sites) works without changes.
+// eslint-disable-next-line prefer-const
+let _navigate: ((path: string) => void) | null = null;
+export function registerNavigate(fn: ((path: string) => void) | null) {
+  _navigate = fn;
+}
+
+/** Convert section key to URL path */
+function sectionToPath(s: SectionKey): string {
+  return `/${s}`;
+}
+/** Convert URL path to section key */
+export function pathToSection(path: string): SectionKey {
+  const key = path.replace(/^\//, "").split("/")[0];
+  // Validate it's a known section — fall back to beranda
+  const known: SectionKey[] = [
+    "beranda", "insights", "produk", "riset", "konten", "toko",
+    "keuangan", "credit", "pengaturan", "bantuan", "aktivitas", "notifikasi",
+  ];
+  return known.includes(key as SectionKey) ? (key as SectionKey) : "beranda";
+}
+
 export interface Brand {
-  id: string;
-  name: string;
-  slug: string;
-  logoUrl: string | null;
-  description: string | null;
-  category: string;
-  toneOfVoice: string;
-  isActive: boolean;
-}
-
-export interface SessionUser {
-  id: string;
-  name: string;
-  email: string;
-  creditBalance: number;
-  toneOfVoice: string;
-  isOnboarded: boolean;
-}
-
-export interface SessionState {
-  user: SessionUser | null;
-  brands: Brand[];
-  activeBrandId: string | null;
-  section: SectionKey;
-  hydrated: boolean;
-  onboardingOpen: boolean;
-  isLoggedIn: boolean;
-  onboardingStep: number;
 
   setSession: (s: { user: SessionUser; brands: Brand[]; activeBrandId: string | null }) => void;
   setSection: (s: SectionKey) => void;
@@ -68,7 +65,10 @@ export const useAppStore = create<SessionState>((set) => ({
       onboardingOpen: !s.user.isOnboarded,
       onboardingStep: s.user.isOnboarded ? 0 : (s.brands.length > 0 ? 2 : 1),
     }),
-  setSection: (s) => set({ section: s }),
+  setSection: (s) => {
+    set({ section: s });
+    _navigate?.(sectionToPath(s));
+  },
   setActiveBrand: (id) => set({ activeBrandId: id }),
   setOnboardingOpen: (open) => set({ onboardingOpen: open }),
   updateCredit: (delta) =>

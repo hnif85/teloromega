@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { compressImage } from "@/lib/image-compress";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -436,7 +438,9 @@ function ProductHeader({
   stats: ProductDetailResponse["stats"];
 }) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
+  const [uploadStage, setUploadStage] = useState<"idle" | "compressing" | "uploading">("idle");
   const [previewUrl, setPreviewUrl] = useState<string | null>(product.imageUrl);
 
   const isBarang = product.type === "barang";
@@ -450,8 +454,18 @@ function ProductHeader({
     if (!file) return;
     setUploading(true);
     try {
+      // Stage 1: Compress
+      setUploadStage("compressing");
+      const compressed = await compressImage(file, {
+        maxSize: 1024,
+        quality: 0.7,
+        maxBytes: 300 * 1024,
+      });
+
+      // Stage 2: Upload
+      setUploadStage("uploading");
       const form = new FormData();
-      form.append("file", file);
+      form.append("file", compressed, compressed.name);
       const r = await api<{ imageUrl: string }>(`/api/products/${product.id}/image`, {
         method: "POST",
         body: form,
@@ -459,10 +473,13 @@ function ProductHeader({
       });
       setPreviewUrl(r.imageUrl);
       queryClient.invalidateQueries({ queryKey: ["product-detail", product.id] });
+      toast({ title: "Foto tersimpan!", description: "Gambar produk berhasil diupload." });
     } catch (err: any) {
-      // silently fail
+      toast({ title: "Gagal upload", description: err?.message ?? "Coba lagi nanti.", variant: "destructive" });
     } finally {
       setUploading(false);
+      setUploadStage("idle");
+      e.target.value = "";
     }
   }
 
@@ -496,7 +513,9 @@ function ProductHeader({
             disabled={uploading}
           />
           {uploading ? (
-            <span className="text-white text-xs font-medium">Uploading...</span>
+            <span className="text-white text-[10px] font-medium text-center px-1">
+              {uploadStage === "compressing" ? "Kompres..." : "Upload..."}
+            </span>
           ) : (
             <ImageIcon className="size-5 text-white" />
           )}

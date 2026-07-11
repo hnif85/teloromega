@@ -2569,6 +2569,8 @@ export function PengaturanSection() {
         return <HubSubView title="Aktivitas" onBack={back}><AktivitasHubContent /></HubSubView>;
       case "target":
         return <HubSubView title="Target Bisnis" onBack={back}><TargetTab /></HubSubView>;
+      case "demo":
+        return <HubSubView title="Data Demo" onBack={back}><DemoTab /></HubSubView>;
       case "bantuan":
         return <HubSubView title="Bantuan" onBack={back}><BantuanHubContent /></HubSubView>;
       case "backup":
@@ -2589,6 +2591,7 @@ export function PengaturanSection() {
     { key: "tone", icon: "🎨", label: "Tone Suara" },
     { key: "aktivitas", icon: "📋", label: "Aktivitas" },
     { key: "target", icon: "🎯", label: "Target Bisnis" },
+    { key: "demo", icon: "🛢️", label: "Data Demo" },
     { key: "bantuan", icon: "❓", label: "Bantuan" },
     { key: "backup", icon: "💾", label: "Backup & Restore" },
   ];

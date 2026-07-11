@@ -2,10 +2,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserId } from "@/lib/auth";
-import { createClient } from "@/utils/supabase/server";
-import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 
 export async function POST(
   req: NextRequest,
@@ -25,7 +26,6 @@ export async function POST(
     return NextResponse.json({ error: "produk tidak ditemukan" }, { status: 404 });
   }
 
-  // Parse multipart form data
   let formData: FormData;
   try {
     formData = await req.formData();
@@ -38,15 +38,12 @@ export async function POST(
     return NextResponse.json({ error: "file wajib diupload" }, { status: 400 });
   }
 
-  // Validate file type
   const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif", "image/avif"];
   if (!allowedTypes.includes(file.type)) {
-    return NextResponse.json({ error: "format file tidak didukung (PNG, JPEG, WebP, GIF, AVIF)" }, { status: 400 });
+    return NextResponse.json({ error: "format file tidak didukung" }, { status: 400 });
   }
 
-  // Validate file size (max 5MB)
-  const maxSize = 5 * 1024 * 1024; // 5MB
-  if (file.size > maxSize) {
+  if (file.size > 5 * 1024 * 1024) {
     return NextResponse.json({ error: "ukuran file maksimal 5MB" }, { status: 400 });
   }
 
@@ -54,28 +51,28 @@ export async function POST(
   const filePath = `${userId}/${product.id}.${ext}`;
 
   try {
-    // Upload to Supabase Storage
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
+    // Upload via raw Supabase Storage REST API
+    const uploadForm = new FormData();
+    uploadForm.append("file", file);
 
-    const { error: uploadError } = await supabase.storage
-      .from("product-images")
-      .upload(filePath, file, {
-        upsert: true,
-        contentType: file.type,
-      });
+    const res = await fetch(
+      `${SUPABASE_URL}/storage/v1/object/product-images/${filePath}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+        },
+        body: uploadForm,
+      }
+    );
 
-    if (uploadError) {
-      console.error("[product-image] upload failed:", uploadError.message);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "unknown");
+      console.error("[product-image] upload failed:", res.status, errText);
       return NextResponse.json({ error: "gagal upload gambar" }, { status: 500 });
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from("product-images")
-      .getPublicUrl(filePath);
-
-    const imageUrl = urlData.publicUrl;
+    const imageUrl = `${SUPABASE_URL}/storage/v1/object/public/product-images/${filePath}`;
 
     // Update product with new image URL
     await db.product.update({

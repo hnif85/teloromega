@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAppStore, getActiveBrand } from "@/lib/store";
 import { api } from "@/lib/api";
 import { PageHeader, EmptyState, SectionCard } from "@/components/nw/primitives";
@@ -166,38 +166,65 @@ export function RisetSection() {
     return researchList[0];
   }, [researchList, selectedId]);
 
-  // Mutation: run new research
-  const mutation = useMutation({
-    mutationFn: (vars: { brandId: string; query: string }) =>
-      api<{ research: ResearchItem; creditBalanceAfter: number }>(
-        "/api/research",
-        { method: "POST", json: vars }
-      ),
-    onSuccess: (data) => {
-      useAppStore.getState().setCredit(data.creditBalanceAfter);
+  // Job tracking for async research flow
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Poll job status every 2 seconds
+  const { data: jobStatus } = useQuery({
+    queryKey: ["research-job", jobId],
+    queryFn: () => api<{ status: string; progress: number; progressMessage: string; isReady: boolean; isFailed: boolean; error?: string }>(`/api/research/job/${jobId}`),
+    enabled: !!jobId,
+    refetchInterval: jobId ? 2000 : false,
+  });
+
+  // When job completes, refresh list & show result
+  useEffect(() => {
+    if (jobStatus?.isReady) {
       qc.invalidateQueries({ queryKey: ["research", activeBrand?.id] });
       qc.invalidateQueries({ queryKey: ["dashboard", activeBrand?.id] });
-      setSelectedId(data.research.id);
+      setJobId(null);
       setQuery("");
       toast.success("Riset selesai", {
         description: "3 context otomatis dibuat untuk konten, toko & keuangan.",
       });
-    },
-    onError: (err: Error & { cause?: { required?: number } }) => {
-      const msg = err.message.toLowerCase();
+      // After research list refreshes, select the newest
+      setTimeout(() => {
+        const fresh = (qc.getQueryData(["research", activeBrand?.id]) as { research: ResearchItem[] } | undefined)?.research;
+        if (fresh?.length) setSelectedId(fresh[0].id);
+      }, 500);
+    }
+    if (jobStatus?.isFailed) {
+      setJobId(null);
+      setIsSubmitting(false);
+      toast.error("Riset gagal", { description: jobStatus.error || "Terjadi kesalahan" });
+    }
+  }, [jobStatus?.isReady, jobStatus?.isFailed]);
+
+  // Submit: create job (instant)
+  const runSearch = async (q: string) => {
+    if (!q.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const res = await api<{ jobId: string; creditBalanceAfter: number }>(
+        "/api/research",
+        { method: "POST", json: { brandId: activeBrand!.id, query: q.trim() } }
+      );
+      useAppStore.getState().setCredit(res.creditBalanceAfter);
+      setJobId(res.jobId);
+    } catch (err: any) {
+      setIsSubmitting(false);
+      const msg = (err.message || "").toLowerCase();
       if (msg.includes("credit") || msg.includes("tidak cukup")) {
         toast.error("Credit tidak cukup", {
           description: `Riset pasar butuh ${COST} credit. Yuk top up dulu.`,
-          action: {
-            label: "Top up",
-            onClick: () => setSection("credit"),
-          },
+          action: { label: "Top up", onClick: () => setSection("credit") },
         });
         return;
       }
       toast.error("Riset gagal", { description: err.message });
-    },
-  });
+    }
+  };
 
   // Build suggestion chips from product names or brand category
   const suggestions = useMemo(() => {
@@ -224,13 +251,10 @@ export function RisetSection() {
     );
   }
 
-  const isGenerating = mutation.isPending;
+  const isGenerating = !!jobId || isSubmitting;
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
-  const runSearch = (q: string) => {
-    if (!q.trim()) return;
-    mutation.mutate({ brandId: activeBrand.id, query: q.trim() });
-  };
+  // runSearch is defined above in the useEffect block
 
   const showSidebar = researchList.length >= 1;
 
@@ -383,8 +407,68 @@ export function RisetSection() {
             </div>
           </SectionCard>
 
-          {/* Loading state — pipeline steps */}
-          {isGenerating && <ResearchSkeleton query={query} />}
+          {/* Progress — live polling from job status */}
+          {isGenerating && (
+            <SectionCard bodyClassName="p-5 space-y-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <RefreshCw className="size-4 animate-spin text-teal" />
+                {jobStatus ? (
+                  <span>
+                    {jobStatus.progressMessage}
+                    <span className="text-teal ml-1">({jobStatus.progress}%)</span>
+                  </span>
+                ) : (
+                  <span>Memulai riset...</span>
+                )}
+              </div>
+              {/* Progress bar */}
+              <div className="h-2 rounded-full bg-cream-200 overflow-hidden">
+                <div
+                  className="h-full bg-teal rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${jobStatus?.progress ?? 5}%` }}
+                />
+              </div>
+              {/* Step indicators */}
+              <div className="space-y-2">
+                {[
+                  { label: "Mencari data web (Tavily)", key: "searching", icon: Search },
+                  { label: "Menganalisis intent", key: "analyzing", icon: Swords },
+                  { label: "Mensintesis dengan AI", key: "synthesizing", icon: Sparkles },
+                  { label: "Menyimpan & membuat context", key: "completed", icon: Sparkles },
+                ].map((step) => {
+                  const done =
+                    jobStatus?.status === "completed" ||
+                    (jobStatus?.status === "synthesizing" && step.key !== "completed") ||
+                    (jobStatus?.status === "analyzing" && (step.key === "searching" || step.key === "analyzing")) ||
+                    (jobStatus?.status === "searching" && step.key === "searching") ||
+                    false;
+                  const active =
+                    jobStatus?.status === step.key;
+                  return (
+                    <div
+                      key={step.key}
+                      className={`flex items-center gap-3 p-2.5 rounded-lg transition-colors ${
+                        active ? "bg-teal-50 border border-teal/30" : done ? "bg-emerald-50/60" : "bg-cream-100/60 opacity-50"
+                      }`}
+                    >
+                      <div className={`size-7 rounded-lg flex items-center justify-center ${
+                        active ? "bg-teal-100 text-teal-600" : done ? "bg-emerald-100 text-emerald-600" : "bg-cream-200 text-stone"
+                      }`}>
+                        <step.icon className={`size-3.5 ${active ? "animate-pulse" : ""}`} />
+                      </div>
+                      <div className="flex-1">
+                        <div className={`text-sm font-medium ${active ? "text-teal" : done ? "text-emerald-700" : "text-stone"}`}>
+                          {step.label}
+                        </div>
+                      </div>
+                      {done && <ChevronRight className="size-4 text-emerald-500" />}
+                      {active && <RefreshCw className="size-4 text-teal animate-spin" />}
+                    </div>
+                  );
+                })}
+              </div>
+            </SectionCard>
+          )}
 
           {/* Empty state — no research at all */}
           {!isGenerating && !selected && (

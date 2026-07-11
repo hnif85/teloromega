@@ -114,6 +114,7 @@ model Research {
   intent      String?  // market_trend | competitor_analysis | keyword_research | pricing
   resultJson  String   // JSON string (SQLite has no native JSON)
   status      String   @default("completed") // pending | completed | failed
+  jobId       String?  // linked ResearchJob (for async flow)
   createdAt   DateTime @default(now())
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -121,6 +122,24 @@ model Research {
   contexts    Context[]
 
   @@index([brandId])
+}
+
+// Async job tracking for research pipeline
+model ResearchJob {
+  id              String   @id @default(cuid())
+  userId          String
+  brandId         String
+  query           String
+  status          String   @default("queued") // queued | searching | analyzing | synthesizing | completed | failed
+  progress        Int      @default(0)  // 0-100
+  progressMessage String   @default("Menunggu...")
+  resultJson      String?  // final ResearchResult (null until completed)
+  error           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
 }
 
 model Context {

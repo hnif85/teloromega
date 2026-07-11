@@ -2,8 +2,9 @@
 // Files/folders prefixed with "_" are ignored by Next.js App Router (not routes).
 
 import { db } from "@/lib/db";
-import { llmJson, webSearch } from "@/lib/ai";
+import { llmJson } from "@/lib/ai";
 import { TONE_MAP, type ToneKey } from "@/lib/constants";
+import { tavilySearch, toSearchResultFormat } from "./_search";
 
 export interface ResearchResult {
   intent: string;
@@ -193,30 +194,31 @@ Berikan minimal 3 target_audience, 3-5 items di setiap array SWOT, 3-5 competito
     );
   } catch (llmErr) {
     console.error("[research] LLM synthesis failed, using fallback:", llmErr instanceof Error ? llmErr.message : "unknown");
-    // Build a fallback result from web search snippets so user gets *something* for their credits
+    // Build fallback from real search snippets + brand context
     const snippets = searchResults.slice(0, 5).map((r) => r.snippet).join(" ");
-    const words = (snippets || "cemilan pedas keripik basreng makaroni").split(/\s+/).filter((w) => w.length > 4);
+    const words = (snippets || query).split(/\s+/).filter((w) => w.length > 4);
     const hotKeywords = Array.from(new Set(words.slice(0, 8).map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, "")))).filter(Boolean);
+    const cat = brand.category || "UMKM";
     raw = {
       intent,
       target_audience: [
-        { name: "Anak Muda", demography: "18-25 thn, kota besar", platform: "TikTok", pain: "Cemilan pedas murah", trigger: "Tren tantangan pedas" },
-        { name: "Mahasiswa", demography: "19-23 thn, kos", platform: "Instagram", pain: "Jajanan hemat", trigger: "Lapar malam" },
-        { name: "Ibu Rumah Tangga", demography: "30-45 thn", platform: "WhatsApp", trigger: "Stok cemilan keluarga" },
+        { name: "Konsumen Utama", demography: `18-35 thn, tertarik ${cat}`, platform: "TikTok", pain: `Butuh ${cat} berkualitas`, trigger: "Tren viral" },
+        { name: "Pemburu Diskon", demography: "20-30 thn, kota besar", platform: "Instagram", pain: "Harga terjangkau", trigger: "Flash sale / promo" },
+        { name: "Pelanggan Setia", demography: "25-45 thn", platform: "WhatsApp", pain: "Produk konsisten", trigger: "Rekomendasi teman" },
       ],
       swot: {
-        strengths: ["Resep rumahan autentik", "Harga terjangkau UMKM", "Rasa pedas khas"],
-        weaknesses: ["Distribusi terbatas", "Belum ada branding kuat"],
-        opportunities: ["Tren cemilan pedas naik", "Channel TikTok berkembang"],
-        threats: ["Kompetitor besar (Maicih, Basreng)", "Harga bahan baku naik"],
+        strengths: ["Produk khas " + cat, "Harga terjangkau", "Fleksibilitas UMKM"],
+        weaknesses: ["Jangkauan terbatas", "Brand awareness rendah", "Kapasitas produksi kecil"],
+        opportunities: [`Tren ${cat} naik di sosmed`, "E-commerce berkembang", "Kemitraan reseller"],
+        threats: ["Kompetitor lebih besar", "Harga bahan baku fluktuatif", "Perubahan tren konsumen"],
       },
       competitors: [
-        { name: "Maicih", price_range: "Rp 15.000-25.000", social_activity: "Tinggi", marketplace_strength: "Kuat", threat_level: "tinggi" },
-        { name: "Basreng Viral", price_range: "Rp 12.000-20.000", social_activity: "Sedang", marketplace_strength: "Sedang", threat_level: "sedang" },
+        { name: `Kompetitor ${cat} 1`, price_range: "Rp 10.000-25.000", social_activity: "Aktif", marketplace_strength: "Kuat", threat_level: "tinggi" },
+        { name: `Kompetitor ${cat} 2`, price_range: "Rp 8.000-15.000", social_activity: "Sedang", marketplace_strength: "Sedang", threat_level: "sedang" },
       ],
       keywords: {
-        hot: hotKeywords.length >= 3 ? hotKeywords : ["cemilanpedas", "keripikviral", "jajananmurah"],
-        stable: ["keripikpedas", "basrengori", "makaronipedas", "cemilansiang"],
+        hot: hotKeywords.length >= 3 ? hotKeywords : [cat.toLowerCase().replace(/\s+/g, ""), "umkmindonesia", "produklokal"],
+        stable: ["belanjahemat", "produkindonesia", "dukungumkm"],
       },
       market_trend: {
         labels: ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun"],
@@ -224,14 +226,14 @@ Berikan minimal 3 target_audience, 3-5 items di setiap array SWOT, 3-5 competito
         stats: { growth_pct: 25, peak: "Jun" },
       },
       content_recommendations: [
-        { title: "Tantangan Level Pedas", platform: "TikTok", angle: "Berani coba level pedas tertinggi?", hashtags: ["#pedasbanget", "#cemilansiang"], best_time: "12-14 WIB" },
-        { title: "Cemilan Hemat Anak Kos", platform: "Instagram", angle: "Rp 10rb udah rame-rame", hashtags: ["#jajananmurah"], best_time: "18-20 WIB" },
+        { title: `Review ${cat} Terbaik`, platform: "TikTok", angle: `Kenapa ${cat} ini layak dicoba`, hashtags: ["#reviewjujur", "#produklokal"], best_time: "12-14 WIB" },
+        { title: "Behind The Scenes Produksi", platform: "Instagram", angle: "Proses pembuatan dari dapur UMKM", hashtags: ["#umkmindonesia", "#buatanlokal"], best_time: "18-20 WIB" },
       ],
       pricing: {
-        market_avg: "Rp 12.000-18.000",
-        lowest: "Rp 8.000",
-        highest: "Rp 25.000",
-        recommendation: "Pertahankan harga di range Rp 12-15rb untuk segmen anak muda.",
+        market_avg: "Rp 10.000-20.000",
+        lowest: "Rp 5.000",
+        highest: "Rp 30.000",
+        recommendation: `Sesuaikan harga dengan kualitas ${cat}, targetkan segmen menengah.`,
       },
     };
   }
@@ -403,20 +405,34 @@ export async function generateContexts(
 /** Run the full research pipeline. Throws on failure. Caller handles refund. */
 export async function runResearchPipeline(
   brand: BrandLite,
-  query: string
+  query: string,
+  onProgress?: (status: string, progress: number, message: string) => Promise<void>
 ): Promise<{ intent: string; result: ResearchResult; searchCount: number }> {
-  // Step 3: web search
-  const searchResults = await webSearch(query, { num: 8, recency_days: 90 });
+  // Step 1: real web search via Tavily
+  await onProgress?.("searching", 10, "Mencari data terbaru di web...");
+  const tavilyResults = await tavilySearch(query, { maxResults: 8, days: 90, depth: "advanced" });
+  const searchResults = toSearchResultFormat(tavilyResults);
 
-  // Step 4: classify intent
+  if (searchResults.length === 0) {
+    // Fallback: generate empty results so pipeline still produces something
+    console.warn("[research] Tavily returned no results for query:", query);
+  }
+
+  await onProgress?.("analyzing", 40, "Menganalisis intent pencarian...");
+
+  // Step 2: classify intent
   const snippets = searchResults
     .slice(0, 5)
     .map((r) => r.snippet)
     .join("\n");
   const intent = await classifyIntent(query, snippets);
 
-  // Step 5: synthesize
+  await onProgress?.("synthesizing", 70, "Mensintesis hasil riset dengan AI...");
+
+  // Step 3: synthesize full research
   const result = await synthesizeResearch(query, intent, brand, searchResults);
+
+  await onProgress?.("completed", 90, "Menyimpan hasil & membuat rekomendasi...");
 
   return { intent, result, searchCount: searchResults.length };
 }

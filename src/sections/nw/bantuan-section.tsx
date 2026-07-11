@@ -38,7 +38,7 @@ interface FAQItem {
 
 const FAQ_ITEMS: FAQItem[] = [
   {
-    q: "Apa itu The Next Whiz?",
+    q: "Apa itu usahaku.ai?",
     a: "Platform AI all-in-one untuk UMKM: riset pasar, generate konten, kelola toko, catat keuangan. Semua modul terintegrasi — hasil riset otomatis jadi ide konten, saran harga, dan proyeksi keuangan.",
   },
   {
@@ -128,8 +128,8 @@ const CONTACTS: ContactItem[] = [
     icon: <Mail className="size-5" />,
     emoji: "📧",
     label: "Email",
-    value: "support@nextwhiz.id",
-    href: "mailto:support@nextwhiz.id",
+    value: "support@usahaku.ai",
+    href: "mailto:support@usahaku.ai",
     accent: "bg-teal-100 text-teal-600",
   },
   {
@@ -145,8 +145,8 @@ const CONTACTS: ContactItem[] = [
     icon: <BookOpen className="size-5" />,
     emoji: "📚",
     label: "Dokumentasi",
-    value: "docs.nextwhiz.id",
-    href: "https://docs.nextwhiz.id",
+    value: "docs.usahaku.ai",
+    href: "https://docs.usahaku.ai",
     external: true,
     accent: "bg-orange-100 text-orange-700",
   },
@@ -342,7 +342,7 @@ export function BantuanSection() {
       <div id="faq" className="scroll-mt-4">
         <SectionCard
           title="Pertanyaan yang Sering Diajukan"
-          desc="Jawaban cepat untuk pertanyaan umum tentang Next Whiz"
+          desc="Jawaban cepat untuk pertanyaan umum tentang usahaku.ai"
           right={
             <Badge variant="outline" className="text-[10px] gap-1">
               <BookOpen className="size-3" /> {FAQ_ITEMS.length} FAQ
@@ -461,11 +461,11 @@ export function BantuanSection() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="size-11 rounded-xl bg-teal text-white font-extrabold flex items-center justify-center text-sm tracking-tight shrink-0">
-              NW
+              U
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-bold text-ink text-sm">The Next Whiz</h3>
+                <h3 className="font-bold text-ink text-sm">usahaku.ai</h3>
                 <Badge variant="outline" className="text-[10px] gap-1 border-teal/30 text-teal">
                   v0.1.1 · MVP
                 </Badge>

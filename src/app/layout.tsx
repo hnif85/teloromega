@@ -20,16 +20,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "The Next Whiz — AI Co-pilot untuk UMKM",
+  title: "usahaku.ai — AI Co-pilot untuk UMKM",
   description:
     "Riset, konten, toko, keuangan — satu platform. Ditenagai AI untuk pemilik usaha kecil Indonesia.",
-  keywords: ["Next Whiz", "UMKM", "AI", "Riset Pasar", "Konten", "Keuangan"],
-  authors: [{ name: "The Next Whiz" }],
+  keywords: ["usahaku", "UMKM", "AI", "Riset Pasar", "Konten", "Keuangan"],
+  authors: [{ name: "usahaku.ai" }],
   manifest: "/manifest.json",
-  applicationName: "The Next Whiz",
+  applicationName: "usahaku.ai",
   appleWebApp: {
     capable: true,
-    title: "The Next Whiz",
+    title: "usahaku.ai",
     statusBarStyle: "default",
   },
   icons: {
@@ -67,7 +67,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="The Next Whiz" />
+        <meta name="apple-mobile-web-app-title" content="usahaku.ai" />
       </head>
       <body
         className={`${manrope.variable} ${geistMono.variable} font-sans antialiased bg-background text-foreground`}

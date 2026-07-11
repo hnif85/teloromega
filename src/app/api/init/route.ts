@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const email = "ibu.ani@nextwhiz.id";
+  const email = "ibu.ani@usahaku.ai";
   let user = await db.user.findFirst({ where: { email } });
   if (!user) {
     user = await db.user.create({

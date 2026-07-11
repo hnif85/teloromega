@@ -10,8 +10,6 @@ import { InboxTab } from "@/sections/nw/toko/inbox-tab";
 import { AiChatTab } from "@/sections/nw/toko/aichat-tab";
 import { LeadsTab } from "@/sections/nw/toko/leads-tab";
 import { OrdersTab } from "@/sections/nw/toko/orders-tab";
-import { PaymentsTab } from "@/sections/nw/toko/payments-tab";
-import { ShippingTab } from "@/sections/nw/toko/shipping-tab";
 import { InventoryTab } from "@/sections/nw/toko/inventory-tab";
 import { CampaignsTab } from "@/sections/nw/toko/campaigns-tab";
 import {
@@ -19,19 +17,15 @@ import {
   Sparkles,
   Users,
   ShoppingCart,
-  CreditCard,
-  Truck,
   Package,
   Megaphone,
 } from "lucide-react";
 
 const TABS = [
   { key: "inbox", label: "Inbox", icon: MessageSquare },
-  { key: "aichat", label: "AI Chat & Template", icon: Sparkles },
+  { key: "aichat", label: "AI Chat", icon: Sparkles },
   { key: "leads", label: "Leads", icon: Users },
   { key: "orders", label: "Orders", icon: ShoppingCart },
-  { key: "payments", label: "Pembayaran", icon: CreditCard },
-  { key: "shipping", label: "Pengiriman", icon: Truck },
   { key: "inventory", label: "Stok", icon: Package },
   { key: "campaigns", label: "Campaign", icon: Megaphone },
 ] as const;
@@ -46,7 +40,7 @@ export function TokoSection() {
   if (!activeBrand) {
     return (
       <div>
-        <PageHeader title="Toko" subtitle="Kelola inbox, leads, order, pembayaran, pengiriman, stok & campaign" icon="🛒" />
+        <PageHeader title="Toko" subtitle="Kelola inbox, leads, order, stok & campaign" icon="🛒" />
         <EmptyState
           icon="🏪"
           title="Belum ada brand"
@@ -61,7 +55,7 @@ export function TokoSection() {
     <div>
       <PageHeader
         title="Toko"
-        subtitle={`Kelola inbox, leads, order, pembayaran, pengiriman, stok & campaign · ${activeBrand.name}`}
+        subtitle={`Kelola inbox, leads, order, stok & campaign · ${activeBrand.name}`}
         icon="🛒"
       />
 
@@ -100,12 +94,6 @@ export function TokoSection() {
         </TabsContent>
         <TabsContent value="orders" className="mt-4">
           <OrdersTab brandId={activeBrand.id} user={user} />
-        </TabsContent>
-        <TabsContent value="payments" className="mt-4">
-          <PaymentsTab brandId={activeBrand.id} user={user} />
-        </TabsContent>
-        <TabsContent value="shipping" className="mt-4">
-          <ShippingTab brandId={activeBrand.id} user={user} />
         </TabsContent>
         <TabsContent value="inventory" className="mt-4">
           <InventoryTab brandId={activeBrand.id} user={user} />

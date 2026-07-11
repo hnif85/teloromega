@@ -155,7 +155,7 @@ export async function GET(req: NextRequest) {
     };
 
     const dateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-    const filename = `nextwhiz-backup-${brand.slug}-${dateStr}.json`;
+    const filename = `usahaku-backup-${brand.slug}-${dateStr}.json`;
 
     return new NextResponse(JSON.stringify(payload, null, 2), {
       status: 200,

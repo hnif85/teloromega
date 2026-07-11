@@ -18,7 +18,6 @@ import { RisetSection } from "@/sections/nw/riset-section";
 import { KontenSection } from "@/sections/nw/konten-section";
 import { TokoSection } from "@/sections/nw/toko-section";
 import { KeuanganSection } from "@/sections/nw/keuangan-section";
-import { KalenderSection } from "@/sections/nw/kalender-section";
 import { CreditSection } from "@/sections/nw/credit-section";
 import { PengaturanSection } from "@/sections/nw/pengaturan-section";
 import { BantuanSection } from "@/sections/nw/bantuan-section";
@@ -100,7 +99,6 @@ export default function Home() {
               {section === "konten" && <KontenSection />}
               {section === "toko" && <TokoSection />}
               {section === "keuangan" && <KeuanganSection />}
-              {section === "kalender" && <KalenderSection />}
               {section === "credit" && <CreditSection />}
               {section === "pengaturan" && <PengaturanSection />}
               {section === "bantuan" && <BantuanSection />}
@@ -114,9 +112,9 @@ export default function Home() {
         <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-4 flex flex-wrap items-center justify-between gap-2 text-xs text-stone">
           <div className="flex items-center gap-2">
             <div className="size-5 rounded-md bg-teal text-white text-[10px] font-bold flex items-center justify-center">
-              NW
+              U
             </div>
-            <span>© 2026 The Next Whiz · AI Co-pilot untuk UMKM Indonesia</span>
+            <span>© 2026 usahaku.ai · AI Co-pilot untuk UMKM Indonesia</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden sm:inline">v0.1.1 · MVP</span>

@@ -1,4 +1,4 @@
-// The Next Whiz — shared constants (mirrors LOGIC_FLOW v0.1.1)
+// usahaku.ai — shared constants (mirrors LOGIC_FLOW v0.1.1)
 
 export const CATEGORIES = [
   "Makanan & Minuman",
@@ -98,15 +98,15 @@ export const NAV_ITEMS: { key: SectionKey; label: string; icon: string }[] = [
   { key: "konten", label: "Konten", icon: "📝" },
   { key: "toko", label: "Toko", icon: "🛒" },
   { key: "keuangan", label: "Keuangan", icon: "💰" },
-  { key: "kalender", label: "Kalender", icon: "📅" },
 ];
 
-export const SECONDARY_NAV: { key: SectionKey; label: string; icon: string }[] = [
+// Profile menu items — shown in user dropdown, not in sidebar
+export const PROFILE_MENU: { key: SectionKey; label: string; icon: string }[] = [
   { key: "credit", label: "Credit", icon: "⚡" },
   { key: "notifikasi", label: "Notifikasi", icon: "🔔" },
+  { key: "aktivitas", label: "Aktivitas", icon: "📋" },
   { key: "pengaturan", label: "Pengaturan", icon: "⚙️" },
   { key: "bantuan", label: "Bantuan", icon: "❓" },
-  { key: "aktivitas", label: "Aktivitas", icon: "📋" },
 ];
 
 export const KONTEN_TYPES = [

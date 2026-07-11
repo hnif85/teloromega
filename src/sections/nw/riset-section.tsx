@@ -775,7 +775,7 @@ function ResearchView({
               <div className="flex items-start gap-2">
                 <Lightbulb className="size-4 text-teal shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-xs font-semibold text-teal-700 mb-1">Rekomendasi The Next Whiz</div>
+                  <div className="text-xs font-semibold text-teal-700 mb-1">Rekomendasi usahaku.ai</div>
                   <div className="text-sm text-ink leading-snug">{r.pricing.recommendation}</div>
                 </div>
               </div>

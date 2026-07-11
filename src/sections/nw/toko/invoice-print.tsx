@@ -602,7 +602,7 @@ export function InvoicePrint({ order, brand, customer }: InvoicePrintProps) {
               fontWeight: 600,
             }}
           >
-            tokoku.nextwhiz.id/{brand.slug}
+            tokoku.usahaku.ai/{brand.slug}
           </div>
         )}
         <div
@@ -612,7 +612,7 @@ export function InvoicePrint({ order, brand, customer }: InvoicePrintProps) {
             marginTop: "8px",
           }}
         >
-          Dokumen ini dihasilkan otomatis oleh The Next Whiz — AI Co-pilot untuk
+          Dokumen ini dihasilkan otomatis oleh usahaku.ai — AI Co-pilot untuk
           UMKM Indonesia.
         </div>
       </div>

@@ -197,7 +197,7 @@ function DashboardHero({
               Halo, {firstName} <span className="inline-block">👋</span>
             </motion.h1>
             <p className="text-sm sm:text-base text-ink-500 mt-1.5 leading-relaxed">
-              Berikut ringkasan <span className="font-semibold text-ink">{brandName}</span> hari ini. Yuk lanjut tumbuhkan usahamu bersama The Next Whiz.
+              Berikut ringkasan <span className="font-semibold text-ink">{brandName}</span> hari ini. Yuk lanjut tumbuhkan usahamu bersama usahaku.ai.
             </p>
           </div>
 
@@ -263,7 +263,7 @@ function DashboardHero({
               transition={{ delay: 0.25, duration: 0.4, type: "spring", stiffness: 200 }}
               className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-14 rounded-2xl bg-teal text-white font-extrabold flex items-center justify-center shadow-lg shadow-teal/30"
             >
-              NW
+              U
             </motion.div>
             {ring.map((node, i) => (
               <motion.div
@@ -505,11 +505,11 @@ export function BerandaSection() {
   if (!activeBrand) {
     return (
       <div>
-        <PageHeader title="Beranda" subtitle="Selamat datang di The Next Whiz" icon="📊" />
+        <PageHeader title="Beranda" subtitle="Selamat datang di usahaku.ai" icon="📊" />
         <EmptyState
           icon="🏪"
           title="Belum ada brand"
-          desc="Buat brand pertama kamu untuk mulai menggunakan semua modul The Next Whiz."
+          desc="Buat brand pertama kamu untuk mulai menggunakan semua modul usahaku.ai."
           action={<Button className="bg-teal hover:bg-teal-600">+ Buat Brand</Button>}
         />
       </div>
@@ -795,7 +795,7 @@ export function BerandaSection() {
               <div className="font-bold text-ink mb-1">Satu data, dipakai di mana saja</div>
               <p className="text-sm text-ink-500 leading-relaxed">
                 Riset, produk, dan transaksi kamu otomatis mengalir ke konten, toko, dan keuangan.
-                Tidak perlu ketik ulang — itu prinsip utama The Next Whiz.
+                Tidak perlu ketik ulang — itu prinsip utama usahaku.ai.
               </p>
               <div className="flex flex-wrap gap-2 mt-3">
                 {(["riset", "konten", "toko", "keuangan"] as SectionKey[]).map((s) => (

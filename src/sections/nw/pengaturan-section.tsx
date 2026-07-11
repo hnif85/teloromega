@@ -271,7 +271,7 @@ function BrandTab() {
             <EmptyState
               icon={<Store className="size-6 text-stone" />}
               title="Belum ada brand"
-              desc="Buat brand pertama kamu untuk mulai menggunakan The Next Whiz."
+              desc="Buat brand pertama kamu untuk mulai menggunakan usahaku.ai."
               action={
                 <Button className="bg-teal hover:bg-teal-600" onClick={() => setAddOpen(true)}>
                   <Plus className="size-4 mr-1" /> Buat Brand Pertama
@@ -315,7 +315,7 @@ function BrandTab() {
                       <Badge variant="outline" className="text-[10px] py-0 h-4">
                         {b.category}
                       </Badge>
-                      <span className="truncate font-mono">tokoku.nextwhiz.id/{b.slug}</span>
+                      <span className="truncate font-mono">tokoku.usahaku.ai/{b.slug}</span>
                     </div>
                   </div>
                   {active && (
@@ -405,7 +405,7 @@ function BrandTab() {
                     URL Toko
                   </div>
                   <div className="text-sm font-mono text-ink truncate">
-                    tokoku.nextwhiz.id/<span className="text-teal font-bold">{slugPreview || "—"}</span>
+                    tokoku.usahaku.ai/<span className="text-teal font-bold">{slugPreview || "—"}</span>
                   </div>
                 </div>
               </div>
@@ -518,7 +518,7 @@ function BrandTab() {
               {aName.trim() && (
                 <div className="text-[11px] text-stone mt-1.5 flex items-center gap-1">
                   <Globe className="size-3 text-teal" />
-                  URL: <span className="font-mono text-teal">tokoku.nextwhiz.id/{slugify(aName)}</span>
+                  URL: <span className="font-mono text-teal">tokoku.usahaku.ai/{slugify(aName)}</span>
                 </div>
               )}
             </div>
@@ -740,7 +740,7 @@ function ProfilTab() {
 
       <SectionCard
         title="Tour Berpanduan"
-        desc="Belum hafal fitur Next Whiz? Jalankan tour 8 langkah untuk kenalan dengan navigasi, brand switcher, credit, command palette, notifikasi, dan theme toggle."
+        desc="Belum hafal fitur usahaku.ai? Jalankan tour 8 langkah untuk kenalan dengan navigasi, brand switcher, credit, command palette, notifikasi, dan theme toggle."
       >
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <div className="size-10 rounded-xl bg-teal-100 text-teal flex items-center justify-center text-xl shrink-0">
@@ -2163,7 +2163,7 @@ function BackupTab() {
       const m = cd.match(/filename="?([^"]+)"?/i);
       const filename =
         m?.[1] ??
-        `nextwhiz-backup-${activeBrand.slug}-${new Date().toISOString().slice(0, 10)}.json`;
+        `usahaku-backup-${activeBrand.slug}-${new Date().toISOString().slice(0, 10)}.json`;
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");

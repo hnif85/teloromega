@@ -40,7 +40,7 @@ interface TourStep {
 
 const STEPS: TourStep[] = [
   {
-    title: "Selamat datang di The Next Whiz! 🎉",
+    title: "Selamat datang di usahaku.ai! 🎉",
     description:
       "Aku akan kenalin kamu ke fitur-fitur utama. Klik 'Lanjut' untuk mulai tour.",
     modal: true,
@@ -55,7 +55,7 @@ const STEPS: TourStep[] = [
     selector: '[data-tour="brand-switcher"]',
     title: "Brand Switcher",
     description:
-      "Brand aktif kamu ada di sini. Klik untuk ganti brand atau buat brand baru. Semua data di Next Whiz di-filter per brand.",
+      "Brand aktif kamu ada di sini. Klik untuk ganti brand atau buat brand baru. Semua data di usahaku.ai di-filter per brand.",
   },
   {
     selector: '[data-tour="credit-button"]',
@@ -278,7 +278,7 @@ export function OnboardingTour() {
                     Mau tour singkat?
                   </div>
                   <p className="text-xs text-stone mt-0.5 leading-relaxed">
-                    Kenalan dengan fitur-fitur Next Whiz dalam 1 menit.
+                    Kenalan dengan fitur-fitur usahaku.ai dalam 1 menit.
                   </p>
                 </div>
                 <button

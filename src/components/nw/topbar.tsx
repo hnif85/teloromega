@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore, getActiveBrand } from "@/lib/store";
-import { NAV_ITEMS, SECONDARY_NAV, type SectionKey, timeAgo } from "@/lib/constants";
+import { NAV_ITEMS, PROFILE_MENU, type SectionKey, timeAgo } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Bell, Menu, Zap, Plus, Command, LogOut, Search, Sparkles, ArrowRight, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -238,7 +238,7 @@ export function Topbar() {
   function MobileNav() {
     return (
       <div className="flex flex-col gap-1">
-        {[...NAV_ITEMS, ...SECONDARY_NAV].map((item) => (
+        {[...NAV_ITEMS, ...PROFILE_MENU].map((item) => (
           <button
             key={item.key}
             onClick={() => {
@@ -322,9 +322,9 @@ export function Topbar() {
             <SheetHeader className="mb-3">
               <SheetTitle className="flex items-center gap-2">
                 <div className="size-8 rounded-xl bg-teal text-white font-extrabold flex items-center justify-center text-xs">
-                  NW
+                  U
                 </div>
-                Next Whiz
+                usahaku.ai
               </SheetTitle>
             </SheetHeader>
             <MobileNav />

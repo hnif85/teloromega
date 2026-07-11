@@ -27,7 +27,7 @@ export function StorePreview({ brand }: { brand: Brand }) {
   const queryClient = useQueryClient();
   const setCredit = useAppStore((s) => s.setCredit);
 
-  const storeUrl = `tokoku.nextwhiz.id/${brand.slug}`;
+  const storeUrl = `tokoku.usahaku.ai/${brand.slug}`;
 
   const { data, isLoading } = useQuery<{ products: Product[] }>({
     queryKey: ["products", brand.id],

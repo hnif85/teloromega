@@ -15,7 +15,7 @@
         font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
         font-size="240" font-weight="800"
         text-anchor="middle" dominant-baseline="central"
-        fill="#FFFFFF" letter-spacing="-8">NW</text>
+        fill="#FFFFFF" letter-spacing="-8">U</text>
   <circle cx="112" cy="400" r="14" fill="#99F1E5" opacity="0.85"/>
   <circle cx="400" cy="112" r="10" fill="#FED7AA" opacity="0.85"/>
 </svg>

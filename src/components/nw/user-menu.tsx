@@ -3,7 +3,17 @@
 import { useState } from "react";
 import { useAppStore } from "@/lib/store";
 import { api } from "@/lib/api";
-import { LogOut, Loader2, UserCircle } from "lucide-react";
+import { PROFILE_MENU } from "@/lib/constants";
+import {
+  LogOut,
+  Loader2,
+  Zap,
+  Bell,
+  ClipboardList,
+  Settings,
+  HelpCircle,
+  ChevronRight,
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,8 +34,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 
+const ICONS: Record<string, React.ElementType> = {
+  credit: Zap,
+  notifikasi: Bell,
+  aktivitas: ClipboardList,
+  pengaturan: Settings,
+  bantuan: HelpCircle,
+};
+
 export function UserMenu() {
-  const { user, logout, setSection } = useAppStore();
+  const { user, logout, setSection, section } = useAppStore();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -37,7 +55,6 @@ export function UserMenu() {
       toast({ title: "Berhasil logout", description: "Sampai jumpa lagi! 👋" });
       logout();
     } catch {
-      // Even if API fails, clear local state
       logout();
     } finally {
       setLoading(false);
@@ -63,19 +80,38 @@ export function UserMenu() {
             </div>
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56" side="top">
+        <DropdownMenuContent align="start" className="w-60" side="top">
           <DropdownMenuLabel className="text-xs text-stone">
             <div className="font-semibold text-ink">{user.name}</div>
             <div className="text-[11px] text-stone font-normal">{user.email}</div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => setSection("pengaturan")} className="cursor-pointer gap-2">
-            <UserCircle className="size-4" /> Pengaturan
-          </DropdownMenuItem>
+
+          {/* Profile menu items */}
+          {PROFILE_MENU.map((item) => {
+            const Icon = ICONS[item.key] ?? Settings;
+            const isActive = section === item.key;
+            return (
+              <DropdownMenuItem
+                key={item.key}
+                onClick={() => setSection(item.key)}
+                className="cursor-pointer gap-2.5 justify-between"
+              >
+                <span className="flex items-center gap-2.5">
+                  <Icon className="size-4" /> {item.label}
+                </span>
+                {item.key === "credit" && user && (
+                  <span className="text-[11px] font-bold text-teal">{user.creditBalance}</span>
+                )}
+                {isActive && <ChevronRight className="size-3 text-teal" />}
+              </DropdownMenuItem>
+            );
+          })}
+
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => setConfirmOpen(true)}
-            className="cursor-pointer gap-2 text-rose-600 focus:text-rose-700 focus:bg-rose-50"
+            className="cursor-pointer gap-2.5 text-rose-600 focus:text-rose-700 focus:bg-rose-50"
           >
             <LogOut className="size-4" /> Keluar
           </DropdownMenuItem>
@@ -85,7 +121,7 @@ export function UserMenu() {
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Keluar dari The Next Whiz?</AlertDialogTitle>
+            <AlertDialogTitle>Keluar dari usahaku.ai?</AlertDialogTitle>
             <AlertDialogDescription>
               Kamu perlu login lagi untuk mengakses dashboard. Data kamu tetap aman.
             </AlertDialogDescription>

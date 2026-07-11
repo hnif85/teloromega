@@ -24,6 +24,10 @@ import {
   Plus,
   Building2,
   Clock,
+  TrendingUp,
+  Bell,
+  HelpCircle,
+  ClipboardList,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import type { SectionKey } from "@/lib/constants";
@@ -50,12 +54,17 @@ const RECENT_MAX = 5;
 
 const NAV_ITEMS: { key: SectionKey; label: string; icon: typeof BarChart3 }[] = [
   { key: "beranda", label: "Beranda", icon: BarChart3 },
+  { key: "insights", label: "Insights", icon: TrendingUp },
+  { key: "produk", label: "Produk", icon: Package },
   { key: "riset", label: "Riset", icon: Search },
   { key: "konten", label: "Konten", icon: PenLine },
   { key: "toko", label: "Toko", icon: Store },
   { key: "keuangan", label: "Keuangan", icon: Wallet },
   { key: "credit", label: "Credit", icon: Zap },
+  { key: "notifikasi", label: "Notifikasi", icon: Bell },
   { key: "pengaturan", label: "Pengaturan", icon: Settings },
+  { key: "bantuan", label: "Bantuan", icon: HelpCircle },
+  { key: "aktivitas", label: "Aktivitas", icon: ClipboardList },
 ];
 
 const ICON_LOOKUP: Record<string, typeof BarChart3> = {
@@ -71,6 +80,10 @@ const ICON_LOOKUP: Record<string, typeof BarChart3> = {
   ImageIcon,
   Plus,
   Building2,
+  TrendingUp,
+  Bell,
+  HelpCircle,
+  ClipboardList,
 };
 
 const QUICK_ACTIONS: {
@@ -189,7 +202,7 @@ export function CommandPalette() {
     <CommandDialog
       open={open}
       onOpenChange={setOpen}
-      title="The Next Whiz — Command Palette"
+      title="usahaku.ai — Command Palette"
       description="Cari perintah atau navigasi cepat"
       className="sm:max-w-xl"
     >

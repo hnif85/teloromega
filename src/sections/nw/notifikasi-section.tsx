@@ -777,7 +777,7 @@ const PREF_ROWS: {
   { key: "goalAchieved", type: "goal_achieved", desc: "Target bulanan/kuartalan tercapai" },
   { key: "orderNew", type: "order_new", desc: "Order baru masuk dari customer" },
   { key: "campaignSent", type: "campaign_sent", desc: "Campaign WA/Email berhasil terkirim" },
-  { key: "system", type: "system", desc: "Pengumuman & update sistem Next Whiz" },
+  { key: "system", type: "system", desc: "Pengumuman & update sistem usahaku.ai" },
 ];
 
 function PreferencesTab({

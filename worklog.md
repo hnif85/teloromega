@@ -1345,3 +1345,31 @@ Priority recommendations for next phase:
 - Extend global search to include Research, Campaigns, Goals, Notifications.
 - Add background sync for offline form submissions.
 - Export analytics reports as PDF.
+
+---
+Task ID: 21
+Agent: main (Z.ai Code)
+Task: Rename app to usahaku.ai, remove Kalender menu, move Credit/Notifikasi/Aktivitas/Pengaturan/Bantuan to Profile menu, move brand selector to top, simplify Toko (merge Orders+Pembayaran+Pengiriman)
+
+Work Log:
+- **Rename app**: Replaced all "The Next Whiz" / "Next Whiz" → "usahaku.ai" across 19 source files + manifest.json. Logo initials "NW" → "U". Email domain "nextwhiz.id" → "usahaku.ai". Updated: layout.tsx (metadata title, applicationName, appleWebApp), sidebar.tsx, login-screen.tsx, topbar.tsx, page.tsx (footer), onboarding-tour.tsx, command-palette.tsx, user-menu.tsx, all section files (beranda, konten, riset, pengaturan, notifikasi, bantuan, toko/invoice-print, toko/store-preview), api/init/route.ts, api/export/route.ts, public/manifest.json.
+- **Remove Kalender**: Removed from NAV_ITEMS in constants.ts. Removed import + route from page.tsx. Section file kept but not rendered.
+- **Move secondary nav to Profile**: Removed SECONDARY_NAV from sidebar. Created PROFILE_MENU constant (Credit, Notifikasi, Aktivitas, Pengaturan, Bantuan). Updated user-menu.tsx to include all PROFILE_MENU items in the dropdown (with icons: Zap, Bell, ClipboardList, Settings, HelpCircle). Sidebar now only shows 7 primary nav items.
+- **Brand selector to top**: Moved brand switcher dropdown from middle of sidebar to top (right after logo, before nav). Brand switcher now appears above the navigation items.
+- **Simplify Toko**: Merged Orders + Pembayaran + Pengiriman into single "Orders" tab. Removed PaymentsTab and ShippingTab from TABS array + imports + TabsContent. Toko now has 6 tabs: Inbox, AI Chat, Leads, Orders (with inline payment verification + shipping), Stok, Campaign. Updated subtitle.
+
+QA via agent-browser:
+1. App title: "usahaku.ai — AI Co-pilot untuk UMKM" ✅
+2. Sidebar: Logo "U" + "usahaku.ai", brand switcher at top, 7 nav items (no Kalender) ✅
+3. User menu dropdown: Credit (47), Notifikasi, Aktivitas, Pengaturan, Bantuan, Keluar ✅
+4. Toko: 6 tabs (Inbox, AI Chat, Leads, Orders, Stok, Campaign) — no Pembayaran/Pengiriman ✅
+5. Email: "ibu.ani@usahaku.ai" ✅
+
+Stage Summary:
+- App renamed: The Next Whiz → usahaku.ai (all 19+ files + manifest)
+- Sidebar simplified: 7 primary nav items (Beranda, Insights, Produk, Riset, Konten, Toko, Keuangan)
+- Kalender removed from sidebar
+- Brand selector moved to top of sidebar
+- Credit/Notifikasi/Aktivitas/Pengaturan/Bantuan moved to Profile dropdown (user menu)
+- Toko simplified: 6 tabs (was 8) — Pembayaran & Pengiriman merged into Orders
+- Lint: 0 errors. tsc: 0 errors. Server: HTTP 200.

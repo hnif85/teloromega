@@ -1,7 +1,7 @@
 "use client";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// KontenSection — AI content generator for The Next Whiz
+// KontenSection — AI content generator for usahaku.ai
 // Generate caption / gambar / video script / carousel; library + reuse.
 // ─────────────────────────────────────────────────────────────────────────────
 

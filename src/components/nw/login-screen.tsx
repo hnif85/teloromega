@@ -55,9 +55,9 @@ export function LoginScreen() {
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div className="size-16 rounded-2xl bg-teal text-white font-extrabold flex items-center justify-center text-2xl mb-4 shadow-lg shadow-teal/20">
-            NW
+            U
           </div>
-          <h1 className="text-3xl font-extrabold text-ink tracking-tight">The Next Whiz</h1>
+          <h1 className="text-3xl font-extrabold text-ink tracking-tight">usahaku.ai</h1>
           <p className="text-sm text-stone mt-1 text-center">
             AI Co-pilot untuk UMKM Indonesia
           </p>
@@ -151,7 +151,7 @@ export function LoginScreen() {
         </div>
 
         <p className="text-[11px] text-stone text-center mt-4">
-          © 2026 The Next Whiz · v0.1.1 MVP
+          © 2026 usahaku.ai · v0.1.1 MVP
         </p>
       </div>
     </div>

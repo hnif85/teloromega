@@ -1,7 +1,7 @@
 "use client";
 
 import { useAppStore, getActiveBrand } from "@/lib/store";
-import { NAV_ITEMS, SECONDARY_NAV, type SectionKey } from "@/lib/constants";
+import { NAV_ITEMS, type SectionKey } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { ChevronDown, Plus, Zap } from "lucide-react";
 import {
@@ -11,14 +11,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { SidebarThemeToggle } from "@/components/nw/sidebar-theme-toggle";
 import { UserMenu } from "@/components/nw/user-menu";
 
 export function Sidebar() {
-  const { section, setSection, brands, activeBrandId, setActiveBrand, user, setOnboardingOpen, addBrand } =
+  const { section, setSection, brands, activeBrandId, setActiveBrand, setOnboardingOpen, addBrand } =
     useAppStore();
   const activeBrand = getActiveBrand(useAppStore.getState());
   const { toast } = useToast();
@@ -33,7 +32,6 @@ export function Sidebar() {
   }
 
   async function quickCreateBrand() {
-    // Demo: one-tap brand create for quick testing
     const name = window.prompt("Nama brand baru?");
     if (!name) return;
     try {
@@ -60,63 +58,23 @@ export function Sidebar() {
   return (
     <aside className="hidden md:flex flex-col w-[248px] bg-sidebar text-sidebar-foreground shrink-0 h-screen sticky top-0">
       {/* Logo */}
-      <div className="px-4 pt-5 pb-4">
+      <div className="px-4 pt-5 pb-3">
         <div className="flex items-center gap-2.5">
           <div className="size-9 rounded-xl bg-teal text-white font-extrabold flex items-center justify-center text-sm tracking-tight">
-            NW
+            U
           </div>
           <div>
-            <div className="font-extrabold text-cream-100 text-[15px] leading-none">Next Whiz</div>
+            <div className="font-extrabold text-cream-100 text-[15px] leading-none">usahaku.ai</div>
             <div className="text-[10px] text-cream-300/70 tracking-wider uppercase mt-1">AI Co-pilot UMKM</div>
           </div>
         </div>
       </div>
 
-      {/* Primary nav */}
-      <nav data-tour="sidebar-nav" className="sidebar-scroll px-3 flex-1 overflow-y-auto flex flex-col gap-1">
-        {NAV_ITEMS.map((item) => (
-          <div
-            key={item.key}
-            className={navClass(section === item.key)}
-            onClick={() => setSection(item.key as SectionKey)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === "Enter" && setSection(item.key as SectionKey)}
-          >
-            <span className="text-base">{item.icon}</span>
-            <span>{item.label}</span>
-          </div>
-        ))}
-
-        <div className="h-px bg-sidebar-border my-2 mx-1" />
-
-        {SECONDARY_NAV.map((item) => (
-          <div
-            key={item.key}
-            className={navClass(section === item.key)}
-            onClick={() => setSection(item.key as SectionKey)}
-            role="button"
-            tabIndex={0}
-          >
-            <span className="text-base">{item.icon}</span>
-            <span>{item.label}</span>
-            {item.key === "credit" && user && (
-              <span className="ml-auto text-[11px] font-bold bg-sidebar-accent px-1.5 py-0.5 rounded-md text-teal-200">
-                {user.creditBalance}
-              </span>
-            )}
-          </div>
-        ))}
-
-        {/* Brand switcher */}
-        <div className="h-px bg-sidebar-border my-2 mx-1" />
-        <div className="px-1 mb-1 text-[10px] uppercase tracking-wider text-cream-300/60 font-semibold">
-          Brand aktif
-        </div>
-
+      {/* Brand switcher — at top, right after logo */}
+      <div className="px-3 pb-3" data-tour="brand-switcher">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button data-tour="brand-switcher" className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors w-full text-left">
+            <button className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors w-full text-left">
               <div className="size-7 rounded-md bg-teal text-white text-xs font-bold flex items-center justify-center shrink-0">
                 {activeBrand?.name?.[0]?.toUpperCase() ?? "?"}
               </div>
@@ -162,9 +120,28 @@ export function Sidebar() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+      </div>
+
+      <div className="h-px bg-sidebar-border mx-3" />
+
+      {/* Primary nav */}
+      <nav data-tour="sidebar-nav" className="sidebar-scroll px-3 flex-1 overflow-y-auto flex flex-col gap-1 pt-2">
+        {NAV_ITEMS.map((item) => (
+          <div
+            key={item.key}
+            className={navClass(section === item.key)}
+            onClick={() => setSection(item.key as SectionKey)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === "Enter" && setSection(item.key as SectionKey)}
+          >
+            <span className="text-base">{item.icon}</span>
+            <span>{item.label}</span>
+          </div>
+        ))}
       </nav>
 
-      {/* User card with dropdown menu (logout, settings) */}
+      {/* User card with dropdown menu (profile, settings, logout) */}
       <div className="p-3 border-t border-sidebar-border">
         <div className="flex items-center gap-1">
           <div className="flex-1 min-w-0">

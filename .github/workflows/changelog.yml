@@ -1,0 +1,317 @@
+# .github/workflows/changelog.yml
+# ═══════════════════════════════════════════════════════════════
+# AUTO CHANGELOG — Update CHANGELOG.md setiap push ke main/master
+# ═══════════════════════════════════════════════════════════════
+#
+# Cara Kerja:
+#   1. Trigger: setiap push ke main/master branch (atau manual dispatch)
+#   2. Membaca commit messages sejak tag terakhir (atau 100 commit terakhir)
+#   3. Mengekstrak conventional commits: feat:, fix:, change:, remove:, docs:, chore:
+#   4. Menambahkan entry di CHANGELOG.md dengan format Keep a Changelog
+#   5. Auto-commit dan push update CHANGELOG.md (jika ada perubahan)
+#   6. Membuat git tag jika ada feat: commit baru (minor version bump)
+#
+# Commit Convention:
+#   feat:     → ✨ Added
+#   fix:      → 🐛 Fixed
+#   change:   → 🔧 Changed
+#   remove:   → 🗑️ Removed
+#   docs:     → 📝 Documentation
+#   chore:    → 🛠 Maintenance
+#   perf:     → ⚡ Performance
+#   refactor: → ♻️ Refactored
+#   test:     → ✅ Tests
+#   style:    → 💄 Style
+# ═══════════════════════════════════════════════════════════════
+
+name: Auto Changelog
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:  # Bisa di-trigger manual dari GitHub UI
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write  # Butuh permission untuk auto-commit + push
+
+jobs:
+  update-changelog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch semua history (untuk tag + commit messages)
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get latest tag
+        id: latest_tag
+        run: |
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$TAG" ]; then
+            echo "tag=v0.0.0" >> $GITHUB_OUTPUT
+            echo "No existing tags found — starting from v0.0.0"
+          else
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+            echo "Latest tag: $TAG"
+          fi
+
+      - name: Collect commit messages since last tag
+        id: commits
+        run: |
+          TAG="${{ steps.latest_tag.outputs.tag }}"
+
+          # Get commits since last tag (or last 100 if no tag)
+          if [ "$TAG" = "v0.0.0" ]; then
+            COMMITS=$(git log --oneline --no-merges -100)
+          else
+            COMMITS=$(git log --oneline --no-merges "${TAG}..HEAD")
+          fi
+
+          if [ -z "$COMMITS" ]; then
+            echo "No new commits since last tag. Skipping CHANGELOG update."
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Extract conventional commits by type
+          FEAT=$(echo "$COMMITS" | grep -iE "^[a-f0-9]+ feat" | sed 's/^[a-f0-9]\+ feat\(.*\)\?: /- /' || echo "")
+          FIX=$(echo "$COMMITS" | grep -iE "^[a-f0-9]+ fix" | sed 's/^[a-f0-9]\+ fix\(.*\)\?: /- /' || echo "")
+          CHANGE=$(echo "$COMMITS" | grep -iE "^[a-f0-9]+ change" | sed 's/^[a-f0-9]\+ change\(.*\)\?: /- /' || echo "")
+          REMOVE=$(echo "$COMMITS" | grep -iE "^[a-f0-9]+ remove" | sed 's/^[a-f0-9]\+ remove\(.*\)\?: /- /' || echo "")
+          DOCS=$(echo "$COMMITS" | grep -iE "^[a-f0-9]+ docs" | sed 's/^[a-f0-9]\+ docs\(.*\)\?: /- /' || echo "")
+          CHORE=$(echo "$COMMITS" | grep -iE "^[a-f0-9]+ chore" | sed 's/^[a-f0-9]\+ chore\(.*\)\?: /- /' || echo "")
+          PERF=$(echo "$COMMITS" | grep -iE "^[a-f0-9]+ perf" | sed 's/^[a-f0-9]\+ perf\(.*\)\?: /- /' || echo "")
+          REFACTOR=$(echo "$COMMITS" | grep -iE "^[a-f0-9]+ refactor" | sed 's/^[a-f0-9]\+ refactor\(.*\)\?: /- /' || echo "")
+          TEST=$(echo "$COMMITS" | grep -iE "^[a-f0-9]+ test" | sed 's/^[a-f0-9]\+ test\(.*\)\?: /- /' || echo "")
+          STYLE=$(echo "$COMMITS" | grep -iE "^[a-f0-9]+ style" | sed 's/^[a-f0-9]\+ style\(.*\)\?: /- /' || echo "")
+
+          # Check if there are any categorized commits
+          HAS_CHANGES=false
+          for CAT in "$FEAT" "$FIX" "$CHANGE" "$REMOVE" "$DOCS" "$CHORE" "$PERF" "$REFACTOR" "$TEST" "$STYLE"; do
+            if [ -n "$CAT" ]; then
+              HAS_CHANGES=true
+              break
+            fi
+          done
+
+          if [ "$HAS_CHANGES" = false ]; then
+            echo "No conventional commits found. Skipping CHANGELOG update."
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Store as outputs (multiline)
+          {
+            echo "feat<<FEAT_EOF"
+            echo "$FEAT"
+            echo "FEAT_EOF"
+            echo "fix<<FIX_EOF"
+            echo "$FIX"
+            echo "FIX_EOF"
+            echo "change<<CHANGE_EOF"
+            echo "$CHANGE"
+            echo "CHANGE_EOF"
+            echo "remove<<REMOVE_EOF"
+            echo "$REMOVE"
+            echo "REMOVE_EOF"
+            echo "docs<<DOCS_EOF"
+            echo "$DOCS"
+            echo "DOCS_EOF"
+            echo "chore<<CHORE_EOF"
+            echo "$CHORE"
+            echo "CHORE_EOF"
+            echo "perf<<PERF_EOF"
+            echo "$PERF"
+            echo "PERF_EOF"
+            echo "refactor<<REFACTOR_EOF"
+            echo "$REFACTOR"
+            echo "REFACTOR_EOF"
+            echo "test<<TEST_EOF"
+            echo "$TEST"
+            echo "TEST_EOF"
+            echo "style<<STYLE_EOF"
+            echo "$STYLE"
+            echo "STYLE_EOF"
+            echo "skip=false"
+          } >> $GITHUB_OUTPUT
+
+      - name: Determine version bump
+        id: version
+        run: |
+          BUMP_TYPE="${{ github.event.inputs.version_bump || 'auto' }}"
+
+          if [ "$BUMP_TYPE" = "auto" ]; then
+            # Auto-detect: feat = minor bump, fix/docs/chore = patch
+            FEAT_COMMITS="${{ steps.commits.outputs.feat }}"
+            if [ -n "$FEAT_COMMITS" ]; then
+              BUMP_TYPE="minor"
+            else
+              BUMP_TYPE="patch"
+            fi
+          fi
+
+          # Parse current version
+          CURRENT="${{ steps.latest_tag.outputs.tag }}"
+          CURRENT="${CURRENT#v}"  # Remove 'v' prefix
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          # Bump version
+          case "$BUMP_TYPE" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          echo "Will bump version: ${CURRENT} → ${NEW_VERSION} (${BUMP_TYPE})"
+
+      - name: Generate new CHANGELOG entry
+        id: changelog_entry
+        run: |
+          TODAY=$(date +%Y-%m-%d)
+          VERSION="${{ steps.version.outputs.new_version }}"
+
+          # Build the new entry
+          ENTRY=""
+
+          ENTRY+="## [${VERSION#v}] — $TODAY\n\n"
+
+          if [ -n "${{ steps.commits.outputs.feat }}" ]; then
+            ENTRY+="### ✨ Added\n${{ steps.commits.outputs.feat }}\n\n"
+          fi
+
+          if [ -n "${{ steps.commits.outputs.fix }}" ]; then
+            ENTRY+="### 🐛 Fixed\n${{ steps.commits.outputs.fix }}\n\n"
+          fi
+
+          if [ -n "${{ steps.commits.outputs.change }}" ]; then
+            ENTRY+="### 🔧 Changed\n${{ steps.commits.outputs.change }}\n\n"
+          fi
+
+          if [ -n "${{ steps.commits.outputs.remove }}" ]; then
+            ENTRY+="### 🗑️ Removed\n${{ steps.commits.outputs.remove }}\n\n"
+          fi
+
+          if [ -n "${{ steps.commits.outputs.docs }}" ]; then
+            ENTRY+="### 📝 Documentation\n${{ steps.commits.outputs.docs }}\n\n"
+          fi
+
+          if [ -n "${{ steps.commits.outputs.perf }}" ]; then
+            ENTRY+="### ⚡ Performance\n${{ steps.commits.outputs.perf }}\n\n"
+          fi
+
+          if [ -n "${{ steps.commits.outputs.refactor }}" ]; then
+            ENTRY+="### ♻️ Refactored\n${{ steps.commits.outputs.refactor }}\n\n"
+          fi
+
+          if [ -n "${{ steps.commits.outputs.test }}" ]; then
+            ENTRY+="### ✅ Tests\n${{ steps.commits.outputs.test }}\n\n"
+          fi
+
+          if [ -n "${{ steps.commits.outputs.style }}" ]; then
+            ENTRY+="### 💄 Style\n${{ steps.commits.outputs.style }}\n\n"
+          fi
+
+          if [ -n "${{ steps.commits.outputs.chore }}" ]; then
+            ENTRY+="### 🛠 Maintenance\n${{ steps.commits.outputs.chore }}\n\n"
+          fi
+
+          # Escape newlines for GitHub Actions output
+          ENTRY="${ENTRY//'%'/'%25'}"
+          ENTRY="${ENTRY//$'\n'/'%0A'}"
+          ENTRY="${ENTRY//$'\r'/'%0D'}"
+
+          echo "entry=$ENTRY" >> $GITHUB_OUTPUT
+          echo "Generated CHANGELOG entry for $VERSION"
+
+      - name: Update CHANGELOG.md
+        run: |
+          ENTRY=$(echo "${{ steps.changelog_entry.outputs.entry }}" | sed 's/%0A/\n/g' | sed 's/%0D/\r/g' | sed 's/%25/%/g')
+
+          if [ ! -f CHANGELOG.md ]; then
+            echo "❌ CHANGELOG.md not found!"
+            exit 1
+          fi
+
+          # Insert new entry after the header line (after first `---` separator)
+          # Find the line number of the first `---` after the header
+          HEADER_END=$(grep -n "^---" CHANGELOG.md | head -1 | cut -d: -f1)
+
+          if [ -z "$HEADER_END" ]; then
+            echo "❌ Could not find header separator in CHANGELOG.md"
+            exit 1
+          fi
+
+          # Insert the new entry after the header separator
+          head -n "$HEADER_END" CHANGELOG.md > CHANGELOG.tmp
+          echo "" >> CHANGELOG.tmp
+          echo -e "$ENTRY" >> CHANGELOG.tmp
+          tail -n +$((HEADER_END + 1)) CHANGELOG.md >> CHANGELOG.tmp
+          mv CHANGELOG.tmp CHANGELOG.md
+
+          echo "✅ CHANGELOG.md updated with new entry."
+
+      - name: Commit and push CHANGELOG update
+        run: |
+          VERSION="${{ steps.version.outputs.new_version }}"
+
+          git add CHANGELOG.md
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore: update CHANGELOG.md for ${VERSION} [skip ci]"
+
+          # Create tag
+          git tag -a "${VERSION}" -m "Release ${VERSION}"
+
+          # Push
+          git push origin HEAD:${GITHUB_REF#refs/heads/}
+          git push origin "${VERSION}"
+
+          echo "✅ CHANGELOG updated and pushed. Tag: ${VERSION}"
+
+      - name: Summary
+        run: |
+          VERSION="${{ steps.version.outputs.new_version }}"
+          echo "## 📋 Changelog Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`$VERSION\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Bump Type:** ${{ steps.version.outputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Date:** $(date +%Y-%m-%d)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "CHANGELOG.md has been auto-updated and pushed to the repository." >> $GITHUB_STEP_SUMMARY

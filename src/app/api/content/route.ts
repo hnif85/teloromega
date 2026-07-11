@@ -129,7 +129,7 @@ function fallbackImage(opts: { brandName: string; productName: string; category:
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 }
 
-// ─── GET /api/content?brandId=X ─────────────────────────────
+// ─── GET /api/content?brandId=X&platform=X&productId=X&type=X ──
 export async function GET(req: NextRequest) {
   const userId = await getUserId(req);
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -141,8 +141,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "brand tidak ditemukan" }, { status: 404 });
   }
 
+  const platform = req.nextUrl.searchParams.get("platform");
+  const productId = req.nextUrl.searchParams.get("productId");
+  const type = req.nextUrl.searchParams.get("type");
+
+  const where: any = { brandId };
+  if (platform) where.platform = platform;
+  if (productId) where.productId = productId;
+  if (type) where.type = type;
+
   const rows = await db.content.findMany({
-    where: { brandId },
+    where,
     orderBy: { createdAt: "desc" },
     include: { product: true },
     take: 100,
@@ -157,6 +166,7 @@ export async function GET(req: NextRequest) {
     type: c.type,
     platform: c.platform,
     body: c.body,
+    assetUrl: c.assetUrl,
     createdAt: c.createdAt,
   }));
 
@@ -169,13 +179,16 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { brandId, productId, contextId, type, platform, angle } = body as {
+  const { brandId, productId, contextId, type, platform, angle, imageCount, durationSec, targetAudience } = body as {
     brandId: string;
     productId?: string | null;
     contextId?: string | null;
     type: "caption" | "gambar" | "video" | "carousel";
     platform?: string | null;
     angle?: string | null;
+    imageCount?: number | null;
+    durationSec?: number | null;
+    targetAudience?: string | null;
   };
 
   if (!brandId || !type) {
@@ -239,242 +252,185 @@ export async function POST(req: NextRequest) {
   const platformLabel = platform || ctxPlatform || "Instagram";
   const angleText = angle?.trim() || ctxAngle || "promosi produk menarik untuk audiens UMKM Indonesia";
   const hashtagHint = ctxHashtags.length > 0 ? ctxHashtags : [];
+  const audienceText = targetAudience?.trim() || "";
+  const count = type === "gambar" ? Math.max(1, Math.min(4, imageCount ?? 1)) : 1;
+  const videoDuration = type === "video" ? (durationSec || 8) : 0;
 
-  // Charge credit BEFORE expensive AI call
-  const charge = await chargeCredit({ userId, brandId, actionKey });
-  if (!charge.ok) {
-    return NextResponse.json(
-      {
-        error: charge.reason === "insufficient_balance" ? "Credit tidak cukup" : "Gagal charge credit",
-        balanceAfter: charge.balanceAfter,
-      },
-      { status: 402 }
-    );
+  const sizeMap: Record<string, "1024x1024" | "768x1344" | "864x1152" | "1344x768" | "1152x864" | "1440x720" | "720x1440"> = {
+    TikTok: "768x1344",
+    Instagram: "1024x1024",
+    Facebook: "1024x1024",
+    WhatsApp: "1024x1024",
+    "Twitter/X": "1440x720",
+  };
+  const size = sizeMap[platformLabel] ?? "1024x1024";
+
+  // Helper: build system prompt context shared by all generation types
+  function systemContext(): string {
+    return [
+      `Brand: ${brand.name} (kategori: ${brand.category}).`,
+      `Tone of voice: ${toneLabel}.`,
+      `Produk: ${productDesc}.`,
+      `Platform: ${platformLabel}.`,
+      `Angle: ${angleText}.`,
+      audienceText ? `Target audiens: ${audienceText}.` : "",
+    ].filter(Boolean).join(" ");
   }
 
-  let resultBody: string | null = null;
-  let assetUrl: string | null = null;
-  let usedFallback = false;
+  type ContentResult = {
+    id: string; brandId: string; productId: string | null; productName: string | null;
+    contextId: string | null; type: string; platform: string | null;
+    body: string | null; assetUrl: string | null; createdAt: Date;
+  };
+
+  const savedContents: ContentResult[] = [];
+  let totalUsedFallback = false;
+  let finalBalance = 0;
 
   try {
-    if (type === "caption") {
-      try {
-        const sys = [
-          `Kamu adalah copywriter media sosial untuk UMKM Indonesia.`,
-          `Brand: ${brand.name} (kategori: ${brand.category}).`,
-          `Tone of voice: ${toneLabel}.`,
-          `Produk: ${productDesc}.`,
-          `Platform: ${platformLabel}.`,
-          `Angle: ${angleText}.`,
-          hashtagHint.length > 0 ? `Hashtag wajib dipakai: ${hashtagHint.join(", ")}.` : "",
-          `Aturan: maksimal 1500 karakter, sertakan emoji relevan, dan 5-8 hashtag di bagian bawah.`,
-          `Jangan ada teks penjelas atau meta — langsung caption siap pakai.`,
+    for (let i = 0; i < count; i++) {
+      const charge = await chargeCredit({ userId, brandId, actionKey });
+      if (!charge.ok) {
+        return NextResponse.json(
+          {
+            error: charge.reason === "insufficient_balance" ? "Credit tidak cukup" : "Gagal charge credit",
+            balanceAfter: charge.balanceAfter,
+          },
+          { status: 402 }
+        );
+      }
+      finalBalance = charge.balanceAfter;
+
+      let resultBody: string | null = null;
+      let assetUrl: string | null = null;
+      let usedFallback = false;
+
+      if (type === "caption") {
+        try {
+          const caption = await llmChat(
+            [
+              { role: "system", content: `${systemContext()} Kamu adalah copywriter media sosial untuk UMKM Indonesia. Aturan: maksimal 1500 karakter, sertakan emoji relevan, dan 5-8 hashtag di bagian bawah. Jangan ada teks penjelas atau meta — langsung caption siap pakai.` },
+              { role: "user", content: `Buatkan caption ${platformLabel} untuk produk ini.` },
+            ],
+            { temperature: 0.8, max_tokens: 1000 }
+          );
+          resultBody = caption.slice(0, 1500);
+        } catch {
+          resultBody = fallbackCaption({ brandName: brand.name, category: brand.category, tone: toneLabel, productDesc, platform: platformLabel, angle: angleText, hashtags: hashtagHint });
+          usedFallback = true;
+        }
+      } else if (type === "gambar") {
+        const imgPrompt = [
+          `Product photography style, professional commercial photo,`,
+          `${productDesc}, brand ${brand.name} (${brand.category} category),`,
+          `angle: ${angleText}, for ${platformLabel} post,`,
+          audienceText ? `target audience: ${audienceText},` : "",
+          `studio lighting, high detail, modern aesthetic, appetizing,`,
+          `clean background, vibrant colors, sharp focus, no text overlay.`,
         ].filter(Boolean).join(" ");
-        const caption = await llmChat(
-          [
-            { role: "system", content: sys },
-            { role: "user", content: `Buatkan caption ${platformLabel} untuk produk ini.` },
-          ],
-          { temperature: 0.8, max_tokens: 1000 }
-        );
-        resultBody = caption.slice(0, 1500);
-      } catch (llmErr) {
-        console.error("[content] caption LLM failed, using fallback:", llmErr instanceof Error ? llmErr.message : "unknown");
-        resultBody = fallbackCaption({
-          brandName: brand.name,
-          category: brand.category,
-          tone: toneLabel,
-          productDesc,
-          platform: platformLabel,
-          angle: angleText,
-          hashtags: hashtagHint,
-        });
-        usedFallback = true;
+        try {
+          const imgUrl = await generateImage(imgPrompt, { size });
+          if (imgUrl) assetUrl = imgUrl;
+          else throw new Error("image generation returned null");
+        } catch {
+          assetUrl = fallbackImage({ brandName: brand.name, productName: productNameShort, category: brand.category, angle: angleText });
+          usedFallback = true;
+        }
+        try {
+          const caption = await llmChat(
+            [
+              { role: "system", content: `${systemContext()} Kamu adalah copywriter ${platformLabel}. Tulis caption singkat (200-400 karakter) untuk gambar produk ini. Sertakan 3-5 hashtag. Langsung caption tanpa meta-teks.` },
+              { role: "user", content: "Buatkan caption singkat." },
+            ],
+            { temperature: 0.8, max_tokens: 600 }
+          );
+          resultBody = caption;
+        } catch {
+          resultBody = fallbackCaption({ brandName: brand.name, category: brand.category, tone: toneLabel, productDesc, platform: platformLabel, angle: angleText, hashtags: hashtagHint });
+          usedFallback = true;
+        }
+      } else if (type === "video") {
+        try {
+          const sceneCount = Math.max(3, Math.floor(videoDuration / 3));
+          const sys = [
+            systemContext(),
+            `Kamu adalah scriptwriter video pendek ${platformLabel} untuk UMKM Indonesia.`,
+            hashtagHint.length > 0 ? `Hashtag wajib: ${hashtagHint.join(", ")}.` : "",
+            `Buat ${sceneCount}-${sceneCount + 2} scene, total durasi ${videoDuration} detik.`,
+            `Output JSON saja, tanpa markdown.`,
+          ].filter(Boolean).join(" ");
+          const plan = await llmJson<{
+            script: string;
+            scenes: { duration_sec: number; visual: string; voiceover: string; text_overlay: string }[];
+            hashtags: string[];
+            hooks: string[];
+          }>(
+            [
+              { role: "system", content: sys },
+              { role: "user", content: `Buatkan script video ${videoDuration} detik dengan struktur JSON: { "script": string, "scenes": [...], "hashtags": string[], "hooks": string[] }` },
+            ],
+            { temperature: 0.8, max_tokens: 2000 }
+          );
+          if (!plan.scenes || !Array.isArray(plan.scenes)) plan.scenes = [];
+          if (!plan.hashtags || !Array.isArray(plan.hashtags)) plan.hashtags = [];
+          if (!plan.hooks || !Array.isArray(plan.hooks)) plan.hooks = [];
+          resultBody = JSON.stringify(plan);
+        } catch {
+          resultBody = fallbackVideoScript({ brandName: brand.name, productDesc, angle: angleText, hashtags: hashtagHint });
+          usedFallback = true;
+        }
+      } else if (type === "carousel") {
+        try {
+          const plan = await llmJson<{
+            slides: { slide_num: number; headline: string; body: string; cta: string }[];
+            hashtags: string[];
+          }>(
+            [
+              { role: "system", content: `${systemContext()} Kamu adalah copywriter carousel ${platformLabel} untuk UMKM Indonesia. ${hashtagHint.length > 0 ? `Hashtag wajib: ${hashtagHint.join(", ")}.` : ""} Buat 4-6 slide. Output JSON saja, tanpa markdown.` },
+              { role: "user", content: `Buatkan carousel dengan struktur JSON: { "slides": [...], "hashtags": string[] }` },
+            ],
+            { temperature: 0.8, max_tokens: 1500 }
+          );
+          if (!plan.slides || !Array.isArray(plan.slides)) plan.slides = [];
+          if (!plan.hashtags || !Array.isArray(plan.hashtags)) plan.hashtags = [];
+          resultBody = JSON.stringify(plan);
+        } catch {
+          resultBody = fallbackCarousel({ brandName: brand.name, productDesc, angle: angleText, hashtags: hashtagHint });
+          usedFallback = true;
+        }
       }
-    } else if (type === "gambar") {
-      const imgPrompt = [
-        `Product photography style, professional commercial photo,`,
-        `${productDesc}, brand ${brand.name} (${brand.category} category),`,
-        `angle: ${angleText}, for ${platformLabel} post,`,
-        `studio lighting, high detail, modern aesthetic, appetizing,`,
-        `clean background, vibrant colors, sharp focus, no text overlay.`,
-      ].join(" ");
-      const sizeMap: Record<string, "1024x1024" | "768x1344" | "864x1152" | "1344x768" | "1152x864" | "1440x720" | "720x1440"> = {
-        TikTok: "768x1344",
-        Instagram: "1024x1024",
-        Facebook: "1024x1024",
-        WhatsApp: "1024x1024",
-        "Twitter/X": "1440x720",
-      };
-      const size = sizeMap[platformLabel] ?? "1024x1024";
-      try {
-        const imgUrl = await generateImage(imgPrompt, { size });
-        if (imgUrl) assetUrl = imgUrl;
-        else throw new Error("image generation returned null");
-      } catch (imgErr) {
-        console.error("[content] gambar generation failed, using fallback:", imgErr instanceof Error ? imgErr.message : "unknown");
-        assetUrl = fallbackImage({ brandName: brand.name, productName: productNameShort, category: brand.category, angle: angleText });
-        usedFallback = true;
-      }
-      // Caption (with its own fallback)
-      try {
-        const caption = await llmChat(
-          [
-            {
-              role: "system",
-              content: [
-                `Kamu adalah copywriter ${platformLabel} untuk UMKM Indonesia.`,
-                `Tone: ${toneLabel}. Brand: ${brand.name}. Produk: ${productDesc}.`,
-                `Tulis caption singkat (200-400 karakter) untuk gambar produk ini.`,
-                `Sertakan 3-5 hashtag. Langsung caption tanpa meta-teks.`,
-              ].join(" "),
-            },
-            { role: "user", content: `Buatkan caption singkat.` },
-          ],
-          { temperature: 0.8, max_tokens: 600 }
-        );
-        resultBody = caption;
-      } catch {
-        resultBody = fallbackCaption({
-          brandName: brand.name,
-          category: brand.category,
-          tone: toneLabel,
-          productDesc,
-          platform: platformLabel,
-          angle: angleText,
-          hashtags: hashtagHint,
-        });
-        usedFallback = true;
-      }
-    } else if (type === "video") {
-      try {
-        const sys = [
-          `Kamu adalah scriptwriter video pendek ${platformLabel} untuk UMKM Indonesia.`,
-          `Tone: ${toneLabel}. Brand: ${brand.name} (${brand.category}).`,
-          `Produk: ${productDesc}. Angle: ${angleText}.`,
-          hashtagHint.length > 0 ? `Hashtag wajib: ${hashtagHint.join(", ")}.` : "",
-          `Buat 4-6 scene, total durasi 15-45 detik.`,
-          `Output JSON saja, tanpa markdown, sesuai schema yang diminta.`,
-        ].filter(Boolean).join(" ");
-        const plan = await llmJson<{
-          script: string;
-          scenes: { duration_sec: number; visual: string; voiceover: string; text_overlay: string }[];
-          hashtags: string[];
-          hooks: string[];
-        }>(
-          [
-            { role: "system", content: sys },
-            {
-              role: "user",
-              content: `Buatkan script video dengan struktur JSON: { "script": string (ringkasan total), "scenes": [{ "duration_sec": number, "visual": string, "voiceover": string, "text_overlay": string }], "hashtags": string[], "hooks": string[] (3-5 hook alternatif untuk opening) }`,
-            },
-          ],
-          { temperature: 0.8, max_tokens: 2000 }
-        );
-        if (!plan.scenes || !Array.isArray(plan.scenes)) plan.scenes = [];
-        if (!plan.hashtags || !Array.isArray(plan.hashtags)) plan.hashtags = [];
-        if (!plan.hooks || !Array.isArray(plan.hooks)) plan.hooks = [];
-        resultBody = JSON.stringify(plan);
-      } catch (llmErr) {
-        console.error("[content] video LLM failed, using fallback:", llmErr instanceof Error ? llmErr.message : "unknown");
-        resultBody = fallbackVideoScript({
-          brandName: brand.name,
-          productDesc,
-          angle: angleText,
-          hashtags: hashtagHint,
-        });
-        usedFallback = true;
-      }
-    } else if (type === "carousel") {
-      try {
-        const sys = [
-          `Kamu adalah copywriter carousel ${platformLabel} untuk UMKM Indonesia.`,
-          `Tone: ${toneLabel}. Brand: ${brand.name} (${brand.category}).`,
-          `Produk: ${productDesc}. Angle: ${angleText}.`,
-          hashtagHint.length > 0 ? `Hashtag wajib: ${hashtagHint.join(", ")}.` : "",
-          `Buat 4-6 slide. Output JSON saja, tanpa markdown.`,
-        ].filter(Boolean).join(" ");
-        const plan = await llmJson<{
-          slides: { slide_num: number; headline: string; body: string; cta: string }[];
-          hashtags: string[];
-        }>(
-          [
-            { role: "system", content: sys },
-            {
-              role: "user",
-              content: `Buatkan carousel dengan struktur JSON: { "slides": [{ "slide_num": number, "headline": string (max 60 char), "body": string (max 200 char), "cta": string (max 30 char) }], "hashtags": string[] }`,
-            },
-          ],
-          { temperature: 0.8, max_tokens: 1500 }
-        );
-        if (!plan.slides || !Array.isArray(plan.slides)) plan.slides = [];
-        if (!plan.hashtags || !Array.isArray(plan.hashtags)) plan.hashtags = [];
-        resultBody = JSON.stringify(plan);
-      } catch (llmErr) {
-        console.error("[content] carousel LLM failed, using fallback:", llmErr instanceof Error ? llmErr.message : "unknown");
-        resultBody = fallbackCarousel({
-          brandName: brand.name,
-          productDesc,
-          angle: angleText,
-          hashtags: hashtagHint,
-        });
-        usedFallback = true;
-      }
+
+      const content = await db.content.create({
+        data: { brandId, productId: productId ?? null, contextId: contextId ?? null, type, body: resultBody, assetUrl, platform: platformLabel },
+      });
+      savedContents.push({
+        id: content.id, brandId: content.brandId, productId: content.productId,
+        productName: product?.name ?? null, contextId: content.contextId,
+        type: content.type, platform: content.platform,
+        body: content.body, assetUrl: content.assetUrl, createdAt: content.createdAt,
+      });
+      if (usedFallback) totalUsedFallback = true;
     }
 
-    // Save content row
-    const content = await db.content.create({
-      data: {
-        brandId,
-        productId: productId ?? null,
-        contextId: contextId ?? null,
-        type,
-        body: resultBody,
-        assetUrl,
-        platform: platformLabel,
-      },
-    });
-
-    // Mark context as used
-    if (contextId) {
+    if (contextId && savedContents.length > 0) {
       await db.contextUsage.create({
-        data: {
-          contextId,
-          brandId,
-          usedFor: "konten.generate",
-          referenceId: content.id,
-        },
+        data: { contextId, brandId, usedFor: "konten.generate", referenceId: savedContents[0].id },
       });
     }
 
     return NextResponse.json({
-      content: {
-        id: content.id,
-        brandId: content.brandId,
-        productId: content.productId,
-        productName: product?.name ?? null,
-        contextId: content.contextId,
-        type: content.type,
-        platform: content.platform,
-        body: content.body,
-        assetUrl: content.assetUrl,
-        createdAt: content.createdAt,
-      },
-      balanceAfter: charge.balanceAfter,
-      usedFallback,
+      contents: savedContents,
+      balanceAfter: finalBalance,
+      usedFallback: totalUsedFallback,
     });
   } catch (err: unknown) {
-    // Fatal error — refund credit
     await refundCredit({
-      userId,
-      brandId,
-      actionKey,
-      referenceId: undefined,
-      originalBalanceBefore: charge.balanceAfter,
+      userId, brandId, actionKey, referenceId: undefined,
+      originalBalanceBefore: finalBalance,
     });
     const msg = err instanceof Error ? err.message : "Gagal generate konten";
     return NextResponse.json(
-      { error: msg, refunded: true, balanceAfter: charge.balanceAfter },
+      { error: msg, refunded: true, balanceAfter: finalBalance },
       { status: 500 }
     );
   }

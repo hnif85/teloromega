@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAppStore, registerNavigate, pathToSection } from "@/lib/store";
 import { Sidebar } from "@/components/nw/sidebar";
 import { Topbar } from "@/components/nw/topbar";
+import { BottomTabBar } from "@/components/nw/bottom-tab-bar";
 import { OnboardingDialog } from "@/components/nw/onboarding";
 import { OnboardingTour } from "@/components/nw/onboarding-tour";
 import { CommandPalette } from "@/components/nw/command-palette";
@@ -48,12 +49,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <Topbar />
-          <main className="flex-1 px-4 md:px-6 py-6 max-w-[1400px] w-full mx-auto">
+          <main className="flex-1 px-4 md:px-6 py-6 max-w-[1400px] w-full mx-auto pb-16 md:pb-6">
             {children}
           </main>
         </div>
       </div>
-      <footer className="mt-auto border-t border-border bg-cream-100/60">
+      <footer className="hidden md:block mt-auto border-t border-border bg-cream-100/60">
         <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-4 flex flex-wrap items-center justify-between gap-2 text-xs text-stone">
           <div className="flex items-center gap-2">
             <div className="size-5 rounded-md bg-teal text-white text-[10px] font-bold flex items-center justify-center">
@@ -70,6 +71,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </footer>
+      <BottomTabBar />
       {onboardingOpen && <OnboardingDialog />}
       <OnboardingTour />
       <CommandPalette />

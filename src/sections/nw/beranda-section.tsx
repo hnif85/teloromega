@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatRupiah, formatRupiahShort, timeAgo, type SectionKey } from "@/lib/constants";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Search,
   Package,
@@ -125,6 +126,7 @@ function DashboardHero({
   onMulaiRiset: () => void;
   onTambahProduk: () => void;
 }) {
+  const isMobile = useIsMobile();
   const now = new Date();
   const dateLabel = format(now, "EEEE, d MMMM yyyy", { locale: idLocale });
   const tip = tipOfDay();
@@ -197,7 +199,10 @@ function DashboardHero({
               Halo, {firstName} <span className="inline-block">👋</span>
             </motion.h1>
             <p className="text-sm sm:text-base text-ink-500 mt-1.5 leading-relaxed">
-              Berikut ringkasan <span className="font-semibold text-ink">{brandName}</span> hari ini. Yuk lanjut tumbuhkan usahamu bersama usahaku.ai.
+              {isMobile
+                ? `Ringkasan ${brandName} hari ini.`
+                : <>Berikut ringkasan <span className="font-semibold text-ink">{brandName}</span> hari ini. Yuk lanjut tumbuhkan usahamu bersama usahaku.ai.</>
+              }
             </p>
           </div>
 
@@ -294,7 +299,8 @@ function DashboardHero({
             ))}
           </div>
 
-          {/* Tip of the day card */}
+          {/* Tip of the day card — desktop only */}
+          {!isMobile && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -321,6 +327,7 @@ function DashboardHero({
               </div>
             </div>
           </motion.div>
+          )}
         </div>
       </div>
     </motion.section>
@@ -784,9 +791,9 @@ export function BerandaSection() {
         <GoalsWidget brandId={activeBrand.id} />
       </div>
 
-      {/* Cross-module info */}
+      {/* Cross-module info — desktop only */}
       {!isLoading && data && data.stats.research > 0 && (
-        <div className="mt-6 rounded-2xl bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 border border-teal/20 p-5">
+        <div className="hidden md:block mt-6 rounded-2xl bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 border border-teal/20 p-5">
           <div className="flex items-start gap-4">
             <div className="size-10 rounded-xl bg-teal text-white flex items-center justify-center shrink-0">
               <Sparkles className="size-5" />

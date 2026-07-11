@@ -236,9 +236,13 @@ export function Topbar() {
   }
 
   function MobileNav() {
+    // Items already in bottom tab bar: beranda, riset, konten, toko, keuangan
+    const bottomTabKeys = new Set(["beranda", "riset", "konten", "toko", "keuangan"]);
+    const secondaryItems = [...NAV_ITEMS, ...PROFILE_MENU].filter((item) => !bottomTabKeys.has(item.key));
+
     return (
       <div className="flex flex-col gap-1">
-        {[...NAV_ITEMS, ...PROFILE_MENU].map((item) => (
+        {secondaryItems.map((item) => (
           <button
             key={item.key}
             onClick={() => {

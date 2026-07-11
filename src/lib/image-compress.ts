@@ -22,13 +22,14 @@ const DEFAULT_MAX_BYTES = 300 * 1024; // 300KB
  * - Resizes to maxSize (maintaining aspect ratio)
  * - Converts to JPEG/WebP with quality setting
  * - Iteratively reduces quality if file still exceeds maxBytes
+ * - Graceful fallback: returns original file on any error
  *
- * Returns a File object ready for upload.
+ * Returns { file, originalSize, compressedSize }.
  */
 export async function compressImage(
   file: File,
   opts: CompressOptions = {}
-): Promise<File> {
+): Promise<{ file: File; originalSize: number; compressedSize: number }> {
   const {
     maxSize = DEFAULT_MAX_SIZE,
     quality = DEFAULT_QUALITY,
@@ -36,39 +37,58 @@ export async function compressImage(
     maxBytes = DEFAULT_MAX_BYTES,
   } = opts;
 
-  // Skip if file is already small enough AND we don't need to resize
-  if (file.size <= maxBytes) {
-    // Still need to check dimensions — load image to check
+  const originalSize = file.size;
+
+  try {
+    // Skip if file is already small enough and within dimensions
     const dims = await getImageDimensions(file);
-    if (dims.width <= maxSize && dims.height <= maxSize) {
-      return file; // Already perfect, no compression needed
+    if (dims.width <= maxSize && dims.height <= maxSize && file.size <= maxBytes) {
+      return { file, originalSize, compressedSize: file.size };
     }
+
+    // Load image (with timeout safety — 10s max)
+    const img = await Promise.race([
+      loadImage(file),
+      new Promise<HTMLImageElement>((_, reject) =>
+        setTimeout(() => reject(new Error("Image load timeout")), 10000)
+      ),
+    ]);
+
+    const { width, height } = calculateDimensions(img.width, img.height, maxSize);
+
+    // Try compressing with decreasing quality until under maxBytes
+    let q = quality;
+    let blob: Blob | null = null;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      blob = await canvasCompress(img, width, height, format, q);
+      if (blob.size <= maxBytes) break;
+      q = Math.max(0.3, q - 0.2);
+    }
+
+    if (!blob) {
+      blob = file.slice(); // fallback to original
+    }
+
+    // Clean up
+    URL.revokeObjectURL(img.src);
+
+    const ext = format === "image/webp" ? "webp" : file.name.split(".").pop() ?? "jpg";
+    const name = file.name.replace(/\.[^.]+$/, `.${ext}`);
+    const compressedFile = new File([blob], name, { type: format });
+
+    return { file: compressedFile, originalSize, compressedSize: blob.size };
+  } catch {
+    // Graceful fallback: return original file on any error
+    return { file, originalSize, compressedSize: originalSize };
   }
+}
 
-  // Load image
-  const img = await loadImage(file);
-  const { width, height } = calculateDimensions(img.width, img.height, maxSize);
-
-  // Try compressing with decreasing quality until under maxBytes
-  let q = quality;
-  let blob: Blob | null = null;
-
-  for (let attempt = 0; attempt < 4; attempt++) {
-    blob = await canvasCompress(img, width, height, format, q);
-    if (blob.size <= maxBytes) break;
-    q = Math.max(0.3, q - 0.15); // Reduce quality and retry
-  }
-
-  if (!blob) {
-    // Fallback: compress at lowest quality
-    blob = await canvasCompress(img, width, height, format, 0.3);
-  }
-
-  // Preserve original extension if possible, otherwise use format
-  const ext = format === "image/webp" ? "webp" : file.name.split(".").pop() ?? "jpg";
-  const name = file.name.replace(/\.[^.]+$/, `.${ext}`);
-
-  return new File([blob], name, { type: format });
+/** Human-readable file size */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // ── Internal helpers ─────────────────────────────────────────────────────────

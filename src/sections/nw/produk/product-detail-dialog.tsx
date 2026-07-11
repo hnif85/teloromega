@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { compressImage } from "@/lib/image-compress";
+import { compressImage, formatBytes } from "@/lib/image-compress";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -456,7 +456,7 @@ function ProductHeader({
     try {
       // Stage 1: Compress
       setUploadStage("compressing");
-      const compressed = await compressImage(file, {
+      const { file: compressed, originalSize, compressedSize } = await compressImage(file, {
         maxSize: 1024,
         quality: 0.7,
         maxBytes: 300 * 1024,
@@ -473,7 +473,15 @@ function ProductHeader({
       });
       setPreviewUrl(r.imageUrl);
       queryClient.invalidateQueries({ queryKey: ["product-detail", product.id] });
-      toast({ title: "Foto tersimpan!", description: "Gambar produk berhasil diupload." });
+
+      // Show compression stats if we actually compressed
+      const saved = originalSize - compressedSize;
+      const pct = saved > 0 ? Math.round((saved / originalSize) * 100) : 0;
+      const desc = saved > 1024
+        ? `Foto tersimpan! Dikompres ${formatBytes(originalSize)} → ${formatBytes(compressedSize)} (hemat ${pct}%)`
+        : "Foto produk berhasil diupload.";
+
+      toast({ title: "Foto tersimpan!", description: desc });
     } catch (err: any) {
       toast({ title: "Gagal upload", description: err?.message ?? "Coba lagi nanti.", variant: "destructive" });
     } finally {

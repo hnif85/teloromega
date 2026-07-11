@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { formatRupiah, formatRupiahShort } from "@/lib/constants";
+import { formatRupiah, formatRupiahShort, timeAgo } from "@/lib/constants";
 import {
   ChevronDown,
   Plus,
@@ -31,8 +31,6 @@ import {
   TrendingDown,
   Wallet,
   ArrowRightLeft,
-  Receipt,
-  Sparkles,
   Calculator,
   Camera,
   X,
@@ -44,8 +42,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { RingkasanTab } from "./keuangan/ringkasan-tab";
 import { TransaksiTab } from "./keuangan/transaksi-tab";
-import { PiutangHutangTab } from "./keuangan/piutang-hutang-tab";
-import { BiayaOperasionalTab } from "./keuangan/biaya-operasional-tab";
 import { ProyeksiTab } from "./keuangan/proyeksi-tab";
 import type { PeriodKey } from "./keuangan/types";
 
@@ -112,23 +108,51 @@ function StatMini({
   );
 }
 
-// ─── Section: Ringkasan ─────────────────────────────────────────────────────
+// ─── Section: Ringkasan (4 stats + piutang/biaya inline) ────────────────────
 function RingkasanSection({ brandId, period, open, onToggle }: { brandId: string; period: PeriodKey; open: boolean; onToggle: () => void }) {
   const { data, isLoading } = useQuery({
     queryKey: ["keuangan-summary", brandId, period],
-    queryFn: () => api<{ totalIncome: number; totalExpense: number; netProfit: number; cashFlow: { net: number }; grossProfit: number; marginPct: number }>(`/api/transactions/summary?brandId=${brandId}&period=${period}`),
+    queryFn: () => api<{ totalIncome: number; totalExpense: number; netProfit: number; cashFlow: { net: number } }>(`/api/transactions/summary?brandId=${brandId}&period=${period}`),
+    enabled: !!brandId,
+  });
+  const { data: rec } = useQuery({
+    queryKey: ["keuangan-receivables", brandId],
+    queryFn: () => api<{ receivables: { amount: number }[] }>(`/api/receivables?brandId=${brandId}&status=outstanding`),
+    enabled: !!brandId,
+  });
+  const { data: pay } = useQuery({
+    queryKey: ["keuangan-payables", brandId],
+    queryFn: () => api<{ payables: { amount: number }[] }>(`/api/payables?brandId=${brandId}&status=outstanding`),
+    enabled: !!brandId,
+  });
+  const { data: op } = useQuery({
+    queryKey: ["keuangan-opcost", brandId],
+    queryFn: () => api<{ stats: { bulanIni: { total: number; itemCount: number } } }>(`/api/operational-costs?brandId=${brandId}`),
     enabled: !!brandId,
   });
 
   const s = data;
   const laba = s?.netProfit ?? 0;
+  const piutangTotal = rec?.receivables?.reduce((a, r) => a + r.amount, 0) ?? 0;
+  const piutangCount = rec?.receivables?.length ?? 0;
+  const hutangTotal = pay?.payables?.reduce((a, p) => a + p.amount, 0) ?? 0;
+  const hutangCount = pay?.payables?.length ?? 0;
+  const biayaTotal = op?.stats?.bulanIni?.total ?? 0;
+  const biayaCount = op?.stats?.bulanIni?.itemCount ?? 0;
 
   const summary = (
-    <div className="grid grid-cols-2 gap-2">
-      <StatMini label="Pendapatan" value={isLoading ? "..." : formatRupiahShort(s?.totalIncome ?? 0)} icon={<TrendingUp className="size-4" />} green />
-      <StatMini label="Pengeluaran" value={isLoading ? "..." : formatRupiahShort(s?.totalExpense ?? 0)} icon={<TrendingDown className="size-4" />} red />
-      <StatMini label={laba >= 0 ? "Laba Bersih" : "Rugi Bersih"} value={isLoading ? "..." : formatRupiahShort(laba)} icon={<Wallet className="size-4" />} green={laba >= 0} red={laba < 0} />
-      <StatMini label="Arus Kas" value={isLoading ? "..." : (s?.cashFlow?.net ?? 0) >= 0 ? `+${formatRupiahShort(s?.cashFlow?.net ?? 0)}` : formatRupiahShort(s?.cashFlow?.net ?? 0)} icon={<ArrowRightLeft className="size-4" />} />
+    <div>
+      <div className="grid grid-cols-2 gap-2 mb-2">
+        <StatMini label="Pendapatan" value={isLoading ? "..." : formatRupiahShort(s?.totalIncome ?? 0)} icon={<TrendingUp className="size-4" />} green />
+        <StatMini label="Pengeluaran" value={isLoading ? "..." : formatRupiahShort(s?.totalExpense ?? 0)} icon={<TrendingDown className="size-4" />} red />
+        <StatMini label={laba >= 0 ? "Laba Bersih" : "Rugi Bersih"} value={isLoading ? "..." : formatRupiahShort(laba)} icon={<Wallet className="size-4" />} green={laba >= 0} red={laba < 0} />
+        <StatMini label="Arus Kas" value={isLoading ? "..." : (s?.cashFlow?.net ?? 0) >= 0 ? `+${formatRupiahShort(s?.cashFlow?.net ?? 0)}` : formatRupiahShort(s?.cashFlow?.net ?? 0)} icon={<ArrowRightLeft className="size-4" />} />
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone">
+        {piutangCount > 0 && <span>📥 Piutang: <strong className="text-emerald-700">{formatRupiahShort(piutangTotal)}</strong> ({piutangCount})</span>}
+        {hutangCount > 0 && <span>📤 Hutang: <strong className="text-amber-700">{formatRupiahShort(hutangTotal)}</strong> ({hutangCount})</span>}
+        {biayaCount > 0 && <span>💸 Biaya: <strong className="text-ink">{formatRupiahShort(biayaTotal)}</strong>/bln ({biayaCount} item)</span>}
+      </div>
     </div>
   );
 
@@ -139,84 +163,8 @@ function RingkasanSection({ brandId, period, open, onToggle }: { brandId: string
   );
 }
 
-// ─── Section: Piutang & Hutang ──────────────────────────────────────────────
-function PiutangHutangSection({ brandId, open, onToggle }: { brandId: string; open: boolean; onToggle: () => void }) {
-  const { data: rec } = useQuery({
-    queryKey: ["keuangan-receivables", brandId],
-    queryFn: () => api<{ receivables: { amount: number; status: string }[] }>(`/api/receivables?brandId=${brandId}&status=outstanding`),
-    enabled: !!brandId,
-  });
-  const { data: pay } = useQuery({
-    queryKey: ["keuangan-payables", brandId],
-    queryFn: () => api<{ payables: { amount: number; status: string }[] }>(`/api/payables?brandId=${brandId}&status=outstanding`),
-    enabled: !!brandId,
-  });
-
-  const piutangTotal = rec?.receivables?.reduce((s, r) => s + r.amount, 0) ?? 0;
-  const piutangCount = rec?.receivables?.length ?? 0;
-  const hutangTotal = pay?.payables?.reduce((s, p) => s + p.amount, 0) ?? 0;
-  const hutangCount = pay?.payables?.length ?? 0;
-
-  const summary = (
-    <div className="grid grid-cols-2 gap-2">
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50/60">
-        <span className="text-sm">📥</span>
-        <div>
-          <div className="text-xs font-bold text-emerald-700">{formatRupiahShort(piutangTotal)}</div>
-          <div className="text-[10px] text-stone">Piutang ({piutangCount})</div>
-        </div>
-      </div>
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50/60">
-        <span className="text-sm">📤</span>
-        <div>
-          <div className="text-xs font-bold text-amber-700">{formatRupiahShort(hutangTotal)}</div>
-          <div className="text-[10px] text-stone">Hutang ({hutangCount})</div>
-        </div>
-      </div>
-    </div>
-  );
-
-  if (piutangCount === 0 && hutangCount === 0) {
-    return (
-      <CollapsibleSection open={open} onToggle={onToggle} title="Piutang & Hutang" icon="📥">
-        <div className="text-center py-6 text-sm text-stone">Belum ada piutang atau hutang tercatat</div>
-      </CollapsibleSection>
-    );
-  }
-
-  return (
-    <CollapsibleSection open={open} onToggle={onToggle} title="Piutang & Hutang" icon="📥" summary={summary}>
-      <PiutangHutangTab brandId={brandId} />
-    </CollapsibleSection>
-  );
-}
-
-// ─── Section: Biaya Operasional ─────────────────────────────────────────────
-function BiayaSection({ brandId, open, onToggle }: { brandId: string; open: boolean; onToggle: () => void }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ["keuangan-opcost", brandId],
-    queryFn: () => api<{ stats: { bulanIni: { total: number; itemCount: number } } }>(`/api/operational-costs?brandId=${brandId}`),
-    enabled: !!brandId,
-  });
-
-  const stats = data?.stats?.bulanIni;
-  const summary = (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-cream-50/60">
-      <Receipt className="size-4 text-stone" />
-      <span className="text-sm font-bold text-ink">{isLoading ? "..." : formatRupiahShort(stats?.total ?? 0)}</span>
-      <span className="text-xs text-stone">· {stats?.itemCount ?? 0} item bulan ini</span>
-    </div>
-  );
-
-  return (
-    <CollapsibleSection open={open} onToggle={onToggle} title="Biaya Operasional" icon="💸" summary={summary}>
-      <BiayaOperasionalTab brandId={brandId} />
-    </CollapsibleSection>
-  );
-}
-
-// ─── Section: Transaksi Terbaru ─────────────────────────────────────────────
-function TransaksiRecentSection({ brandId, open, onToggle }: { brandId: string; open: boolean; onToggle: () => void }) {
+// ─── Section: Transaksi (cards + sub-tabs: semua / piutang & hutang / biaya) ─
+function TransaksiSection({ brandId, open, onToggle }: { brandId: string; open: boolean; onToggle: () => void }) {
   const { data, isLoading } = useQuery({
     queryKey: ["keuangan-recent-tx", brandId],
     queryFn: () => api<{ transactions: { id: string; type: string; category: string; description: string | null; amount: number; date: string }[] }>(`/api/transactions?brandId=${brandId}&limit=5`),
@@ -226,29 +174,39 @@ function TransaksiRecentSection({ brandId, open, onToggle }: { brandId: string; 
   const txs = data?.transactions ?? [];
 
   const summary = isLoading ? (
-    <div className="space-y-2">
-      {[1, 2, 3].map((i) => <Skeleton key={i} className="h-8 w-full rounded-lg" />)}
-    </div>
+    <div className="space-y-2">{[1,2,3].map((i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}</div>
   ) : txs.length === 0 ? (
-    <div className="text-center py-3 text-xs text-stone">Belum ada transaksi</div>
+    <div className="text-center py-4 text-xs text-stone">Belum ada transaksi</div>
   ) : (
-    <div className="space-y-1">
-      {txs.slice(0, 3).map((tx) => (
-        <div key={tx.id} className="flex items-center justify-between px-3 py-1.5 rounded-lg hover:bg-cream-50 transition-colors">
-          <div className="flex items-center gap-2 min-w-0">
-            <span>{tx.type === "income" ? "📥" : "📤"}</span>
-            <span className="text-xs text-ink truncate">{tx.description || tx.category}</span>
+    <div className="space-y-2">
+      {txs.map((tx) => (
+        <div key={tx.id} className="rounded-xl border border-border bg-cream-50/50 px-3 py-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className={cn("size-7 rounded-lg flex items-center justify-center", tx.type === "income" ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600")}>
+                {tx.type === "income" ? "📥" : "📤"}
+              </span>
+              <div>
+                <div className="text-sm font-semibold text-ink truncate">{tx.description || tx.category.replace(/_/g, " ")}</div>
+                <div className="text-[10px] text-stone">{timeAgo(tx.date)}</div>
+              </div>
+            </div>
+            <span className={cn("text-sm font-bold tabular-nums shrink-0 ml-2", tx.type === "income" ? "text-emerald-600" : "text-rose-600")}>
+              {tx.type === "income" ? "+" : "-"}{formatRupiahShort(tx.amount)}
+            </span>
           </div>
-          <span className={cn("text-xs font-bold tabular-nums shrink-0", tx.type === "income" ? "text-emerald-600" : "text-rose-600")}>
-            {tx.type === "income" ? "+" : "-"}{formatRupiahShort(tx.amount)}
-          </span>
         </div>
       ))}
+      {txs.length > 0 && (
+        <button onClick={onToggle} className="w-full text-center text-xs text-teal font-medium py-1 hover:underline">
+          Lihat Semua ({txs.length}+ transaksi) →
+        </button>
+      )}
     </div>
   );
 
   return (
-    <CollapsibleSection open={open} onToggle={onToggle} title="Transaksi Terbaru" icon="🧾" summary={summary}>
+    <CollapsibleSection open={open} onToggle={onToggle} title="Transaksi" icon="🧾" summary={summary}>
       <TransaksiTab brandId={brandId} />
     </CollapsibleSection>
   );
@@ -288,9 +246,7 @@ function QuickAddDialog({ brandId, open, onClose }: { brandId: string; open: boo
   const [desc, setDesc] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-
-  const saving = useState(false);
-  const [loading, setLoading] = false;
+  const [loading, setLoading] = useState(false);
 
   function reset() {
     setType("income"); setCategory("penjualan"); setAmount(""); setDesc("");
@@ -411,7 +367,7 @@ function QuickAddDialog({ brandId, open, onClose }: { brandId: string; open: boo
 }
 
 // ─── Main Component ─────────────────────────────────────────────────────────
-const SECTION_KEYS = ["ringkasan", "piutang", "biaya", "transaksi", "proyeksi"] as const;
+const SECTION_KEYS = ["ringkasan", "transaksi", "proyeksi"] as const;
 
 export function KeuanganSection() {
   const activeBrand = getActiveBrand(useAppStore.getState());
@@ -475,9 +431,7 @@ export function KeuanganSection() {
       {/* Sections */}
       <div className="space-y-2">
         <RingkasanSection brandId={activeBrand.id} period={period} open={expanded.has("ringkasan")} onToggle={() => toggle("ringkasan")} />
-        <PiutangHutangSection brandId={activeBrand.id} open={expanded.has("piutang")} onToggle={() => toggle("piutang")} />
-        <BiayaSection brandId={activeBrand.id} open={expanded.has("biaya")} onToggle={() => toggle("biaya")} />
-        <TransaksiRecentSection brandId={activeBrand.id} open={expanded.has("transaksi")} onToggle={() => toggle("transaksi")} />
+        <TransaksiSection brandId={activeBrand.id} open={expanded.has("transaksi")} onToggle={() => toggle("transaksi")} />
         <ProyeksiSection brandId={activeBrand.id} open={expanded.has("proyeksi")} onToggle={() => toggle("proyeksi")} />
       </div>
 

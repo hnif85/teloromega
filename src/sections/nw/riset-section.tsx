@@ -437,11 +437,12 @@ function ResearchView({
   setSection: (s: "konten" | "toko" | "keuangan") => void;
 }) {
   const r = research.result!;
-  const trendData = r.market_trend.labels.map((l, i) => ({
+  const mt = r.market_trend;
+  const trendData = mt?.labels?.map((l, i) => ({
     name: l,
-    value: r.market_trend.values[i] ?? 0,
-  }));
-  const growth = r.market_trend.stats.growth_pct;
+    value: mt.values?.[i] ?? 0,
+  })) ?? [];
+  const growth = mt?.stats?.growth_pct ?? 0;
 
   return (
     <div className="space-y-4">

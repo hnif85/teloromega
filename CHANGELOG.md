@@ -7,6 +7,13 @@
 
 ---
 
+## [0.11.0] — 2026-07-12
+
+### ✨ Added
+- mobile accordion for Riset results, hide sidebar on mobile, auto-expand new result
+
+
+
 ## [0.10.2] — 2026-07-12
 
 ### ♻️ Refactored

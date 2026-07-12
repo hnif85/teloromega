@@ -7,6 +7,13 @@
 
 ---
 
+## [0.10.2] — 2026-07-12
+
+### ♻️ Refactored
+- light sidebar theme, inline account menu, CSS variable text colors
+
+
+
 ## [0.10.1] — 2026-07-12
 
 ### ♻️ Refactored

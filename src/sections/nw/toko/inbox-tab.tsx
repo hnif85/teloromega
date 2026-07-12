@@ -230,13 +230,34 @@ export function InboxTab({
                             {timeAgo(t.lastAt)}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1 mb-0.5">
+                        <div className="flex items-center gap-1 mb-0.5 flex-wrap">
                           <Badge
                             variant="outline"
                             className="text-[9px] py-0 h-3.5"
                           >
                             {t.channel === "wa" ? "WA" : "TG"}
                           </Badge>
+                          {(t as any).intent?.label && (t as any).intent.label !== "Umum" && (
+                            <Badge className={`text-[9px] py-0 h-3.5 ${
+                              (t as any).intent.intent === "buying_intent" ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
+                              (t as any).intent.intent === "complaint" ? "bg-rose-100 text-rose-700 border-rose-200" :
+                              (t as any).intent.intent === "product_inquiry" ? "bg-sky-100 text-sky-700 border-sky-200" :
+                              (t as any).intent.intent === "order_status" ? "bg-violet-100 text-violet-700 border-violet-200" :
+                              "bg-stone-100 text-stone-600 border-stone-200"
+                            }`}>
+                              {(t as any).intent.label}
+                            </Badge>
+                          )}
+                          {(t as any).leadStage && (
+                            <Badge variant="outline" className={`text-[9px] py-0 h-3.5 ${
+                              (t as any).leadStage === "Negosiasi" ? "border-sky-200 text-sky-600" :
+                              (t as any).leadStage === "Deal" ? "border-emerald-200 text-emerald-600" :
+                              (t as any).leadStage === "Closed" ? "border-stone-200 text-stone-400" :
+                              ""
+                            }`}>
+                              {(t as any).leadStage}
+                            </Badge>
+                          )}
                           <span className="text-[10px] text-stone">
                             {t.messages.length} pesan
                           </span>

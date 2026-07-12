@@ -30,8 +30,8 @@ export function Sidebar() {
     return cn(
       "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors",
       active
-        ? "bg-teal text-white"
-        : "text-cream-300 hover:bg-sidebar-accent hover:text-cream-100"
+        ? "bg-teal-50 text-teal-700 dark:bg-teal dark:text-white"
+        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
     );
   }
 
@@ -60,7 +60,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="hidden md:flex flex-col w-[248px] bg-sidebar text-sidebar-foreground shrink-0 h-screen sticky top-0">
+    <aside className="hidden md:flex flex-col w-[248px] bg-sidebar text-sidebar-foreground border-r border-sidebar-border shrink-0 h-screen sticky top-0">
       {/* Logo */}
       <div className="px-4 pt-5 pb-3">
         <div className="flex items-center gap-2.5">
@@ -68,8 +68,8 @@ export function Sidebar() {
             U
           </div>
           <div>
-            <div className="font-extrabold text-cream-100 text-[15px] leading-none">usahaku.ai</div>
-            <div className="text-[10px] text-cream-300/70 tracking-wider uppercase mt-1">AI Co-pilot UMKM</div>
+            <div className="font-extrabold text-sidebar-foreground text-[15px] leading-none">usahaku.ai</div>
+            <div className="text-[10px] text-sidebar-foreground/60 tracking-wider uppercase mt-1">AI Co-pilot UMKM</div>
           </div>
         </div>
       </div>
@@ -83,14 +83,14 @@ export function Sidebar() {
                 {activeBrand?.name?.[0]?.toUpperCase() ?? "?"}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-cream-100 truncate">
+                <div className="text-sm font-semibold text-sidebar-foreground truncate">
                   {activeBrand?.name ?? "Belum ada brand"}
                 </div>
-                <div className="text-[10px] text-cream-300/70 truncate">
+                <div className="text-[10px] text-sidebar-foreground/60 truncate">
                   {activeBrand?.category ?? "—"}
                 </div>
               </div>
-              <ChevronDown className="size-4 text-cream-300/70 shrink-0" />
+              <ChevronDown className="size-4 text-sidebar-foreground/60 shrink-0" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">

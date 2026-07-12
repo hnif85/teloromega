@@ -30,7 +30,7 @@ export function BottomTabBar() {
                 "flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors",
                 active
                   ? "text-teal"
-                  : "text-cream-400 hover:text-stone"
+                  : "text-stone hover:text-ink"
               )}
             >
               <span className="text-lg leading-none">{tab.icon}</span>

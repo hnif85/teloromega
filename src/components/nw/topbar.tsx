@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore, getActiveBrand } from "@/lib/store";
 import { type SectionKey, timeAgo } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { Bell, Zap, Plus, Command, LogOut, Search, Sparkles, ArrowRight, RefreshCw, ChevronDown, Check, X } from "lucide-react";
+import { Bell, Zap, Plus, Command, LogOut, Search, Sparkles, ArrowRight, RefreshCw, ChevronDown, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,9 +13,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
@@ -330,46 +327,43 @@ export function Topbar() {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
 
-              {/* Account flyout — a submenu so it opens without leaving the
-                  page. Starts straight at "Profil" — no repeated "Pengaturan"
-                  title or name/email card, since the trigger row right below
-                  already shows who's logged in. */}
-              <DropdownMenuSub open={accountMenuOpen} onOpenChange={setAccountMenuOpen}>
-                <DropdownMenuSubTrigger className="cursor-pointer gap-2.5">
-                  <div className="size-6 rounded-full bg-gradient-to-br from-teal to-teal-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-                    {user?.name?.[0]?.toUpperCase() ?? "U"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm truncate">{user?.name ?? "Profil"}</div>
-                    <div className="text-[10px] text-stone truncate">Profil & Pengaturan</div>
-                  </div>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-56">
-                  <div className="flex items-center justify-end px-1 pb-1">
-                    <button
-                      type="button"
-                      onClick={() => setAccountMenuOpen(false)}
-                      aria-label="Tutup"
-                      className="text-stone hover:text-ink transition-colors p-0.5"
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                  </div>
+              {/* Account section — expands DOWNWARD inline (not a side flyout),
+                  so it never gets cut off on narrow/mobile screens. */}
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setAccountMenuOpen((v) => !v);
+                }}
+                className="cursor-pointer gap-2.5"
+              >
+                <div className="size-6 rounded-full bg-gradient-to-br from-teal to-teal-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                  {user?.name?.[0]?.toUpperCase() ?? "U"}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm truncate">{user?.name ?? "Profil"}</div>
+                  <div className="text-[10px] text-stone truncate">Profil & Pengaturan</div>
+                </div>
+                <ChevronDown
+                  className={cn("size-4 text-stone transition-transform", accountMenuOpen && "rotate-180")}
+                />
+              </DropdownMenuItem>
+
+              {accountMenuOpen && (
+                <>
                   {PROFIL_MENU_ITEMS.map((item) => (
                     <DropdownMenuItem
                       key={item.key}
                       onClick={() => setSection("pengaturan")}
-                      className="cursor-pointer gap-2.5"
+                      className="cursor-pointer gap-2.5 pl-8"
                     >
                       <span>{item.icon}</span>
                       <span>{item.label}</span>
                     </DropdownMenuItem>
                   ))}
-                  <DropdownMenuSeparator />
                   {/* Theme toggle inline — tapping it shouldn't close the menu. */}
                   <div
                     onClick={(e) => e.preventDefault()}
-                    className="flex items-center justify-between px-2 py-1.5 rounded-sm text-sm"
+                    className="flex items-center justify-between px-2 py-1.5 pl-8 rounded-sm text-sm"
                   >
                     <span className="flex items-center gap-2.5">
                       <span>{resolvedTheme === "dark" ? "🌙" : "🌞"}</span> Tema
@@ -388,12 +382,12 @@ export function Topbar() {
                   </div>
                   <DropdownMenuItem
                     onClick={handleLogout}
-                    className="cursor-pointer gap-2.5 text-rose-600 focus:text-rose-700 focus:bg-rose-50"
+                    className="cursor-pointer gap-2.5 pl-8 text-rose-600 focus:text-rose-700 focus:bg-rose-50"
                   >
                     <LogOut className="size-4" /> Keluar
                   </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

@@ -71,8 +71,8 @@ export function UserMenu() {
               {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-cream-100 truncate">{user.name}</div>
-              <div className="text-[10px] text-cream-300/60 truncate">{user.email}</div>
+              <div className="text-sm font-semibold text-sidebar-foreground truncate">{user.name}</div>
+              <div className="text-[10px] text-sidebar-foreground/60 truncate">{user.email}</div>
             </div>
           </button>
         </DropdownMenuTrigger>

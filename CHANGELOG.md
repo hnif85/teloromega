@@ -7,6 +7,13 @@
 
 ---
 
+## [0.6.1] — 2026-07-12
+
+### 🐛 Fixed
+- auto-generate query from brand data instead of suggestion chip; update year 2025→2026
+
+
+
 ## [0.6.0] — 2026-07-11
 
 ### ✨ Added

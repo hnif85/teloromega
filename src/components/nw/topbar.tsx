@@ -398,12 +398,15 @@ export function Topbar() {
           </DropdownMenu>
         </div>
 
-        {/* Desktop: greeting on the left, next to sidebar */}
-        <div className="hidden md:flex items-center gap-2.5 min-w-0">
-          <span className="text-sm text-stone">
-            Halo, <span className="font-semibold text-ink">{user?.name ?? ""}</span>
-          </span>
-        </div>
+        {/* Desktop: greeting on the left, next to sidebar.
+            Hidden on Beranda — that page renders its own prominent greeting. */}
+        {section !== "beranda" && (
+          <div className="hidden md:flex items-center gap-2.5 min-w-0">
+            <span className="text-sm text-stone">
+              Halo, <span className="font-semibold text-ink">{user?.name ?? ""}</span>
+            </span>
+          </div>
+        )}
 
         {/* Desktop: page title portal target (see PageHeader) */}
         <div

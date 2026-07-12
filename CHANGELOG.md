@@ -7,6 +7,13 @@
 
 ---
 
+## [0.8.0] — 2026-07-12
+
+### ✨ Added
+- split Toko & AI Chat sections, add customer order context to AI
+
+
+
 ## [0.7.0] — 2026-07-12
 
 ### ✨ Added

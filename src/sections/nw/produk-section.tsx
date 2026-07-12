@@ -1024,7 +1024,7 @@ function ProductCard({
             />
           ) : null}
           <div
-            className={`w-full h-full items-center justify-center bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 ${product.imageUrl ? "hidden" : "flex"}`}
+            className={`w-full h-full items-center justify-center bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 dark:bg-none dark:bg-teal-950/40 ${product.imageUrl ? "hidden" : "flex"}`}
           >
             <span className="text-3xl font-extrabold text-teal-600/70">{getInitials(product.name)}</span>
           </div>

@@ -632,7 +632,7 @@ export function AddTransactionDialog({
             type="button"
             onClick={() => setMode("manual")}
             className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-              mode === "manual" ? "bg-white shadow-sm text-ink" : "text-stone hover:text-ink"
+              mode === "manual" ? "bg-card shadow-sm text-ink" : "text-stone hover:text-ink"
             }`}
           >
             <FileText className="size-3.5 inline mr-1" /> Manual
@@ -641,7 +641,7 @@ export function AddTransactionDialog({
             type="button"
             onClick={() => setMode("upload")}
             className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-              mode === "upload" ? "bg-white shadow-sm text-ink" : "text-stone hover:text-ink"
+              mode === "upload" ? "bg-card shadow-sm text-ink" : "text-stone hover:text-ink"
             }`}
           >
             <Camera className="size-3.5 inline mr-1" /> Struk
@@ -650,7 +650,7 @@ export function AddTransactionDialog({
             type="button"
             onClick={() => setMode("template")}
             className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-              mode === "template" ? "bg-white shadow-sm text-ink" : "text-stone hover:text-ink"
+              mode === "template" ? "bg-card shadow-sm text-ink" : "text-stone hover:text-ink"
             }`}
           >
             <FileSpreadsheet className="size-3.5 inline mr-1" /> Template

@@ -182,18 +182,36 @@ export function OnboardingDialog() {
     setLoading(true);
     try {
       await api("/api/user", { method: "PATCH", json: { isOnboarded: true } });
-      completeOnboarding();
-      setOnboardingOpen(false);
+    } catch {
+      // ignore — still let the user into the app even if the flag update fails
+    }
+    completeOnboarding();
+    setOnboardingOpen(false);
+
+    // Research-first onboarding: if this brand has no research yet, drop the
+    // user straight into Riset so they start there (Konten/Toko/Keuangan all
+    // draw on research context). Only fall back to Beranda once research exists.
+    const st = useAppStore.getState();
+    let goToRiset = true;
+    if (st.activeBrandId) {
+      try {
+        const res = await api<{ research: unknown[] }>(`/api/research?brandId=${st.activeBrandId}`);
+        goToRiset = !res.research || res.research.length === 0;
+      } catch {
+        goToRiset = true;
+      }
+    }
+
+    if (goToRiset) {
+      setSection("riset");
+      toast({ title: "Semua siap! 🚀", description: "Yuk mulai dengan riset pasar dulu — biar AI paham bisnismu." });
+    } else {
       setSection("beranda");
       toast({ title: "Semua siap! 🚀", description: "Selamat datang di usahaku.ai. Yuk eksplor fitur-fiturnya!" });
-    } catch {
-      completeOnboarding();
-      setOnboardingOpen(false);
-      setSection("beranda");
-    } finally {
-      setLoading(false);
-      resetForm();
     }
+
+    setLoading(false);
+    resetForm();
   }
 
   function close() {

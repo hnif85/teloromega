@@ -507,7 +507,7 @@ function CustomerHeader({ customer }: { customer: CustomerDetailResponse["custom
   return (
     <div className="flex items-start gap-4">
       {/* Avatar */}
-      <div className="size-16 rounded-full bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 flex items-center justify-center shrink-0 border border-teal-200">
+      <div className="size-16 rounded-full bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 dark:bg-none dark:bg-teal-950/40 flex items-center justify-center shrink-0 border border-teal-200">
         <span className="text-xl font-extrabold text-teal-700">
           {getInitials(customer.name)}
         </span>

@@ -297,7 +297,7 @@ export function KeuanganSection() {
                 onClick={() => setPeriod(p)}
                 className={cn(
                   "py-1.5 rounded-md text-[11px] font-semibold transition-colors",
-                  period === p ? "bg-white text-teal shadow-sm" : "text-stone hover:text-ink"
+                  period === p ? "bg-card text-teal shadow-sm" : "text-stone hover:text-ink"
                 )}
               >
                 {p === "month" ? "Bln" : p === "quarter" ? "Krtl" : "Thn"}

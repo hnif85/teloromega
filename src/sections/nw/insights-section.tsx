@@ -585,7 +585,7 @@ function CTACard({
 }) {
   const canAfford = creditBalance >= 3;
   return (
-    <div className="relative rounded-2xl bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 border border-teal/20 p-6 md:p-8">
+    <div className="relative rounded-2xl bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 dark:bg-none dark:bg-teal-950/40 border border-teal/20 p-6 md:p-8">
       {onDismiss && (
         <button
           type="button"

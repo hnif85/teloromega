@@ -121,7 +121,7 @@ function StatTile({
 function InsightPanel() {
   const { setSection } = useAppStore();
   return (
-    <div className="relative h-full rounded-2xl bg-gradient-to-br from-teal-50 to-emerald-100/50 border border-teal/15 p-5 overflow-hidden">
+    <div className="relative h-full rounded-2xl bg-gradient-to-br from-teal-50 to-emerald-100/50 dark:bg-none dark:bg-teal-950/40 border border-teal/15 p-5 overflow-hidden">
       <div className="absolute -right-6 -bottom-6 size-28 rounded-full bg-teal/10 blur-xl pointer-events-none" />
       <div className="relative">
         <div className="flex items-center gap-2 mb-2">
@@ -130,7 +130,7 @@ function InsightPanel() {
           </div>
           <span className="font-bold text-ink">Insight Harian</span>
         </div>
-        <p className="text-sm text-ink-soft leading-relaxed max-w-sm">
+        <p className="text-sm text-ink-500 leading-relaxed max-w-sm">
           Waktu terbaik posting konten makanan ringan di TikTok adalah jam{" "}
           <span className="font-semibold text-ink">11.00 – 13.00</span> dan{" "}
           <span className="font-semibold text-ink">18.00 – 20.00</span>.

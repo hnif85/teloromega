@@ -670,7 +670,7 @@ function BlockContentView({
   return (
     <div className="space-y-4">
       {!hideHeader && (
-      <div className="rounded-2xl bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 border border-teal/20 p-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="rounded-2xl bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 dark:bg-none dark:bg-teal-950/40 border border-teal/20 p-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="size-10 rounded-xl bg-teal text-white flex items-center justify-center shrink-0">
             <Sparkles className="size-5" />
@@ -729,7 +729,7 @@ function ResearchViewImpl({
     <div className="space-y-4">
       {/* Header bar */}
       {!hideHeader && (
-      <div className="rounded-2xl bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 border border-teal/20 p-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="rounded-2xl bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 dark:bg-none dark:bg-teal-950/40 border border-teal/20 p-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="size-10 rounded-xl bg-teal text-white flex items-center justify-center shrink-0">
             <Sparkles className="size-5" />

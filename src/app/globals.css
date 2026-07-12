@@ -129,6 +129,21 @@
   --sidebar-accent-foreground: #F6F4EF;
   --sidebar-border: #34302C;
   --sidebar-ring: #0D9488;
+
+  /* The Next Whiz tokens — dark overrides. Without these, text-ink/text-stone
+     stay dark and become invisible on dark surfaces, and bg-cream-* stay light.
+     Text tokens flip light; cream surface tokens flip dark. Accent tokens
+     (teal/success/danger/warning/orange) are left as-is — they read fine. */
+  --color-ink: #F6F4EF;
+  --color-ink-700: #E7E3DC;
+  --color-ink-500: #B4ADA6;
+  --color-stone: #A8A29E;
+  --color-stone-300: #7C7570;
+  --color-cream: #211D1A;
+  --color-cream-100: #211D1A;
+  --color-cream-200: #2A2521;
+  --color-cream-300: #34302C;
+  --color-cream-400: #44403C;
 }
 
 @layer base {

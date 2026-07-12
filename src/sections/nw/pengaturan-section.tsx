@@ -2682,7 +2682,7 @@ function StoreSettingsTab() {
                     newAccs[idx] = { ...newAccs[idx], bank: e.target.value };
                     setSettings((s) => ({ ...s, bankAccounts: newAccs }));
                   }}
-                  className="h-8 text-xs bg-white"
+                  className="h-8 text-xs bg-card"
                 />
                 <Input
                   placeholder="No. Rekening"
@@ -2692,7 +2692,7 @@ function StoreSettingsTab() {
                     newAccs[idx] = { ...newAccs[idx], accountNumber: e.target.value };
                     setSettings((s) => ({ ...s, bankAccounts: newAccs }));
                   }}
-                  className="h-8 text-xs bg-white"
+                  className="h-8 text-xs bg-card"
                 />
                 <div className="flex items-center gap-1">
                   <Input
@@ -2703,7 +2703,7 @@ function StoreSettingsTab() {
                       newAccs[idx] = { ...newAccs[idx], accountName: e.target.value };
                       setSettings((s) => ({ ...s, bankAccounts: newAccs }));
                     }}
-                    className="h-8 text-xs bg-white flex-1"
+                    className="h-8 text-xs bg-card flex-1"
                   />
                   <button
                     onClick={() =>

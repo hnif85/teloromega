@@ -2,16 +2,16 @@
 
 // ─────────────────────────────────────────────────────────────────────────────
 // KontenSection — AI content generator (gambar + video only), mobile-first
-// 3 views: gallery (default), detail (tap card), create (FAB)
+// 2 views: gallery (default, with the chat-style ComposerBar for creating new
+// content inline), detail (tap card)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAppStore, getActiveBrand } from "@/lib/store";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/nw/primitives";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -28,18 +28,29 @@ import {
   Download,
   Sparkles,
   ArrowLeft,
-  Plus,
   Loader2,
   Clock,
   Pencil,
+  Package,
+  X,
+  Send,
+  Plus,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { PLATFORMS, TONES, timeAgo } from "@/lib/constants";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { PLATFORMS, timeAgo } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 type ContentType = "gambar" | "video";
-type ViewMode = "gallery" | "detail" | "create";
+type ViewMode = "gallery" | "detail";
 
 interface ContentItem {
   id: string;
@@ -59,6 +70,7 @@ interface ProductLite {
   type: string;
   name: string;
   price: number;
+  imageUrl: string | null;
 }
 
 interface VideoPlan {
@@ -266,70 +278,75 @@ function DetailView({
         <ArrowLeft className="size-4" /> Kembali
       </button>
 
-      {/* Media */}
-      {isImage && item.assetUrl ? (
-        <div className="rounded-xl overflow-hidden border border-border bg-black/5">
-          <img src={item.assetUrl} alt="Konten" className="w-full h-auto" />
-        </div>
-      ) : !isImage ? (
-        <VideoScriptPreview body={item.body ?? ""} />
-      ) : (
-        <div className="aspect-square rounded-xl bg-cream-100 border border-border flex items-center justify-center">
-          <ImageIcon className="size-12 text-stone/30" />
-        </div>
-      )}
-
-      {/* Badges */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Badge variant="outline" className="text-[10px] bg-teal-50 text-teal-700 border-teal/20">
-          {TYPE_LABEL[item.type]}
-        </Badge>
-        {item.platform && (
-          <Badge variant="outline" className="text-[10px] bg-cream-100">
-            {item.platform}
-          </Badge>
-        )}
-        {item.productName && (
-          <Badge variant="outline" className="text-[10px] text-stone">
-            {item.productName}
-          </Badge>
-        )}
-      </div>
-
-      {/* Caption */}
-      {item.body && isImage && (
-        <div className="rounded-xl bg-cream-50/80 border border-border p-4">
-          <p className="text-sm text-ink whitespace-pre-wrap leading-relaxed">{item.body}</p>
-          {hashtags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-border">
-              {hashtags.map((h, i) => (
-                <span key={i} className="text-xs text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded-md">{h}</span>
-              ))}
+      <div className="flex flex-col md:flex-row gap-4 md:gap-6">
+        {/* Media — left column on desktop */}
+        <div className="md:w-1/2 md:max-w-[55%] shrink-0">
+          {isImage && item.assetUrl ? (
+            <div className="rounded-xl overflow-hidden border border-border bg-black/5 flex items-center justify-center">
+              <img src={item.assetUrl} alt="Konten" className="max-w-full max-h-[70vh] w-auto h-auto object-contain" />
+            </div>
+          ) : !isImage ? (
+            <VideoScriptPreview body={item.body ?? ""} />
+          ) : (
+            <div className="aspect-square rounded-xl bg-cream-100 border border-border flex items-center justify-center">
+              <ImageIcon className="size-12 text-stone/30" />
             </div>
           )}
         </div>
-      )}
 
-      {/* Edit section */}
-      <div className="rounded-xl border border-teal/20 bg-teal-50/30 p-3 space-y-2">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-teal-700">
-          <Pencil className="size-3.5" /> Edit Konten ({item.type === "gambar" ? "4" : "6"} credit)
-        </div>
-        <textarea
-          value={editText}
-          onChange={(e) => setEditText(e.target.value)}
-          placeholder={`Mau ubah apa?\nMisal: "background diganti outdoor", "tone lebih formal", "target ibu-ibu"…`}
-          rows={2}
-          className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-ink placeholder:text-stone/50 focus:outline-none focus:ring-2 focus:ring-teal/30 resize-none"
-        />
-        <Button
-          size="sm"
-          disabled={!editText.trim() || editMutation.isPending}
-          onClick={() => editMutation.mutate()}
-          className="gap-1.5 bg-teal hover:bg-teal-600 w-full"
-        >
-          {editMutation.isPending ? (
-            <>
+        {/* Right column: badges + caption + edit */}
+        <div className="flex-1 min-w-0 space-y-4">
+          {/* Badges */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge variant="outline" className="text-[10px] bg-teal-50 text-teal-700 border-teal/20">
+              {TYPE_LABEL[item.type]}
+            </Badge>
+            {item.platform && (
+              <Badge variant="outline" className="text-[10px] bg-cream-100">
+                {item.platform}
+              </Badge>
+            )}
+            {item.productName && (
+              <Badge variant="outline" className="text-[10px] text-stone">
+                {item.productName}
+              </Badge>
+            )}
+          </div>
+
+          {/* Caption */}
+          {item.body && isImage && (
+            <div className="rounded-xl bg-cream-50/80 border border-border p-4">
+              <p className="text-sm text-ink whitespace-pre-wrap leading-relaxed">{item.body}</p>
+              {hashtags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-border">
+                  {hashtags.map((h, i) => (
+                    <span key={i} className="text-xs text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded-md">{h}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Edit section */}
+          <div className="rounded-xl border border-teal/20 bg-teal-50/30 p-3 space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-teal-700">
+              <Pencil className="size-3.5" /> Edit Konten ({item.type === "gambar" ? "4" : "6"} credit)
+            </div>
+            <textarea
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              placeholder={`Mau ubah apa?\nMisal: "background diganti outdoor", "tone lebih formal", "target ibu-ibu"…`}
+              rows={2}
+              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-ink placeholder:text-stone/50 focus:outline-none focus:ring-2 focus:ring-teal/30 resize-none"
+            />
+            <Button
+              size="sm"
+              disabled={!editText.trim() || editMutation.isPending}
+              onClick={() => editMutation.mutate()}
+              className="gap-1.5 bg-teal hover:bg-teal-600 w-full"
+            >
+              {editMutation.isPending ? (
+                <>
               <Loader2 className="size-3.5 animate-spin" /> Mengedit...
             </>
           ) : (
@@ -338,6 +355,8 @@ function DetailView({
             </>
           )}
         </Button>
+          </div>
+        </div>
       </div>
 
       {/* Actions */}
@@ -431,13 +450,16 @@ function FilterBar({
   activeProduct,
   setActiveProduct,
   products,
+  onProductCreated,
 }: {
   activePlatform: string;
   setActivePlatform: (p: string) => void;
   activeProduct: string;
   setActiveProduct: (p: string) => void;
   products: ProductLite[];
+  onProductCreated?: () => void;
 }) {
+  const brandId = getActiveBrand(useAppStore.getState())?.id ?? "";
   return (
     <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
       {/* Platform filters */}
@@ -459,58 +481,181 @@ function FilterBar({
       </div>
 
       {/* Product filter */}
-      {products.length > 0 && (
-        <Select value={activeProduct || NONE} onValueChange={(v) => setActiveProduct(v === NONE ? "" : v)}>
-          <SelectTrigger className="h-7 text-xs rounded-full border-border w-auto min-w-[110px] flex-shrink-0">
-            <SelectValue placeholder="Produk" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NONE}>Semua Produk</SelectItem>
-            {products.map((p) => (
-              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
+      <Select value={activeProduct || NONE} onValueChange={(v) => {
+        setActiveProduct(v === NONE ? "" : v);
+      }}>
+        <SelectTrigger className="h-7 text-xs rounded-full border-border w-auto min-w-[110px] flex-shrink-0">
+          <SelectValue placeholder="Produk" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE}>Semua Produk</SelectItem>
+          {products.map((p) => (
+            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {/* Quick add product */}
+      <QuickProductDialog brandId={brandId} onCreated={onProductCreated} />
     </div>
   );
 }
 
-// ─── Create View ────────────────────────────────────────────────────────────
-function CreateView({
+// ─── Quick Product Dialog ────────────────────────────────────
+function QuickProductDialog({
+  brandId,
+  onCreated,
+}: {
+  brandId: string;
+  onCreated?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
+  const [price, setPrice] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  async function handleImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const { compressImage } = await import("@/lib/image-compress");
+      const { file: compressed } = await compressImage(file, { maxSize: 1024, quality: 0.7, maxBytes: 300 * 1024 });
+      const fd = new FormData();
+      fd.append("file", compressed, compressed.name);
+      const r = await api<{ imageUrl: string }>("/api/upload/image", { method: "POST", body: fd, json: undefined });
+      setImageUrl(r.imageUrl);
+      toast({ title: "Foto terupload" });
+    } catch {
+      toast({ title: "Gagal upload foto", variant: "destructive" });
+    } finally {
+      setUploading(false);
+      if (e.target) e.target.value = "";
+    }
+  }
+
+  async function handleSave() {
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      await api("/api/products", {
+        method: "POST",
+        json: { brandId, type: "barang", name: name.trim(), description: desc.trim() || null, price: price ? Number(price) : 0, imageUrl: imageUrl || null },
+      });
+      toast({ title: "Produk ditambahkan" });
+      setOpen(false);
+      setName(""); setDesc(""); setPrice(""); setImageUrl("");
+      onCreated?.();
+    } catch (err: any) {
+      toast({ title: "Gagal simpan", description: err?.message ?? "Coba lagi", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="h-7 px-2 rounded-full border border-dashed border-teal/40 text-xs text-teal font-medium hover:bg-teal/5 transition-colors flex items-center gap-1 flex-shrink-0"
+      >
+        <Plus className="size-3.5" /> Tambah
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Tambah Produk</DialogTitle>
+            <DialogDescription>Upload foto dan isi nama produk saja sudah cukup.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleImage} className="hidden" />
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                disabled={uploading}
+                className="w-full aspect-video rounded-xl border-2 border-dashed border-border bg-cream-50 flex flex-col items-center justify-center gap-1 hover:border-teal/40 transition-colors overflow-hidden"
+              >
+                {uploading ? (
+                  <Loader2 className="size-6 animate-spin text-stone" />
+                ) : imageUrl ? (
+                  <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <>
+                    <ImageIcon className="size-6 text-stone/40" />
+                    <span className="text-xs text-stone">Upload foto produk</span>
+                  </>
+                )}
+              </button>
+            </div>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nama produk *" className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal/30" />
+            <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Deskripsi (opsional)" rows={2} className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal/30" />
+            <input value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))} placeholder="Harga (opsional)" className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal/30" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Batal</Button>
+            <Button className="bg-teal hover:bg-teal-600" onClick={handleSave} disabled={!name.trim() || saving}>
+              {saving && <Loader2 className="size-4 animate-spin mr-1" />}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// ─── Composer Bar ───────────────────────────────────────────────────────────
+// Chat-style entry point for new content, replacing the old separate
+// full-page "Create" form. Idle: a single-line prompt input. Focused: it
+// expands in place — parameter chips (platform/tipe/jumlah/audiens) plus a
+// product PHOTO grid appear right below it (the caller hides the regular
+// content gallery for the duration, see KontenSection). Submitting (Enter,
+// or the send button) generates immediately with whatever's selected, no
+// separate confirm step, then collapses back to the idle/gallery state.
+function ComposerBar({
   activeBrand,
-  onBack,
+  products,
+  onFocusChange,
+  onGenerated,
 }: {
   activeBrand: { id: string; name: string; category: string; toneOfVoice?: string | null };
-  onBack: () => void;
+  products: ProductLite[];
+  onFocusChange: (focused: boolean) => void;
+  onGenerated: () => void;
 }) {
   const user = useAppStore((s) => s.user);
   const setCredit = useAppStore((s) => s.setCredit);
-  const queryClient = useQueryClient();
   const { toast } = useToast();
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const [desc, setDesc] = useState("");
+  const [focused, setFocused] = useState(false);
+  const [angle, setAngle] = useState("");
   const [productId, setProductId] = useState("");
   const [platform, setPlatform] = useState("");
   const [type, setType] = useState<ContentType>("gambar");
   const [imageCount, setImageCount] = useState<number>(1);
   const [durationSec, setDurationSec] = useState<number>(8);
-  const [angle, setAngle] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
+
+  function setFocusedBoth(v: boolean) {
+    setFocused(v);
+    onFocusChange(v);
+  }
 
   const creditBalance = user?.creditBalance ?? 0;
   const costPerUnit = type === "gambar" ? 4 : 6;
   const totalCost = type === "gambar" ? costPerUnit * imageCount : costPerUnit;
   const insufficient = creditBalance < totalCost;
 
-  // Products
-  const { data: productsData } = useQuery<{ products: ProductLite[] }>({
-    queryKey: ["products", activeBrand.id],
-    queryFn: () => api(`/api/products?brandId=${activeBrand.id}`),
-    enabled: !!activeBrand.id,
-  });
-
-  // Research for target audience
+  // Research for target audience — same source as before (personas from
+  // this brand's basic_research results).
   const { data: researchData } = useQuery<{ research: { result: any }[] }>({
     queryKey: ["research", activeBrand.id],
     queryFn: () => api(`/api/research?brandId=${activeBrand.id}`),
@@ -541,7 +686,7 @@ function CreateView({
           productId: productId || undefined,
           type,
           platform: platform || undefined,
-          angle: angle || undefined,
+          angle: angle.trim() || undefined,
           imageCount: type === "gambar" ? imageCount : undefined,
           durationSec: type === "video" ? durationSec : undefined,
           targetAudience: targetAudience || undefined,
@@ -554,233 +699,247 @@ function CreateView({
         description: `Sisa credit: ${data.balanceAfter}`,
       });
       setCredit(data.balanceAfter);
-      queryClient.invalidateQueries({ queryKey: ["contents", activeBrand.id] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard", activeBrand.id] });
-      onBack();
+      setAngle("");
+      setProductId("");
+      setPlatform("");
+      setTargetAudience("");
+      setFocusedBoth(false);
+      onGenerated();
     },
     onError: (err: Error) => {
       toast({ title: "Gagal generate", description: err.message, variant: "destructive" });
     },
   });
 
-  const toneLabel = activeBrand.toneOfVoice
-    ? TONES.find((t) => t.key === activeBrand.toneOfVoice)?.label ?? "Santai & Ramah"
-    : "Santai & Ramah";
+  const canSubmit = (angle.trim().length > 0 || !!productId) && !insufficient && !generateMutation.isPending;
 
+  function submit() {
+    if (!canSubmit) return;
+    generateMutation.mutate();
+  }
+
+  const selectedProduct = products.find((p) => p.id === productId);
+
+  // Idle: docked to the bottom of the page (sticky — this component must be
+  // the last child of the gallery view for that to work, see KontenSection).
+  // Focused: relocates to a centered overlay over the whole viewport, with a
+  // backdrop — same DOM node throughout (only the wrapper's positioning
+  // classes change), so the textarea never remounts/loses focus.
   return (
-    <div className="space-y-5">
-      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-teal font-medium -ml-1">
-        <ArrowLeft className="size-4" /> Kembali
-      </button>
-
-      <div>
-        <h2 className="text-lg font-bold text-ink">Buat Konten Baru</h2>
-        <p className="text-xs text-stone mt-0.5">
-          Gambar AI (4 credit/item) · Video Script (6 credit)
-        </p>
-      </div>
-
-      {/* Description */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-ink">Deskripsi Konten</label>
+    <div
+      className="sticky bottom-16 md:bottom-4 z-30"
+    >
+      <div
+        ref={containerRef}
+        onBlur={(e) => {
+          if (!containerRef.current?.contains(e.relatedTarget as Node)) {
+            setFocusedBoth(false);
+          }
+        }}
+        className={cn(
+          "rounded-2xl border bg-card transition-shadow duration-200 w-full",
+          focused
+            ? "shadow-2xl border-teal/40"
+            : "border-border shadow-lg"
+        )}
+      >
+      {/* Prompt row */}
+      <div className="flex items-end gap-2 p-2.5">
         <textarea
-          value={desc}
-          onChange={(e) => setDesc(e.target.value)}
-          placeholder={`Ceritain konten yang mau dibuat, misal:\n"Promo diskon 50% keripik pedas, target anak muda yang suka ngemil sambil nonton…"`}
-          rows={4}
-          className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-ink placeholder:text-stone/50 focus:outline-none focus:ring-2 focus:ring-teal/30 resize-none"
+          value={angle}
+          onChange={(e) => setAngle(e.target.value)}
+          onFocus={() => setFocusedBoth(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              submit();
+            }
+            if (e.key === "Escape") {
+              e.preventDefault();
+              (e.target as HTMLTextAreaElement).blur();
+              setFocusedBoth(false);
+            }
+          }}
+          placeholder={`Ceritain konten yang mau dibuat, misal: "promo diskon 50% keripik pedas, target anak muda"…`}
+          rows={focused ? 2 : 1}
+          className="flex-1 resize-none bg-transparent text-sm text-ink placeholder:text-stone/50 focus:outline-none py-1.5"
         />
+        <Button
+          size="icon"
+          onClick={submit}
+          disabled={!canSubmit}
+          className={cn(
+            "shrink-0 rounded-full size-9",
+            type === "video" ? "bg-violet-500 hover:bg-violet-600" : "bg-teal hover:bg-teal-600"
+          )}
+          aria-label="Generate konten"
+        >
+          {generateMutation.isPending ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Send className="size-4" />
+          )}
+        </Button>
       </div>
 
-      {/* Product */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-ink">Produk</label>
-        <Select value={productId || NONE} onValueChange={(v) => setProductId(v === NONE ? "" : v)}>
-          <SelectTrigger className="w-full rounded-xl">
-            <SelectValue placeholder="Pilih produk (opsional)" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NONE}>— Tanpa produk —</SelectItem>
-            {(productsData?.products ?? []).map((p) => (
-              <SelectItem key={p.id} value={p.id}>{p.name} ({p.type})</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Target Audience */}
-      {audienceOptions.length > 0 && (
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-ink">Target Audiens</label>
-          <Select value={targetAudience || NONE} onValueChange={(v) => setTargetAudience(v === NONE ? "" : v)}>
-            <SelectTrigger className="w-full rounded-xl">
-              <SelectValue placeholder="Pilih audiens dari riset" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE}>— Tanpa target —</SelectItem>
-              {audienceOptions.map((a) => (
-                <SelectItem key={a} value={a}>{a}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {/* Platform */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-ink">Platform Sosmed</label>
-        <div className="flex flex-wrap gap-1.5">
-          {PLATFORMS.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setPlatform(platform === p ? "" : p)}
-              className={cn(
-                "px-3 py-1.5 rounded-full text-xs font-medium transition-colors border",
-                platform === p
-                  ? "bg-teal text-white border-teal"
-                  : "bg-card text-stone border-border hover:border-teal/40"
-              )}
-            >
-              {p === "Twitter/X" ? "X (Twitter)" : p}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Type selector */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-ink">Tipe Konten</label>
-        <div className="grid grid-cols-2 gap-2">
-          {(["gambar", "video"] as ContentType[]).map((t) => {
-            const cost = t === "gambar" ? 4 : 6;
-            const active = type === t;
-            return (
+      {focused && (
+        <div className="border-t border-border p-3 space-y-3">
+          {/* Parameter chips */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(["gambar", "video"] as ContentType[]).map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => setType(t)}
                 className={cn(
-                  "flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all",
-                  active
-                    ? "border-teal bg-teal-50 ring-1 ring-teal/30"
-                    : "border-border bg-card hover:border-teal/30"
-                )}
-              >
-                {t === "gambar" ? (
-                  <ImageIcon className={cn("size-6", active ? "text-teal" : "text-stone/50")} />
-                ) : (
-                  <VideoIcon className={cn("size-6", active ? "text-teal" : "text-stone/50")} />
-                )}
-                <span className="text-sm font-semibold text-ink">{TYPE_LABEL[t]}</span>
-                <Badge variant="outline" className="text-[10px] h-4 px-1.5 bg-cream-100">
-                  {cost} credit
-                </Badge>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Image count (gambar only) */}
-      {type === "gambar" && (
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-ink">
-            Jumlah Gambar ({imageCount} × 4 = {imageCount * 4} credit)
-          </label>
-          <div className="flex gap-2">
-            {IMAGE_COSTS.map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setImageCount(n)}
-                className={cn(
-                  "flex-1 py-2 rounded-xl text-sm font-bold transition-colors border",
-                  imageCount === n
+                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+                  type === t
                     ? "bg-teal text-white border-teal"
-                    : "bg-card text-ink border-border hover:border-teal/40"
+                    : "bg-cream-100 text-stone border-border hover:border-teal/40"
                 )}
               >
-                {n}
+                {t === "gambar" ? <ImageIcon className="size-3" /> : <VideoIcon className="size-3" />}
+                {TYPE_LABEL[t]} · {t === "gambar" ? 4 : 6} credit
               </button>
             ))}
-          </div>
-        </div>
-      )}
 
-      {/* Duration (video only) */}
-      {type === "video" && (
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-ink">
-            Durasi Video ({durationSec} detik)
-          </label>
-          <div className="flex gap-2">
-            {VIDEO_DURATIONS.map((d) => (
+            <span className="w-px h-4 bg-border" aria-hidden />
+
+            {PLATFORMS.map((p) => (
               <button
-                key={d}
+                key={p}
                 type="button"
-                onClick={() => setDurationSec(d)}
+                onClick={() => setPlatform(platform === p ? "" : p)}
                 className={cn(
-                  "flex-1 py-2 rounded-xl text-sm font-bold transition-colors border",
-                  durationSec === d
-                    ? "bg-violet-500 text-white border-violet-500"
-                    : "bg-card text-ink border-border hover:border-violet/40"
+                  "px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+                  platform === p
+                    ? "bg-ink text-white border-ink"
+                    : "bg-cream-100 text-stone border-border hover:border-teal/40"
                 )}
               >
-                <Clock className="size-3.5 inline mr-1" />
-                {d}s
+                {p === "Twitter/X" ? "X" : p}
               </button>
             ))}
+
+            <span className="w-px h-4 bg-border" aria-hidden />
+
+            {type === "gambar"
+              ? IMAGE_COSTS.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setImageCount(n)}
+                    className={cn(
+                      "size-7 rounded-full text-xs font-bold border transition-colors",
+                      imageCount === n
+                        ? "bg-teal text-white border-teal"
+                        : "bg-cream-100 text-stone border-border hover:border-teal/40"
+                    )}
+                  >
+                    {n}×
+                  </button>
+                ))
+              : VIDEO_DURATIONS.map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setDurationSec(d)}
+                    className={cn(
+                      "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+                      durationSec === d
+                        ? "bg-violet-500 text-white border-violet-500"
+                        : "bg-cream-100 text-stone border-border hover:border-violet/40"
+                    )}
+                  >
+                    <Clock className="size-3" /> {d}s
+                  </button>
+                ))}
+
+            {/* Target audience — research-based options + free text input */}
+            <div className="flex items-center gap-1.5">
+              {audienceOptions.map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  onClick={() => setTargetAudience(targetAudience === a ? "" : a)}
+                  className={cn(
+                    "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+                    targetAudience === a
+                      ? "bg-ink text-white border-ink"
+                      : "bg-cream-100 text-stone border-border hover:border-teal/40"
+                  )}
+                >
+                  {a}
+                </button>
+              ))}
+              <input
+                type="text"
+                value={targetAudience && !audienceOptions.includes(targetAudience) ? targetAudience : ""}
+                onChange={(e) => setTargetAudience(e.target.value)}
+                onFocus={() => {
+                  if (targetAudience && audienceOptions.includes(targetAudience)) setTargetAudience("");
+                }}
+                placeholder={audienceOptions.length > 0 ? "Atau ketik sendiri…" : "Target audiens…"}
+                className="px-2.5 py-1 rounded-full text-xs bg-cream-100 text-ink border border-border placeholder:text-stone/50 focus:outline-none focus:border-teal/40 w-auto min-w-[100px] max-w-[160px]"
+              />
+            </div>
+
+            {selectedProduct && (
+              <button
+                type="button"
+                onClick={() => setProductId("")}
+                className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal/30"
+              >
+                {selectedProduct.name}
+                <X className="size-3" />
+              </button>
+            )}
           </div>
+
+          {/* Product photo picker — "seluruh foto produk" */}
+          <div>
+            <div className="text-[11px] text-stone mb-1.5">Pilih produk (opsional)</div>
+            {products.length === 0 ? (
+              <p className="text-xs text-stone">
+                Belum ada produk. <span className="text-teal font-medium">Tambah dulu di Toko.</span>
+              </p>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                {products.map((p) => {
+                  const active = productId === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setProductId(active ? "" : p.id)}
+                      className={cn(
+                        "rounded-xl overflow-hidden border-2 text-left transition-all",
+                        active ? "border-teal ring-2 ring-teal/30" : "border-border hover:border-teal/30"
+                      )}
+                    >
+                      <div className="aspect-square bg-cream-100 flex items-center justify-center overflow-hidden">
+                        {p.imageUrl ? (
+                          <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" loading="lazy" />
+                        ) : (
+                          <Package className="size-6 text-stone/30" />
+                        )}
+                      </div>
+                      <div className="px-1.5 py-1 text-[10px] text-ink truncate">{p.name}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {insufficient && (
+            <p className="text-xs text-rose-600">
+              Credit tidak cukup ({totalCost} dibutuhkan). Top-up di Pengaturan.
+            </p>
+          )}
         </div>
       )}
-
-      {/* Style / Angle */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-ink">Style / Angle (opsional)</label>
-        <Input
-          value={angle}
-          onChange={(e) => setAngle(e.target.value)}
-          placeholder="cth: promosi diskon, behind the scene, review pelanggan…"
-          className="rounded-xl"
-        />
       </div>
-
-      {/* Tone */}
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-ink">Tone Suara</span>
-        <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal/20 gap-1">
-          {toneLabel}
-        </Badge>
-      </div>
-
-      {/* Generate button */}
-      <Button
-        onClick={() => generateMutation.mutate()}
-        disabled={generateMutation.isPending || insufficient}
-        className={cn(
-          "w-full gap-2 rounded-xl py-6 text-base font-bold",
-          type === "video" ? "bg-violet-500 hover:bg-violet-600" : "bg-teal hover:bg-teal-600"
-        )}
-      >
-        {generateMutation.isPending ? (
-          <>
-            <Loader2 className="size-5 animate-spin" />
-            Generating...
-          </>
-        ) : (
-          <>
-            <Sparkles className="size-5" />
-            Generate · {totalCost} credit
-          </>
-        )}
-      </Button>
-
-      {insufficient && (
-        <p className="text-xs text-rose-600 text-center -mt-3">
-          Credit tidak cukup. Silakan top-up di Pengaturan.
-        </p>
-      )}
     </div>
   );
 }
@@ -797,6 +956,10 @@ export function KontenSection() {
   const [selectedContent, setSelectedContent] = useState<ContentItem | null>(null);
   const [platformFilter, setPlatformFilter] = useState("");
   const [productFilter, setProductFilter] = useState("");
+  // While the composer is focused, it takes over the gallery's space with
+  // the product photo picker (see ComposerBar) — the gallery/filter reappear
+  // once focus leaves the composer or a generation completes.
+  const [composing, setComposing] = useState(false);
 
   // Products for filter
   const { data: productsData } = useQuery<{ products: ProductLite[] }>({
@@ -859,48 +1022,47 @@ export function KontenSection() {
 
   return (
     <div className="relative min-h-[calc(100vh-10rem)]">
-      {/* Header — always visible */}
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h1 className="text-lg font-bold text-ink flex items-center gap-2">
-            📝 Konten
-          </h1>
-          <p className="text-[11px] text-stone">
-            {contents.length} konten · {creditBalance} credit
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Konten"
+        subtitle={`${contents.length} konten · ${creditBalance} credit`}
+        icon="📝"
+        className="mb-3"
+      />
 
       {view === "gallery" && (
         <>
-          <FilterBar
-            activePlatform={platformFilter}
-            setActivePlatform={setPlatformFilter}
-            activeProduct={productFilter}
-            setActiveProduct={setProductFilter}
-            products={productsData?.products ?? []}
-          />
-          <div className="mt-3">
-            <GalleryView items={contents} isLoading={isLoading} onView={handleView} />
-          </div>
+          {!composing && (
+            <>
+              <FilterBar
+                activePlatform={platformFilter}
+                setActivePlatform={setPlatformFilter}
+                activeProduct={productFilter}
+                setActiveProduct={setProductFilter}
+                products={productsData?.products ?? []}
+                onProductCreated={() => queryClient.invalidateQueries({ queryKey: ["products", activeBrand?.id] })}
+              />
+              <div className="mt-3">
+                <GalleryView items={contents} isLoading={isLoading} onView={handleView} />
+              </div>
+            </>
+          )}
 
-          {/* FAB */}
-          <button
-            onClick={() => setView("create")}
-            className="fixed bottom-20 right-4 z-30 size-14 rounded-full bg-teal hover:bg-teal-600 text-white shadow-lg flex items-center justify-center transition-all active:scale-95 md:bottom-8"
-            aria-label="Buat konten baru"
-          >
-            <Plus className="size-7" />
-          </button>
+          {/* Last child on purpose — sticky-bottom only docks correctly when
+              nothing follows it in the scroll flow (see ComposerBar). */}
+          <ComposerBar
+            activeBrand={activeBrand}
+            products={productsData?.products ?? []}
+            onFocusChange={setComposing}
+            onGenerated={() => {
+              queryClient.invalidateQueries({ queryKey: ["contents", activeBrand.id] });
+              queryClient.invalidateQueries({ queryKey: ["dashboard", activeBrand.id] });
+            }}
+          />
         </>
       )}
 
       {view === "detail" && selectedContent && (
         <DetailView item={selectedContent!} onBack={handleBack} brandId={activeBrand!.id} />
-      )}
-
-      {view === "create" && (
-        <CreateView activeBrand={activeBrand} onBack={handleBack} />
       )}
     </div>
   );

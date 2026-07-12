@@ -2,8 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
 import { useAppStore, getActiveBrand } from "@/lib/store";
 import { api } from "@/lib/api";
 import { PageHeader, StatCard, SectionCard, EmptyState } from "@/components/nw/primitives";
@@ -11,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatRupiah, formatRupiahShort, timeAgo, type SectionKey } from "@/lib/constants";
-import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Search,
   Package,
@@ -26,9 +23,6 @@ import {
   CheckCircle2,
   Target,
   Plus,
-  Lightbulb,
-  CalendarDays,
-  Store,
 } from "lucide-react";
 
 // ─── Goal type ────────────────────────────────────────────────
@@ -65,276 +59,7 @@ function formatGoalValue(type: string, v: number): string {
   return String(Math.round(v));
 }
 
-// ─── Tip of the day ───────────────────────────────────────────
-const DAILY_TIPS: { emoji: string; title: string; body: string; tone: "teal" | "orange" | "violet" | "emerald" }[] = [
-  {
-    emoji: "🔍",
-    title: "Riset kompetitor mingguan",
-    body: "Luangkan 10 menit tiap Senin untuk cek harga & promosi kompetitor. Insight-nya bisa kamu pakai di konten & toko.",
-    tone: "teal",
-  },
-  {
-    emoji: "📸",
-    title: "Foto produk dengan cahaya alami",
-    body: "Foto dekat jendela di pagi hari bikin produk kelihatan premium tanpa perlu studio. Upload ke katalog produk.",
-    tone: "orange",
-  },
-  {
-    emoji: "💬",
-    title: "Balas chat < 5 menit",
-    body: "Customer yang dibalas cepat 5x lebih besar peluang order-nya. Aktifkan notifikasi WhatsApp di Toko.",
-    tone: "emerald",
-  },
-  {
-    emoji: "📦",
-    title: "Cek stok setiap pagi",
-    body: "Stok menipis = order batal = review buruk. Restok sebelum habis — atur minimum stok di detail produk.",
-    tone: "violet",
-  },
-  {
-    emoji: "💰",
-    title: "Pisahkan uang pribadi & usaha",
-    body: "Catat semua pemasukan & pengeluaran di modul Keuangan. Laporan keuangan rapi bikin mudah apply modal.",
-    tone: "teal",
-  },
-];
-
-function tipOfDay() {
-  const dayIndex = new Date().getDate() % DAILY_TIPS.length;
-  return DAILY_TIPS[dayIndex];
-}
-
-// ─── Dashboard Hero ───────────────────────────────────────────
-function DashboardHero({
-  firstName,
-  brandName,
-  brandCategory,
-  stats,
-  isLoading,
-  onMulaiRiset,
-  onTambahProduk,
-}: {
-  firstName: string;
-  brandName: string;
-  brandCategory: string;
-  stats: {
-    products: number;
-    orders: number;
-    salesMonth: number;
-  };
-  isLoading: boolean;
-  onMulaiRiset: () => void;
-  onTambahProduk: () => void;
-}) {
-  const isMobile = useIsMobile();
-  const now = new Date();
-  const dateLabel = format(now, "EEEE, d MMMM yyyy", { locale: idLocale });
-  const tip = tipOfDay();
-  const toneClasses: Record<typeof tip.tone, string> = {
-    teal: "from-teal-100 to-teal-50 text-teal-600 border-teal/20",
-    orange: "from-orange-100 to-orange-50 text-orange-600 border-orange/20",
-    violet: "from-violet-100 to-violet-50 text-violet-600 border-violet/20",
-    emerald: "from-emerald-100 to-emerald-50 text-emerald-600 border-emerald/20",
-  };
-
-  // Decorative emoji cluster (circular arrangement)
-  const emojis = ["📊", "🔍", "📝", "🛒", "💰", "📅"];
-  const ring = emojis.map((e, i) => {
-    const angle = (i / emojis.length) * Math.PI * 2 - Math.PI / 2;
-    const r = 64; // px radius
-    const x = Math.cos(angle) * r;
-    const y = Math.sin(angle) * r;
-    return { emoji: e, x, y, delay: i * 0.08 };
-  });
-
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-      className="relative overflow-hidden rounded-3xl border border-teal/15 mb-6 mesh-hero"
-      style={{
-        background:
-          "linear-gradient(135deg, #F0FBF9 0%, #FCFBF9 45%, #FFF3EA 100%)",
-      }}
-      aria-label="Selamat datang"
-    >
-      {/* Decorative blurred blobs */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-16 -right-16 size-56 rounded-full bg-teal-200/40 blur-3xl"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -bottom-20 -left-10 size-56 rounded-full bg-orange-200/30 blur-3xl"
-      />
-
-      <div className="relative grid grid-cols-1 lg:grid-cols-5 gap-6 p-5 sm:p-7">
-        {/* Left column */}
-        <div className="lg:col-span-3 flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              variant="outline"
-              className="gap-1 bg-card/70 backdrop-blur border-teal/30 text-teal-700 text-[11px] py-1"
-            >
-              <CalendarDays className="size-3" />
-              <span className="capitalize">{dateLabel}</span>
-            </Badge>
-            <Badge className="gap-1 bg-teal text-white border-teal text-[11px] py-1">
-              <Store className="size-3" />
-              {brandName}
-            </Badge>
-            <Badge variant="outline" className="bg-card/70 backdrop-blur text-[11px] py-1">
-              {brandCategory}
-            </Badge>
-          </div>
-
-          <div>
-            <motion.h1
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1, duration: 0.4 }}
-              className="text-3xl sm:text-4xl font-extrabold tracking-tight text-ink"
-            >
-              Halo, {firstName} <span className="inline-block">👋</span>
-            </motion.h1>
-            <p className="text-sm sm:text-base text-ink-500 mt-1.5 leading-relaxed">
-              {isMobile
-                ? `Ringkasan ${brandName} hari ini.`
-                : <>Berikut ringkasan <span className="font-semibold text-ink">{brandName}</span> hari ini. Yuk lanjut tumbuhkan usahamu bersama usahaku.ai.</>
-              }
-            </p>
-          </div>
-
-          {/* Quick stats inline */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-            <div className="flex items-center gap-1.5">
-              <Package className="size-4 text-orange-600" />
-              <span className="font-bold text-ink tabular-nums">
-                {isLoading ? "…" : stats.products}
-              </span>
-              <span className="text-stone">produk</span>
-            </div>
-            <span className="text-cream-400" aria-hidden>·</span>
-            <div className="flex items-center gap-1.5">
-              <ShoppingCart className="size-4 text-violet-600" />
-              <span className="font-bold text-ink tabular-nums">
-                {isLoading ? "…" : stats.orders}
-              </span>
-              <span className="text-stone">order bulan ini</span>
-            </div>
-            <span className="text-cream-400" aria-hidden>·</span>
-            <div className="flex items-center gap-1.5">
-              <TrendingUp className="size-4 text-teal-600" />
-              <span className="font-bold text-ink tabular-nums">
-                {isLoading ? "…" : formatRupiahShort(stats.salesMonth)}
-              </span>
-              <span className="text-stone">omzet</span>
-            </div>
-          </div>
-
-          {/* CTA buttons */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <Button
-              className="bg-teal hover:bg-teal-600 gap-1.5 shadow-sm shadow-teal/20"
-              onClick={onMulaiRiset}
-            >
-              <Sparkles className="size-3.5" />
-              Mulai Riset
-            </Button>
-            <Button
-              variant="outline"
-              className="gap-1.5 bg-card/70 backdrop-blur"
-              onClick={onTambahProduk}
-            >
-              <Plus className="size-3.5" />
-              Tambah Produk
-            </Button>
-          </div>
-        </div>
-
-        {/* Right column — decorative + tip of day */}
-        <div className="lg:col-span-2 flex flex-col gap-4">
-          {/* Decorative emoji cluster (hidden on small screens) */}
-          <div
-            aria-hidden
-            className="hidden lg:block relative h-32 mx-auto"
-            style={{ width: 192 }}
-          >
-            {/* Center NW badge */}
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.25, duration: 0.4, type: "spring", stiffness: 200 }}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-14 rounded-2xl bg-teal text-white font-extrabold flex items-center justify-center shadow-lg shadow-teal/30"
-            >
-              U
-            </motion.div>
-            {ring.map((node, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, scale: 0.6 }}
-                animate={{
-                  opacity: 1,
-                  scale: 1,
-                  x: node.x,
-                  y: node.y,
-                }}
-                transition={{ delay: 0.3 + node.delay, duration: 0.45, ease: "easeOut" }}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-              >
-                <motion.div
-                  animate={{ y: [0, -4, 0] }}
-                  transition={{
-                    duration: 2.4 + i * 0.2,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                    delay: i * 0.15,
-                  }}
-                  className="size-10 rounded-xl bg-card/90 backdrop-blur border border-border shadow-sm flex items-center justify-center text-lg"
-                >
-                  {node.emoji}
-                </motion.div>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Tip of the day card — desktop only */}
-          {!isMobile && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.4 }}
-            className={`rounded-2xl border bg-gradient-to-br ${toneClasses[tip.tone]} p-4`}
-          >
-            <div className="flex items-start gap-3">
-              <div className="size-9 rounded-lg bg-card/80 flex items-center justify-center text-lg shrink-0 shadow-sm">
-                {tip.emoji}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Lightbulb className="size-3.5" />
-                  <span className="text-[10px] font-bold uppercase tracking-wide">
-                    Tip Hari Ini
-                  </span>
-                </div>
-                <div className="text-sm font-bold text-ink leading-snug">
-                  {tip.title}
-                </div>
-                <p className="text-xs text-ink-500 mt-1 leading-relaxed">
-                  {tip.body}
-                </p>
-              </div>
-            </div>
-          </motion.div>
-          )}
-        </div>
-      </div>
-    </motion.section>
-  );
-}
-
-// ─── Enhanced stat card wrapper (hover gradient + active scale) ─
+// ─── Stat card wrapper ─
 function HeroStatCard({
   children,
   onClick,
@@ -351,16 +76,9 @@ function HeroStatCard({
       aria-label={ariaLabel}
       onClick={onClick}
       whileTap={onClick ? { scale: 0.98 } : undefined}
-      className="group block text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-teal/40 rounded-2xl"
+      className="block text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-teal/40 rounded-2xl"
     >
-      <div className="relative rounded-2xl transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-[0_8px_24px_rgba(13,148,136,0.12)]">
-        {/* Gradient overlay reveals on hover */}
-        <div
-          aria-hidden
-          className="absolute inset-0 rounded-2xl bg-gradient-to-br from-teal-100/0 via-teal-100/0 to-orange-100/0 group-hover:from-teal-100/60 group-hover:via-transparent group-hover:to-orange-100/40 transition-opacity duration-300 pointer-events-none"
-        />
-        <div className="relative">{children}</div>
-      </div>
+      <div className="rounded-2xl">{children}</div>
     </Wrap>
   );
 }
@@ -523,24 +241,8 @@ export function BerandaSection() {
     );
   }
 
-  const firstName = user?.name?.split(" ")[0] ?? "Sob";
-
   return (
     <div>
-      {/* Dashboard Hero — replaces plain PageHeader */}
-      <DashboardHero
-        firstName={firstName}
-        brandName={activeBrand.name}
-        brandCategory={activeBrand.category}
-        stats={{
-          products: data?.stats.products ?? 0,
-          orders: data?.stats.orders ?? 0,
-          salesMonth: data?.stats.salesMonth ?? 0,
-        }}
-        isLoading={isLoading}
-        onMulaiRiset={() => setSection("riset")}
-        onTambahProduk={() => setSection("produk")}
-      />
 
       {/* Stats grid — enhanced with hover gradient + active scale */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">

@@ -228,12 +228,11 @@ export async function webSearch(query: string, opts?: { num?: number; recency_da
 /** Image generation via AI module. Returns base64 data URL, or null on failure. */
 export async function generateImage(
   prompt: string,
-  opts?: { size?: string }
+  opts?: { size?: string; imageUrl?: string }
 ): Promise<string | null> {
   const ctx = _ctx;
   const model = "gemini-2.5-flash-image";
   const service = ctx?.service ?? "Image Generator";
-  // Convert pixel size to ratio: "1024x1024" → "1:1", "1344x768" → "16:9", etc.
   const size = toRatioSize(opts?.size ?? "1024x1024");
   const t0 = Date.now();
 
@@ -242,11 +241,23 @@ export async function generateImage(
     form.append("ai", AI_DEFAULT_PROVIDER);
     form.append("model", model);
     form.append("prompt", prompt);
-    form.append("n", "1");
     form.append("size", size);
-    form.append("response_format", "url");
 
-    const res = await fetch(`${AI_BASE}/images/generation`, {
+    // Use reference endpoint if a product image is provided
+    const endpoint = opts?.imageUrl
+      ? `${AI_BASE}/images/generation/reference`
+      : `${AI_BASE}/images/generation`;
+
+    if (opts?.imageUrl) {
+      const imgRes = await fetch(opts.imageUrl);
+      const imgBlob = await imgRes.blob();
+      const ext = opts.imageUrl.match(/\.(png|jpe?g|webp)/i)?.[1] ?? "webp";
+      const mime = ext === "png" ? "image/png" : ext === "jpg" || ext === "jpeg" ? "image/jpeg" : "image/webp";
+      form.append("image", imgBlob, `reference.${ext}`);
+      form.append("ref_task", "ip");
+    }
+
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: {
         "accept": "application/json",
@@ -256,9 +267,10 @@ export async function generateImage(
     });
 
     const latencyMs = Date.now() - t0;
-    const json = await res.json() as { status: number; data?: { url?: string; base64?: string }[]; usage?: { total_tokens: number } };
+    const json = await res.json() as { status: number; message: string; data?: { data?: { b64_json?: string }[]; usage?: { total_tokens?: number } } };
 
-    if (!res.ok || !json.data?.[0]?.url) {
+    const b64 = json.data?.data?.[0]?.b64_json;
+    if (!res.ok || !b64) {
       await _logAiCall({
         feature: ctx?.feature ?? "unknown",
         ai: AI_DEFAULT_PROVIDER,
@@ -272,8 +284,7 @@ export async function generateImage(
       return null;
     }
 
-    // The URL from the AI module is a base64 data URL
-    const imageUrl = json.data[0].url as string;
+    const imageUrl = `data:image/webp;base64,${b64}`;
 
     await _logAiCall({
       feature: ctx?.feature ?? "unknown",
@@ -282,7 +293,7 @@ export async function generateImage(
       service,
       prompt,
       response: "[image]",
-      totalTokens: json.usage?.total_tokens ?? null,
+      totalTokens: json.data?.usage?.total_tokens ?? undefined,
       success: true,
       latencyMs,
     });

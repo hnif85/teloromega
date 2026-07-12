@@ -1,8 +1,17 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { AnimatedNumber } from "@/components/nw/animated-number";
 
+// Title + icon (+ subtitle) portal into the topbar's #topbar-title-slot on
+// desktop, so the page title sits inline with the search/notif/credit
+// cluster instead of taking its own big banner row. Mobile has no room for
+// that up top, so the same title block also renders inline on the page
+// there (hidden on md+). `actions` (filters, toggles, refresh buttons —
+// content that's specific to the page, not just a label) stays in-page on
+// every breakpoint, right-aligned in the row the title used to occupy.
 export function PageHeader({
   title,
   subtitle,
@@ -16,21 +25,37 @@ export function PageHeader({
   actions?: React.ReactNode;
   className?: string;
 }) {
-  return (
-    <div className={cn("flex flex-wrap items-start justify-between gap-4 mb-6", className)}>
-      <div className="flex items-start gap-3">
-        {icon && (
-          <div className="size-11 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center text-xl shrink-0">
-            {icon}
-          </div>
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setSlot(document.getElementById("topbar-title-slot"));
+  }, []);
+
+  const titleBlock = (
+    <div className="flex items-center gap-2.5 min-w-0">
+      {icon && <span className="text-lg leading-none shrink-0">{icon}</span>}
+      <div className="min-w-0 leading-tight">
+        <h1 className="text-[15px] font-bold text-ink truncate">{title}</h1>
+        {subtitle && (
+          <p className="text-[11px] text-stone truncate hidden lg:block">{subtitle}</p>
         )}
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-ink">{title}</h1>
-          {subtitle && <p className="text-sm text-stone mt-0.5">{subtitle}</p>}
-        </div>
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
+  );
+
+  return (
+    <>
+      {slot && createPortal(titleBlock, slot)}
+      <div
+        className={cn(
+          "flex flex-wrap items-start justify-between gap-3",
+          actions ? "mb-5" : "mb-5 md:mb-0",
+          className
+        )}
+      >
+        <div className="md:hidden min-w-0">{titleBlock}</div>
+        {actions && <div className="flex flex-wrap items-center gap-2 md:ml-auto">{actions}</div>}
+      </div>
+    </>
   );
 }
 

@@ -121,7 +121,7 @@ const CHART_COLORS = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export function RisetSection() {
-  const { user, setSection } = useAppStore();
+  const { setSection } = useAppStore();
   const activeBrand = getActiveBrand(useAppStore.getState());
   const qc = useQueryClient();
 
@@ -205,17 +205,6 @@ export function RisetSection() {
     }
   };
 
-  // Build suggestion chips from brand category
-  const suggestions = useMemo(() => {
-    const subject = activeBrand?.category ?? "produk UMKM";
-    return [
-      `Tren ${subject} 2026`,
-      `Harga pasaran ${subject}`,
-      `Kompetitor ${subject} terdekat`,
-      `Keyword viral ${subject}`,
-    ];
-  }, [activeBrand?.category]);
-
   // First research: auto-generate comprehensive query from brand data
   const firstResearchQuery = useMemo(() => {
     if (!activeBrand) return "";
@@ -257,15 +246,6 @@ export function RisetSection() {
         title="Riset Pasar"
         subtitle={`Riset berbasis AI + web search untuk ${activeBrand.name}`}
         icon="🔍"
-        actions={
-          <Badge
-            variant="outline"
-            className="gap-1.5 border-amber-200 bg-amber-50 text-amber-700"
-          >
-            <Zap className="size-3 fill-amber-400 text-amber-500" />
-            {user?.creditBalance ?? 0} credit
-          </Badge>
-        }
       />
 
       <div className={`grid gap-5 ${showSidebar ? "lg:grid-cols-[260px_1fr]" : ""}`}>
@@ -333,92 +313,7 @@ export function RisetSection() {
         )}
 
         {/* ─── Main content ─────────────────────────────────────────────────── */}
-        <div className="order-1 lg:order-2 space-y-5">
-          {/* Search panel */}
-          <SectionCard
-            title="Cari tahu pasar kamu"
-            desc="AI akan gather data web + sintesa jadi strategi siap pakai"
-            bodyClassName="p-4 space-y-3"
-          >
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                runSearch(query);
-              }}
-              className="flex gap-2"
-            >
-              <div className="relative flex-1">
-                <Search className="size-4 text-stone absolute left-3 top-1/2 -translate-y-1/2" />
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder={`Contoh: Tren ${activeBrand.category} 2025…`}
-                  className="pl-9 h-11 bg-cream-100/60 border-border"
-                  disabled={isGenerating}
-                />
-              </div>
-              <Button
-                type="submit"
-                className="h-11 bg-teal hover:bg-teal-600 gap-1.5 shrink-0"
-                disabled={isGenerating || !query.trim()}
-              >
-                {isGenerating ? (
-                  <>
-                    <RefreshCw className="size-4 animate-spin" />
-                    Meriset…
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="size-4" />
-                    Riset
-                    <Badge className="ml-1 bg-amber-400 text-amber-950 hover:bg-amber-400 gap-1 px-1.5 py-0 h-5 text-[10px]">
-                      <Zap className="size-2.5 fill-amber-900" />
-                      {COST}
-                    </Badge>
-                  </>
-                )}
-              </Button>
-              {researchList.length > 0 && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-11 gap-1.5 shrink-0 border-teal/30 text-teal hover:bg-teal-50"
-                      disabled={isGenerating || !query.trim()}
-                      onClick={() => runSearch(query, "complete")}
-                    >
-                      <TrendingUp className="size-4" />
-                      <span className="hidden sm:inline">Complete Research</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Riset pasar lengkap (audiens, SWOT, kompetitor, harga) — refresh baseline & bikin 3 context baru untuk brand ini.
-                  </TooltipContent>
-                </Tooltip>
-              )}
-            </form>
-
-            {/* Suggestion chips */}
-            <div className="flex flex-wrap gap-1.5">
-              <span className="text-xs text-stone self-center mr-1">Coba:</span>
-              {suggestions.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => {
-                    setQuery(s);
-                    runSearch(s);
-                  }}
-                  disabled={isGenerating}
-                  className="text-xs px-2.5 py-1 rounded-full border border-border bg-cream-100 text-ink hover:bg-cream-200 hover:border-teal/40 transition-colors disabled:opacity-50"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </SectionCard>
-
+        <div className="order-1 lg:order-2 flex flex-col gap-5">
           {/* Progress — live polling from job status */}
           {isGenerating && (
             <SectionCard bodyClassName="p-5 space-y-4">
@@ -482,12 +377,17 @@ export function RisetSection() {
             </SectionCard>
           )}
 
-          {/* Empty state — no research at all */}
+          {/* Empty state — no research at all. Brand's first-ever research
+              must be the comprehensive baseline (forced server-side too —
+              see forceBasic in /api/research) so Konten/Toko/Keuangan always
+              have context to draw on. No shortcuts here on purpose: no
+              suggestion chips, no composer below — just this one button,
+              until that baseline exists. */}
           {!isGenerating && !selected && (
             <EmptyState
               icon="🔍"
               title="Belum ada riset untuk brand ini"
-              desc={`AI akan riset ${activeBrand?.name ?? "brand"} secara otomatis — cari tren pasar, hashtag, kompetitor, target audiens, dan rekomendasi strategi.`}
+              desc={`Mulai dengan riset dasar dulu — AI akan riset ${activeBrand?.name ?? "brand"} secara menyeluruh: tren pasar, kompetitor, target audiens, dan rekomendasi strategi. Setelah ini selesai, kamu bisa riset topik spesifik apa saja.`}
               action={
                 <Button
                   className="bg-teal hover:bg-teal-600"
@@ -495,7 +395,7 @@ export function RisetSection() {
                   onClick={runFirstResearch}
                 >
                   <Sparkles className="size-4 mr-1" />
-                  Mulai riset {activeBrand?.name}
+                  Mulai riset dasar {activeBrand?.name}
                 </Button>
               }
             />
@@ -506,14 +406,77 @@ export function RisetSection() {
             <ResearchResultDispatcher
               research={selected}
               brandName={activeBrand.name}
-              onSimpan={() =>
-                toast.success("Tersimpan otomatis", {
-                  description:
-                    "Riset & 3 context sudah masuk database. Tinggal dipakai di modul lain.",
-                })
-              }
               setSection={setSection}
             />
+          )}
+
+          {/* ─── Composer — chatgpt-style input pinned to the bottom of this
+              column (not the whole viewport, so it never covers the Histori
+              Riset sidebar). Sits above the mobile bottom tab bar. Only
+              available once the baseline research exists — before that,
+              the empty state's "Mulai riset dasar" button is the only way
+              in (see forceBasic gating above). ─────────────────────────── */}
+          {showSidebar && (
+          <div className="sticky bottom-16 md:bottom-4 z-30">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                runSearch(query);
+              }}
+              className="rounded-2xl border border-border bg-card/95 backdrop-blur shadow-lg p-2 flex gap-2"
+            >
+              <div className="relative flex-1">
+                <Search className="size-4 text-stone absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={`Contoh: Tren ${activeBrand.category} 2025…`}
+                  className="pl-9 h-11 bg-cream-100/60 border-border"
+                  disabled={isGenerating}
+                />
+              </div>
+              <Button
+                type="submit"
+                className="h-11 bg-teal hover:bg-teal-600 gap-1.5 shrink-0"
+                disabled={isGenerating || !query.trim()}
+              >
+                {isGenerating ? (
+                  <>
+                    <RefreshCw className="size-4 animate-spin" />
+                    <span className="hidden sm:inline">Meriset…</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="size-4" />
+                    <span className="hidden sm:inline">Riset</span>
+                    <Badge className="ml-0.5 bg-amber-400 text-amber-950 hover:bg-amber-400 gap-1 px-1.5 py-0 h-5 text-[10px]">
+                      <Zap className="size-2.5 fill-amber-900" />
+                      {COST}
+                    </Badge>
+                  </>
+                )}
+              </Button>
+              {researchList.length > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 gap-1.5 shrink-0 border-teal/30 text-teal hover:bg-teal-50"
+                      disabled={isGenerating || !query.trim()}
+                      onClick={() => runSearch(query, "complete")}
+                    >
+                      <TrendingUp className="size-4" />
+                      <span className="hidden sm:inline">Complete Research</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Riset pasar lengkap (audiens, SWOT, kompetitor, harga) — refresh baseline & bikin 3 context baru untuk brand ini.
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </form>
+          </div>
           )}
         </div>
       </div>
@@ -539,7 +502,6 @@ export function RisetSection() {
 interface ResearchViewProps {
   research: ResearchItem;
   brandName: string;
-  onSimpan: () => void;
   setSection: (s: "konten" | "toko" | "keuangan") => void;
 }
 
@@ -626,8 +588,6 @@ function ContentBlockView({ block }: { block: ContentBlock }) {
 function BlockContentView({
   research,
   brandName,
-  onSimpan,
-  setSection,
   blocks,
 }: ResearchViewProps & { blocks: ContentBlock[] }) {
   return (
@@ -659,28 +619,14 @@ function BlockContentView({
           <ContentBlockView key={i} block={block} />
         ))}
       </div>
-
-      {/* ─── Sticky CTA bar ──────────────────────────────────────────────── */}
-      <div className="sticky bottom-4 z-30">
-        <div className="rounded-2xl border border-border bg-card/95 backdrop-blur shadow-lg p-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs text-stone">
-            <CheckCircle2 className="size-4 text-emerald-600" />
-            <span>Riset sudah tersimpan otomatis.</span>
-          </div>
-          <Button size="sm" variant="ghost" onClick={onSimpan} className="text-xs">
-            Simpan
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }
 
-// ─── Research result view with tabs + sticky CTA ("basic riset" template) ─────
+// ─── Research result view with tabs ("basic riset" template) ─────────────────
 function ResearchViewImpl({
   research,
   brandName,
-  onSimpan,
   setSection,
 }: ResearchViewProps) {
   const r = research.result!;
@@ -816,6 +762,17 @@ function ResearchViewImpl({
               <Stat label="Puncak tren" value={mt?.stats?.peak ?? "—"} accent="orange" />
               <Stat label="Kompetitor terpantau" value={`${competitors?.length ?? 0}`} accent="violet" />
               <Stat label="Hot keywords" value={`${keywords?.hot?.length ?? 0}`} accent="rose" />
+              <Button
+                size="sm"
+                variant="ghost"
+                className="w-full justify-between text-xs text-teal hover:bg-teal-50 mt-1"
+                onClick={() => setSection("keuangan")}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Wallet className="size-3.5" /> Proyeksi Keuangan
+                </span>
+                <ArrowRight className="size-3" />
+              </Button>
             </SectionCard>
           </div>
 
@@ -1030,6 +987,16 @@ function ResearchViewImpl({
                 })}
               </div>
             )}
+            {contentRecs.length > 0 && (
+              <Button
+                size="sm"
+                className="w-full mt-3 bg-orange-500 hover:bg-orange-600 text-white gap-1.5"
+                onClick={() => setSection("konten")}
+              >
+                <Lightbulb className="size-3.5" /> Bikin Konten dari Rekomendasi Ini
+                <ArrowRight className="size-3" />
+              </Button>
+            )}
           </SectionCard>
 
           {/* Pricing */}
@@ -1052,6 +1019,15 @@ function ResearchViewImpl({
                 </div>
               </div>
             </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full border-violet-200 text-violet-700 hover:bg-violet-50 gap-1.5"
+              onClick={() => setSection("toko")}
+            >
+              <Store className="size-3.5" /> Atur Harga & Stok di Toko
+              <ArrowRight className="size-3" />
+            </Button>
           </SectionCard>
         </TabsContent>
       </Tabs>
@@ -1063,46 +1039,6 @@ function ResearchViewImpl({
       {Object.keys(research.extras ?? {}).length > 0 && (
         <ExtrasCard extras={research.extras} />
       )}
-
-      {/* ─── Sticky CTA bar ──────────────────────────────────────────────── */}
-      <div className="sticky bottom-4 z-30">
-        <div className="rounded-2xl border border-border bg-card/95 backdrop-blur shadow-lg p-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs text-stone">
-            <CheckCircle2 className="size-4 text-emerald-600" />
-            <span className="hidden sm:inline">Riset & 3 context sudah tersimpan otomatis.</span>
-            <span className="sm:hidden">Tersimpan otomatis.</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Button size="sm" variant="ghost" onClick={onSimpan} className="text-xs">
-              Simpan
-            </Button>
-            <Button
-              size="sm"
-              className="bg-orange-500 hover:bg-orange-600 text-white gap-1.5"
-              onClick={() => setSection("konten")}
-            >
-              <Lightbulb className="size-3.5" /> Bikin Konten
-              <ArrowRight className="size-3" />
-            </Button>
-            <Button
-              size="sm"
-              className="bg-violet-600 hover:bg-violet-700 text-white gap-1.5"
-              onClick={() => setSection("toko")}
-            >
-              <Store className="size-3.5" /> Atur Toko
-              <ArrowRight className="size-3" />
-            </Button>
-            <Button
-              size="sm"
-              className="bg-teal hover:bg-teal-600 gap-1.5"
-              onClick={() => setSection("keuangan")}
-            >
-              <Wallet className="size-3.5" /> Proyeksi Keuangan
-              <ArrowRight className="size-3" />
-            </Button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

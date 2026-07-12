@@ -1016,14 +1016,18 @@ function ProductCard({
               alt={product.name}
               className="w-full h-full object-cover"
               onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
+                const img = e.currentTarget as HTMLImageElement;
+                img.style.display = "none";
+                const fallback = img.nextElementSibling as HTMLElement | null;
+                if (fallback) fallback.style.display = "flex";
               }}
             />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40">
-              <span className="text-3xl font-extrabold text-teal-600/70">{getInitials(product.name)}</span>
-            </div>
-          )}
+          ) : null}
+          <div
+            className={`w-full h-full items-center justify-center bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 ${product.imageUrl ? "hidden" : "flex"}`}
+          >
+            <span className="text-3xl font-extrabold text-teal-600/70">{getInitials(product.name)}</span>
+          </div>
         </AspectRatio>
         {/* Select mode checkbox */}
         {selectMode && (

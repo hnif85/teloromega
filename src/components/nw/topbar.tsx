@@ -398,6 +398,19 @@ export function Topbar() {
           </DropdownMenu>
         </div>
 
+        {/* Desktop: greeting on the left, next to sidebar */}
+        <div className="hidden md:flex items-center gap-2.5 min-w-0">
+          <span className="text-sm text-stone">
+            Halo, <span className="font-semibold text-ink">{user?.name ?? ""}</span>
+          </span>
+        </div>
+
+        {/* Desktop: page title portal target (see PageHeader) */}
+        <div
+          id="topbar-title-slot"
+          className="hidden md:flex items-center gap-2.5 min-w-0 flex-1"
+        />
+
         <div className="ml-auto flex items-center gap-2">
           {/* Global search trigger — ⌘F badge */}
           <Button

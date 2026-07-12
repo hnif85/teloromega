@@ -50,6 +50,7 @@ import {
   FileText,
   Search,
   Wallet,
+  X,
 } from "lucide-react";
 import { useAppStore, getActiveBrand } from "@/lib/store";
 import { api } from "@/lib/api";
@@ -273,6 +274,10 @@ export function InsightsSection() {
   const { user, setCredit, setSection } = useAppStore();
   const activeBrand = getActiveBrand(useAppStore.getState());
   const [aiSummary, setAiSummary] = useState<AISummary | null>(null);
+  const [ctaDismissed, setCtaDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("insights_cta_dismissed") === "true";
+  });
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery<InsightsResponse>({
     queryKey: ["insights", activeBrand?.id],
@@ -300,6 +305,11 @@ export function InsightsSection() {
       toast.error(e instanceof Error ? e.message : "Gagal membuat ringkasan AI");
     },
   });
+
+  const dismissCta = () => {
+    setCtaDismissed(true);
+    localStorage.setItem("insights_cta_dismissed", "true");
+  };
 
   if (!activeBrand) {
     return (
@@ -363,11 +373,12 @@ export function InsightsSection() {
           <AISummaryCard summary={aiSummary} onReset={() => setAiSummary(null)} />
         ) : summaryMutation.isPending ? (
           <SummarySkeleton />
-        ) : (
+        ) : ctaDismissed ? null : (
           <CTACard
             creditBalance={user?.creditBalance ?? 0}
             onGenerate={() => summaryMutation.mutate()}
             disabled={summaryMutation.isPending}
+            onDismiss={dismissCta}
           />
         )}
       </div>
@@ -565,14 +576,26 @@ function CTACard({
   creditBalance,
   onGenerate,
   disabled,
+  onDismiss,
 }: {
   creditBalance: number;
   onGenerate: () => void;
   disabled: boolean;
+  onDismiss?: () => void;
 }) {
   const canAfford = creditBalance >= 3;
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 border border-teal/20 p-6 md:p-8">
+    <div className="relative rounded-2xl bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 border border-teal/20 p-6 md:p-8">
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="absolute top-3 right-3 size-6 rounded-full flex items-center justify-center text-stone hover:text-ink hover:bg-card/60 transition-colors"
+          aria-label="Tutup"
+        >
+          <X className="size-4" />
+        </button>
+      )}
       <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
         <div className="size-12 rounded-2xl bg-teal text-white flex items-center justify-center shrink-0">
           <Brain className="size-6" />

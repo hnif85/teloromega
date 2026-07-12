@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { getUserId } from "@/lib/auth";
 import { chargeCredit, refundCredit } from "@/lib/credit";
 import { llmChat, llmJson, generateImage, setAiContext } from "@/lib/ai";
+import { supabaseAdmin as supabase } from "@/lib/supabase-admin";
 import type { CreditActionKey } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,24 @@ const TYPE_ACTION_KEY: Record<string, CreditActionKey> = {
 };
 
 const VALID_TYPES = new Set(["caption", "gambar", "video", "carousel"]);
+
+async function uploadBase64ToStorage(dataUrl: string, userId: string): Promise<string | null> {
+  try {
+    const matches = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (!matches) return null;
+    const ext = matches[1] === "jpeg" ? "jpg" : matches[1];
+    const buffer = Buffer.from(matches[2], "base64");
+    const filePath = `generated/${userId}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage
+      .from("product-images")
+      .upload(filePath, buffer, { contentType: `image/${ext}`, upsert: false });
+    if (error) return null;
+    const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(filePath);
+    return urlData.publicUrl;
+  } catch {
+    return null;
+  }
+}
 
 // ─── Fallback generators (used when LLM/image API is unavailable) ────────────
 
@@ -206,13 +225,13 @@ export async function POST(req: NextRequest) {
   // Set AI context for prompt logging
   setAiContext({ feature: `content_${type}`, userId, brandId, service: "Content Writer" });
 
-  let product: { name: string; description: string | null; type: string; price: number } | null = null;
+  let product: { name: string; description: string | null; type: string; price: number; imageUrl: string | null } | null = null;
   if (productId) {
     const p = await db.product.findUnique({ where: { id: productId } });
     if (!p || p.brandId !== brandId) {
       return NextResponse.json({ error: "produk tidak ditemukan" }, { status: 404 });
     }
-    product = { name: p.name, description: p.description, type: p.type, price: p.price };
+    product = { name: p.name, description: p.description, type: p.type, price: p.price, imageUrl: p.imageUrl };
   }
 
   let context: { id: string; contextJson: string; researchId: string } | null = null;
@@ -329,9 +348,11 @@ export async function POST(req: NextRequest) {
           `clean background, vibrant colors, sharp focus, no text overlay.`,
         ].filter(Boolean).join(" ");
         try {
-          const imgUrl = await generateImage(imgPrompt, { size });
-          if (imgUrl) assetUrl = imgUrl;
-          else throw new Error("image generation returned null");
+          const imgUrl = await generateImage(imgPrompt, { size, imageUrl: product?.imageUrl ?? undefined });
+          if (imgUrl) {
+            const uploaded = await uploadBase64ToStorage(imgUrl, userId);
+            assetUrl = uploaded ?? imgUrl;
+          } else throw new Error("image generation returned null");
         } catch {
           assetUrl = fallbackImage({ brandName: brand.name, productName: productNameShort, category: brand.category, angle: angleText });
           usedFallback = true;

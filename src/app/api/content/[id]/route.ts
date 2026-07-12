@@ -125,7 +125,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       };
       const size = (sizeMap[platformLabel] ?? "1024x1024") as any;
       try {
-        const imgUrl = await generateImage(imgPrompt, { size });
+        const imgUrl = await generateImage(imgPrompt, { size, imageUrl: product?.imageUrl ?? undefined });
         if (imgUrl) newAssetUrl = imgUrl;
         else throw new Error("image generation returned null");
       } catch {

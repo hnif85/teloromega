@@ -13,6 +13,31 @@
 - auto-generate query from brand data instead of suggestion chip; update year 2025→2026
 
 
+## [0.7.0] — 2026-07-12
+
+### ✨ Added
+- image-to-image generation — product photo dikirim sebagai reference ke AI module (endpoint `/images/generation/reference` + `ref_task=ip`) agar hasil generate sesuai bentuk/warna produk
+- quick add produk — "+ Tambah" button di FilterBar konten, langsung buka dialog input produk tanpa perlu ke halaman Produk
+- dismissible AI insights CTA — tombol close pada "Ringkasan Bisnis dari AI" card, state disimpan di localStorage
+- `supabaseAdmin` client — server-only Supabase client pakai service_role key untuk storage ops
+
+### 🎨 Changed
+- Beranda: hapus decorative blobs, gradient, mesh-hero, DashboardHero, tip-of-day, brand badges, quick stats; bersihkan imports
+- Topbar: greeting "Halo, Nama" di sebelah kiri, hapus duplikasi dari kanan
+- Konten detail view: layout desktop jadi `flex-row` (gambar kiri, caption+edit kanan) — no scroll; mobile tetap stack
+- Konten composer: dari centered overlay dialog jadi inline expand di bawah textarea
+- Target audience: ganti Select dropdown jadi chip buttons + free text input
+- Riset: perbaiki alignment layout tabel hasil riset
+- Image di detail view: pake `max-h-[70vh] object-contain` biar pas tidak kepotong
+
+### 🐛 Fixed
+- generateImage() sekarang parse `b64_json` dengan benar dari response AI module
+- `json.usage` path diperbaiki jadi `json.data.usage` (pre-existing bug)
+- content route upload base64 image ke Supabase storage sebelum simpan assetUrl
+- product image fallback: pake initials kalau image gagal load
+- QuickProductDialog panggil `onProductCreated` untuk invalidate query produk
+- Supabase bucket `product-images` di-set `public: true` via REST API
+- Product `imageUrl` di-include dalam query content generation
 
 ## [0.6.0] — 2026-07-11
 

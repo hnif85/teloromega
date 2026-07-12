@@ -7,6 +7,13 @@
 
 ---
 
+## [0.11.1] — 2026-07-12
+
+### 🐛 Fixed
+- dark mode — bg-white→bg-card, missing dark gradient variants, onboarding riset-first
+
+
+
 ## [0.11.0] — 2026-07-12
 
 ### ✨ Added

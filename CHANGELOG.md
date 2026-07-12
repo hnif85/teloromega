@@ -7,6 +7,13 @@
 
 ---
 
+## [0.9.0] — 2026-07-12
+
+### ✨ Added
+- intent detection on chat messages + auto lead stage update
+
+
+
 ## [0.8.0] — 2026-07-12
 
 ### ✨ Added

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/components/theme-provider";
 
 /** Compact theme toggle styled for the dark sidebar background. */
 export function SidebarThemeToggle() {

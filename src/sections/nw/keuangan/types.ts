@@ -4,12 +4,19 @@ export type PeriodKey = "month" | "quarter" | "year";
 export type TxType = "income" | "expense";
 
 export type TxCategory =
-  | "penjualan"
+  | "penjualan_produk"
+  | "jasa_layanan"
+  | "pendapatan_lain"
   | "bahan_baku"
-  | "operasional"
+  | "sewa"
+  | "listrik_internet"
   | "marketing"
   | "gaji"
-  | "lainnya";
+  | "transportasi"
+  | "operasional_lain"
+  | "penjualan"     // legacy
+  | "operasional"   // legacy
+  | "lainnya";      // legacy
 
 export interface TransactionRow {
   id: string;
@@ -139,13 +146,32 @@ export interface ProjectionResponse {
 }
 
 export const TX_CATEGORY_LABELS: Record<string, string> = {
+  penjualan_produk: "Penjualan Produk",
+  jasa_layanan: "Jasa / Layanan",
+  pendapatan_lain: "Pendapatan Lainnya",
+  bahan_baku: "Bahan Baku / Stok",
+  sewa: "Sewa Tempat",
+  listrik_internet: "Listrik, Air, Internet",
+  marketing: "Marketing / Iklan",
+  gaji: "Gaji Karyawan",
+  transportasi: "Transportasi / Kirim",
+  operasional_lain: "Operasional Lainnya",
+  // legacy
   penjualan: "Penjualan",
-  bahan_baku: "Bahan Baku",
   operasional: "Operasional",
-  marketing: "Marketing",
-  gaji: "Gaji",
   lainnya: "Lainnya",
 };
+
+export const INCOME_CATEGORIES = ["penjualan_produk", "jasa_layanan", "pendapatan_lain"] as const;
+export const EXPENSE_CATEGORIES = ["bahan_baku", "sewa", "listrik_internet", "marketing", "gaji", "transportasi", "operasional_lain"] as const;
+
+export function getCategoriesByType(type: TxType): readonly string[] {
+  return type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+}
+
+export function getDefaultCategoryForType(type: TxType): string {
+  return type === "income" ? "penjualan_produk" : "bahan_baku";
+}
 
 export const OP_CATEGORY_LABELS: Record<string, string> = {
   Sewa: "Sewa",

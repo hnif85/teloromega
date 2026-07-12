@@ -15,7 +15,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "brand tidak ditemukan" }, { status: 404 });
   }
   const body = await req.json();
-  const { name, description, category, logoUrl, toneOfVoice } = body;
+  const { name, description, category, logoUrl, toneOfVoice, phone } = body;
 
   // Validate category if provided
   if (category !== undefined && !CATEGORIES.includes(category as typeof CATEGORIES[number])) {
@@ -46,6 +46,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (description !== undefined) data.description = description?.trim() || null;
   if (category !== undefined) data.category = category;
   if (logoUrl !== undefined) data.logoUrl = logoUrl?.trim() || null;
+  if (phone !== undefined) data.phone = phone?.trim() || null;
   if (toneOfVoice !== undefined) data.toneOfVoice = toneOfVoice;
 
   if (Object.keys(data).length === 0) {

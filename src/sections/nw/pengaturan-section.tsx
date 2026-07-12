@@ -59,6 +59,7 @@ import {
   User,
   Palette,
   Check,
+  Copy,
   Crown,
   Save,
   Globe,
@@ -96,7 +97,7 @@ import {
   type ToneKey,
 } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/components/theme-provider";
 import { startTour } from "@/components/nw/onboarding-tour";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -134,6 +135,7 @@ function BrandTab() {
   const [eCategory, setECategory] = useState<string>(CATEGORIES[0]);
   const [eDesc, setEDesc] = useState("");
   const [eLogo, setELogo] = useState("");
+  const [ePhone, setEPhone] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Add form state
@@ -141,6 +143,7 @@ function BrandTab() {
   const [aCategory, setACategory] = useState<string>(CATEGORIES[0]);
   const [aDesc, setADesc] = useState("");
   const [aLogo, setALogo] = useState("");
+  const [aPhone, setAPhone] = useState("");
   const [aTone, setATone] = useState<ToneKey>("santai_ramah");
   const [creating, setCreating] = useState(false);
 
@@ -153,6 +156,7 @@ function BrandTab() {
       setECategory(b.category);
       setEDesc(b.description ?? "");
       setELogo(b.logoUrl ?? "");
+      setEPhone((b as any).phone ?? "");
     }
   }, [activeBrandId, brands]);
 
@@ -171,6 +175,7 @@ function BrandTab() {
           category: eCategory,
           description: eDesc.trim(),
           logoUrl: eLogo.trim(),
+          phone: ePhone.trim() || null,
         },
       });
       updateBrand(r.brand);
@@ -319,7 +324,7 @@ function BrandTab() {
                       <Badge variant="outline" className="text-[10px] py-0 h-4">
                         {b.category}
                       </Badge>
-                      <span className="truncate font-mono">tokoku.usahaku.ai/{b.slug}</span>
+                      <span className="truncate font-mono">usahaku.ai/t/{b.slug}</span>
                     </div>
                   </div>
                   {active && (
@@ -401,6 +406,17 @@ function BrandTab() {
                 />
               </div>
 
+              <div>
+                <Label className="mb-1.5">Nomor WhatsApp (opsional)</Label>
+                <Input
+                  value={ePhone}
+                  onChange={(e) => setEPhone(e.target.value)}
+                  className="bg-cream-100"
+                  placeholder="08123456789"
+                />
+                <p className="text-[10px] text-stone mt-1">Pembeli akan menghubungi nomor ini via WhatsApp</p>
+              </div>
+
               {/* Slug preview */}
               <div className="rounded-lg bg-cream-100 border border-border px-3 py-2.5 flex items-center gap-2">
                 <Globe className="size-4 text-teal shrink-0" />
@@ -409,7 +425,7 @@ function BrandTab() {
                     URL Toko
                   </div>
                   <div className="text-sm font-mono text-ink truncate">
-                    tokoku.usahaku.ai/<span className="text-teal font-bold">{slugPreview || "—"}</span>
+                    usahaku.ai/t/<span className="text-teal font-bold">{slugPreview || "—"}</span>
                   </div>
                 </div>
               </div>
@@ -522,7 +538,7 @@ function BrandTab() {
               {aName.trim() && (
                 <div className="text-[11px] text-stone mt-1.5 flex items-center gap-1">
                   <Globe className="size-3 text-teal" />
-                  URL: <span className="font-mono text-teal">tokoku.usahaku.ai/{slugify(aName)}</span>
+                  URL: <span className="font-mono text-teal">usahaku.ai/t/{slugify(aName)}</span>
                 </div>
               )}
             </div>
@@ -2405,6 +2421,288 @@ function HubBackButton({ onClick }: { onClick: () => void }) {
   );
 }
 
+// ─── Toko Online settings ─────────────────────────────────────────────
+interface BankAccount {
+  bank: string;
+  accountNumber: string;
+  accountName: string;
+}
+
+type StoreSettings = {
+  checkoutEnabled: boolean;
+  paymentMethods: string[];
+  minOrder: number;
+  shippingEnabled: boolean;
+  bankAccounts: BankAccount[];
+};
+
+const ALL_PAYMENT_OPTIONS = [
+  { id: "transfer", label: "Transfer Bank", desc: "BCA, Mandiri, BRI, BNI" },
+  { id: "qris", label: "QRIS / E-Wallet", desc: "GoPay, OVO, DANA, ShopeePay" },
+  { id: "cod", label: "COD (Bayar di Tempat)", desc: "Bayar saat barang diterima" },
+];
+
+const DEFAULT_STORE_SETTINGS: StoreSettings = {
+  checkoutEnabled: true,
+  paymentMethods: ["transfer", "cod", "qris"],
+  minOrder: 0,
+  shippingEnabled: false,
+  bankAccounts: [],
+};
+
+function StoreSettingsTab() {
+  const { brands, activeBrandId } = useAppStore();
+  const { toast } = useToast();
+  const activeBrand = brands.find((b) => b.id === activeBrandId);
+  const [settings, setSettings] = useState<StoreSettings>(DEFAULT_STORE_SETTINGS);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!activeBrand?.id) return;
+    setLoading(true);
+    api<{ settings: StoreSettings }>(`/api/brands/${activeBrand.id}/store-settings`)
+      .then((d) => {
+        if (d.settings) setSettings(d.settings);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [activeBrand?.id]);
+
+  function togglePaymentMethod(id: string) {
+    setSettings((prev) => {
+      const has = prev.paymentMethods.includes(id);
+      if (has && prev.paymentMethods.length <= 1) return prev;
+      return {
+        ...prev,
+        paymentMethods: has
+          ? prev.paymentMethods.filter((m) => m !== id)
+          : [...prev.paymentMethods, id],
+      };
+    });
+  }
+
+  async function handleSave() {
+    if (!activeBrand?.id) return;
+    setSaving(true);
+    try {
+      await api(`/api/brands/${activeBrand.id}/store-settings`, {
+        method: "PUT",
+        json: settings,
+      });
+      toast({ title: "Tersimpan", description: "Pengaturan toko online diperbarui" });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Gagal menyimpan";
+      toast({ title: "Gagal", description: msg, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const storeUrl = activeBrand ? `https://usahaku.ai/t/${activeBrand.slug}` : "—";
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="size-6 border-2 border-teal border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <SectionCard title="Link Toko">
+        <div className="rounded-lg bg-teal-50 border border-teal/20 px-3 py-2.5 flex items-center gap-2">
+          <Store className="size-4 text-teal shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-mono text-teal-700 truncate">{storeUrl}</div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs border-teal/30 text-teal shrink-0 gap-1"
+            onClick={() => {
+              navigator.clipboard.writeText(storeUrl);
+              toast({ title: "Link disalin" });
+            }}
+          >
+            <Copy className="size-3" /> Salin
+          </Button>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Checkout Online">
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-ink">Aktifkan Checkout</div>
+            <p className="text-xs text-stone mt-0.5">
+              Pelanggan bisa checkout langsung tanpa WA
+            </p>
+          </div>
+          <button
+            onClick={() => setSettings((s) => ({ ...s, checkoutEnabled: !s.checkoutEnabled }))}
+            className={`relative inline-flex h-6 w-10 items-center rounded-full transition-colors shrink-0 ${
+              settings.checkoutEnabled ? "bg-teal" : "bg-cream-300"
+            }`}
+          >
+            <span
+              className={`inline-block size-5 rounded-full bg-white shadow-sm transition-transform ${
+                settings.checkoutEnabled ? "translate-x-[18px]" : "translate-x-[2px]"
+              }`}
+            />
+          </button>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Metode Pembayaran">
+        <p className="text-xs text-stone mb-3">
+          Pilih metode pembayaran yang tersedia untuk pelanggan
+        </p>
+        <div className="space-y-2">
+          {ALL_PAYMENT_OPTIONS.map((pm) => {
+            const active = settings.paymentMethods.includes(pm.id);
+            return (
+              <button
+                key={pm.id}
+                onClick={() => togglePaymentMethod(pm.id)}
+                className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-colors text-left ${
+                  active
+                    ? "border-teal-500 bg-teal-50"
+                    : "border-border hover:border-stone-300"
+                }`}
+              >
+                <div
+                  className={`size-5 rounded border-2 flex items-center justify-center shrink-0 ${
+                    active
+                      ? "border-teal-500 bg-teal-500"
+                      : "border-stone-300"
+                  }`}
+                >
+                  {active && <Check className="size-3 text-white" />}
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-ink">{pm.label}</div>
+                  <div className="text-[11px] text-stone">{pm.desc}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </SectionCard>
+
+      {/* Bank Accounts */}
+      <SectionCard title="Rekening Bank">
+        <p className="text-xs text-stone mb-3">
+          Rekening yang ditampilkan ke pelanggan setelah checkout
+        </p>
+        <div className="space-y-2">
+          {settings.bankAccounts.map((acc, idx) => (
+            <div key={idx} className="flex items-center gap-2 p-2 rounded-lg border border-border bg-cream-50">
+              <div className="flex-1 grid grid-cols-3 gap-2 text-xs">
+                <Input
+                  placeholder="Bank (BCA/Mandiri/BRI)"
+                  value={acc.bank}
+                  onChange={(e) => {
+                    const newAccs = [...settings.bankAccounts];
+                    newAccs[idx] = { ...newAccs[idx], bank: e.target.value };
+                    setSettings((s) => ({ ...s, bankAccounts: newAccs }));
+                  }}
+                  className="h-8 text-xs bg-white"
+                />
+                <Input
+                  placeholder="No. Rekening"
+                  value={acc.accountNumber}
+                  onChange={(e) => {
+                    const newAccs = [...settings.bankAccounts];
+                    newAccs[idx] = { ...newAccs[idx], accountNumber: e.target.value };
+                    setSettings((s) => ({ ...s, bankAccounts: newAccs }));
+                  }}
+                  className="h-8 text-xs bg-white"
+                />
+                <div className="flex items-center gap-1">
+                  <Input
+                    placeholder="Atas Nama"
+                    value={acc.accountName}
+                    onChange={(e) => {
+                      const newAccs = [...settings.bankAccounts];
+                      newAccs[idx] = { ...newAccs[idx], accountName: e.target.value };
+                      setSettings((s) => ({ ...s, bankAccounts: newAccs }));
+                    }}
+                    className="h-8 text-xs bg-white flex-1"
+                  />
+                  <button
+                    onClick={() =>
+                      setSettings((s) => ({
+                        ...s,
+                        bankAccounts: s.bankAccounts.filter((_, i) => i !== idx),
+                      }))
+                    }
+                    className="p-1 text-stone hover:text-red-500 shrink-0"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="mt-2 h-8 text-xs gap-1"
+          onClick={() =>
+            setSettings((s) => ({
+              ...s,
+              bankAccounts: [...s.bankAccounts, { bank: "", accountNumber: "", accountName: "" }],
+            }))
+          }
+        >
+          <Plus className="size-3" /> Tambah Rekening
+        </Button>
+      </SectionCard>
+
+      <SectionCard title="Minimal Pesanan">
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-ink">Minimal Pembelian</div>
+            <p className="text-xs text-stone mt-0.5">Biarkan 0 untuk tidak ada minimal</p>
+          </div>
+          <div className="w-28">
+            <Input
+              type="number"
+              min={0}
+              step={1000}
+              value={settings.minOrder}
+              onChange={(e) =>
+                setSettings((s) => ({
+                  ...s,
+                  minOrder: Math.max(0, parseInt(e.target.value) || 0),
+                }))
+              }
+              className="h-9 text-sm text-right bg-cream-100"
+            />
+          </div>
+        </div>
+      </SectionCard>
+
+      <div className="flex justify-end pt-2">
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          className="bg-teal hover:bg-teal-600 text-white gap-1.5"
+        >
+          {saving ? (
+            <span className="size-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+          ) : (
+            <Save className="size-3.5" />
+          )}
+          {saving ? "Menyimpan..." : "Simpan Pengaturan"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function HubSubView({ title, children, onBack }: { title: string; children: React.ReactNode; onBack: () => void }) {
   return (
     <div className="space-y-4">
@@ -2575,6 +2873,8 @@ export function PengaturanSection() {
         return <HubSubView title="Bantuan" onBack={back}><BantuanHubContent /></HubSubView>;
       case "backup":
         return <HubSubView title="Backup & Restore" onBack={back}><BackupTab /></HubSubView>;
+      case "toko-online":
+        return <HubSubView title="Toko Online" onBack={back}><StoreSettingsTab /></HubSubView>;
       default:
         setActiveMenu(null);
         return null;
@@ -2592,6 +2892,7 @@ export function PengaturanSection() {
     { key: "aktivitas", icon: "📋", label: "Aktivitas" },
     { key: "target", icon: "🎯", label: "Target Bisnis" },
     { key: "demo", icon: "🛢️", label: "Data Demo" },
+    { key: "toko-online", icon: "🛒", label: "Toko Online" },
     { key: "bantuan", icon: "❓", label: "Bantuan" },
     { key: "backup", icon: "💾", label: "Backup & Restore" },
   ];

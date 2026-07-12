@@ -68,11 +68,14 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="usahaku.ai" />
+        <script dangerouslySetInnerHTML={{
+          __html: `(function(){try{var t=localStorage.getItem("theme");if(!t){t=window.matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light"}document.documentElement.className=t;document.documentElement.style.colorScheme=t}catch(e){}})()`,
+        }} />
       </head>
       <body
         className={`${manrope.variable} ${geistMono.variable} font-sans antialiased bg-background text-foreground`}
       >
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+        <ThemeProvider>
           <QueryProvider>
             <TooltipProvider delayDuration={150}>{children}</TooltipProvider>
             <Toaster />

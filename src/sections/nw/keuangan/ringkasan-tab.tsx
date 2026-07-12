@@ -102,8 +102,8 @@ export function RingkasanTab({
         </div>
       </div>
 
-      {/* Incomplete margin warning */}
-      {data.incompleteMarginCount > 0 && (
+      {/* Incomplete margin warning — hidden for now, future: auto-suggest HPP from purchase data */}
+      {false && data.incompleteMarginCount > 0 && (
         <div className="rounded-xl border border-border bg-card p-4">
           <div className="text-sm font-bold text-ink mb-1">⚠️ Margin Belum Lengkap</div>
           <div className="text-xs text-stone mb-3">{data.incompleteMarginCount} transaksi penjualan tanpa data HPP</div>

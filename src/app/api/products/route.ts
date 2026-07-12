@@ -27,12 +27,13 @@ export async function POST(req: NextRequest) {
   const userId = await getUserId(req);
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const body = await req.json();
-  const { brandId, type, name, price, costPrice, stock, minStock, sku, description, imageUrl } =
+  const { brandId, type, name, price, promoPrice, costPrice, stock, minStock, sku, description, imageUrl } =
     body as {
       brandId: string;
       type: "barang" | "jasa";
       name: string;
       price: number;
+      promoPrice?: number | null;
       costPrice?: number | null;
       stock?: number | null;
       minStock?: number | null;
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
       type,
       name: name.trim(),
       price: Number(price),
+      promoPrice: promoPrice != null ? Number(promoPrice) : null,
       costPrice: costPrice != null ? Number(costPrice) : null,
       stock: type === "barang" ? (stock != null ? Number(stock) : 0) : null,
       minStock: minStock != null ? Number(minStock) : null,

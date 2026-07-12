@@ -6,11 +6,18 @@ import { getUserId } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 const TX_CATEGORIES = [
-  "penjualan",
+  "penjualan_produk",
+  "jasa_layanan",
+  "pendapatan_lain",
   "bahan_baku",
-  "operasional",
+  "sewa",
+  "listrik_internet",
   "marketing",
   "gaji",
+  "transportasi",
+  "operasional_lain",
+  "penjualan",
+  "operasional",
   "lainnya",
 ] as const;
 
@@ -88,6 +95,9 @@ export async function POST(req: NextRequest) {
     receiptUrl,
     date,
     quantity,
+    unitPrice,
+    buyerName,
+    paymentMethod,
     costAmount: explicitCost,
   } = body as {
     brandId: string;
@@ -100,6 +110,9 @@ export async function POST(req: NextRequest) {
     receiptUrl?: string | null;
     date?: string | null;
     quantity?: number | null;
+    unitPrice?: number | null;
+    buyerName?: string | null;
+    paymentMethod?: string | null;
     costAmount?: number | null;
   };
 
@@ -164,6 +177,9 @@ export async function POST(req: NextRequest) {
       amount: amt,
       costAmount,
       quantity: quantity ?? (product ? 1 : null),
+      unitPrice: unitPrice != null ? Number(unitPrice) : null,
+      buyerName: buyerName?.trim() || null,
+      paymentMethod: paymentMethod?.trim() || null,
       description: description?.trim() || null,
       receiptUrl: receiptUrl?.trim() || null,
       date: date ? new Date(date) : new Date(),

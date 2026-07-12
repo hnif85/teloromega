@@ -538,25 +538,35 @@ export function OrdersTab({
                                       Riwayat Pembayaran
                                     </div>
                                     <div className="space-y-1">
-                                      {(o.payments ?? []).map((p) => {
-                                        const meta = PAYMENT_STATUS.find((s) => s.key === p.status);
-                                        return (
-                                          <div
-                                            key={p.id}
-                                            className="flex items-center justify-between text-xs"
-                                          >
-                                            <span className="text-stone">{p.method}</span>
-                                            <span className="font-semibold text-ink">
-                                              {formatRupiah(p.amount)}
-                                            </span>
-                                            {meta && (
-                                              <Badge className={`text-[9px] h-4 ${meta.color}`}>
-                                                {meta.label}
-                                              </Badge>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
+                                        {(o.payments ?? []).map((p) => {
+                                          const meta = PAYMENT_STATUS.find((s) => s.key === p.status);
+                                          return (
+                                            <div
+                                              key={p.id}
+                                              className="flex items-center justify-between text-xs"
+                                            >
+                                              <span className="text-stone">{p.method}</span>
+                                              <span className="font-semibold text-ink">
+                                                {formatRupiah(p.amount)}
+                                              </span>
+                                              {meta && (
+                                                <Badge className={`text-[9px] h-4 ${meta.color}`}>
+                                                  {meta.label}
+                                                </Badge>
+                                              )}
+                                              {(p as any).proofImageUrl && (
+                                                <a
+                                                  href={(p as any).proofImageUrl}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="text-teal hover:underline ml-1 shrink-0"
+                                                >
+                                                  📎
+                                                </a>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
                                     </div>
                                   </div>
                                 )}

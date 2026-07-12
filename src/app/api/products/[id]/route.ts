@@ -14,12 +14,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "produk tidak ditemukan" }, { status: 404 });
   }
   const body = await req.json();
-  const { name, price, costPrice, stock, minStock, description, imageUrl } = body;
+  const { name, price, promoPrice, costPrice, stock, minStock, description, imageUrl } = body;
   const updated = await db.product.update({
     where: { id },
     data: {
       ...(name !== undefined ? { name } : {}),
       ...(price !== undefined ? { price: Number(price) } : {}),
+      ...(promoPrice !== undefined ? { promoPrice: promoPrice != null ? Number(promoPrice) : null } : {}),
       ...(costPrice !== undefined ? { costPrice: costPrice != null ? Number(costPrice) : null } : {}),
       ...(stock !== undefined ? { stock: stock != null ? Number(stock) : null } : {}),
       ...(minStock !== undefined ? { minStock: minStock != null ? Number(minStock) : null } : {}),

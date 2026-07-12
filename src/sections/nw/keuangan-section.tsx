@@ -5,23 +5,15 @@
 // Collapsible sections: summary → expanded tab content
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAppStore, getActiveBrand } from "@/lib/store";
 import { api } from "@/lib/api";
+import type { ProductLite } from "./keuangan/transaksi-tab";
 import { PageHeader, EmptyState } from "@/components/nw/primitives";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { formatRupiah, formatRupiahShort, timeAgo } from "@/lib/constants";
 import {
@@ -32,16 +24,9 @@ import {
   Wallet,
   ArrowRightLeft,
   Calculator,
-  Camera,
-  X,
-  Loader2,
-  Upload,
-  ArrowUpRight,
-  ArrowDownRight,
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { RingkasanTab } from "./keuangan/ringkasan-tab";
-import { TransaksiTab } from "./keuangan/transaksi-tab";
+import { TransaksiTab, AddTransactionDialog } from "./keuangan/transaksi-tab";
 import { ProyeksiTab } from "./keuangan/proyeksi-tab";
 import type { PeriodKey } from "./keuangan/types";
 
@@ -250,139 +235,6 @@ function ProyeksiSection({ brandId, open, onToggle }: { brandId: string; open: b
   );
 }
 
-// ─── Quick-Add Transaction Dialog ───────────────────────────────────────────
-const TX_CATS = ["penjualan", "bahan_baku", "operasional", "marketing", "gaji", "lainnya"] as const;
-
-function QuickAddDialog({ brandId, open, onClose }: { brandId: string; open: boolean; onClose: () => void }) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const [type, setType] = useState<"income" | "expense">("income");
-  const [category, setCategory] = useState("penjualan");
-  const [amount, setAmount] = useState("");
-  const [desc, setDesc] = useState("");
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  function reset() {
-    setType("income"); setCategory("penjualan"); setAmount(""); setDesc("");
-    setReceiptFile(null); setPreview(null); setLoading(false);
-  }
-
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { toast({ title: "Foto maksimal 5MB", variant: "destructive" }); return; }
-    setReceiptFile(file);
-    const reader = new FileReader();
-    reader.onload = () => setPreview(reader.result as string);
-    reader.readAsDataURL(file);
-  }
-
-  async function handleSubmit() {
-    const amt = parseInt(amount, 10);
-    if (!amount || !Number.isFinite(amt) || amt <= 0) {
-      toast({ title: "Jumlah harus diisi dan > 0", variant: "destructive" }); return;
-    }
-    setLoading(true);
-    let receiptUrl: string | null = null;
-    try {
-      if (receiptFile) {
-        const fd = new FormData();
-        fd.append("file", receiptFile);
-        const up = await api<{ imageUrl: string }>("/api/upload/image", { method: "POST", body: fd });
-        receiptUrl = up.imageUrl;
-      }
-      await api("/api/transactions", {
-        method: "POST",
-        json: { brandId, type, category, amount: amt, description: desc || undefined, receiptUrl: receiptUrl || undefined },
-      });
-      toast({ title: "Transaksi tersimpan ✅" });
-      queryClient.invalidateQueries({ queryKey: ["keuangan-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["keuangan-recent-tx"] });
-      reset();
-      onClose();
-    } catch (err) {
-      toast({ title: "Gagal simpan", description: err instanceof Error ? err.message : "", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-card w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-ink">Tambah Transaksi</h3>
-          <button onClick={() => { reset(); onClose(); }} className="size-8 rounded-lg hover:bg-cream-100 flex items-center justify-center"><X className="size-4" /></button>
-        </div>
-
-        {/* Type toggle */}
-        <div className="flex rounded-xl bg-cream-100 p-1">
-          {(["income", "expense"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => { setType(t); if (t === "income") setCategory("penjualan"); else setCategory("operasional"); }}
-              className={cn("flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all", type === t ? "bg-white text-teal shadow-sm" : "text-stone")}
-            >
-              {t === "income" ? <ArrowUpRight className="size-4 text-emerald-500" /> : <ArrowDownRight className="size-4 text-rose-500" />}
-              {t === "income" ? "Pemasukan" : "Pengeluaran"}
-            </button>
-          ))}
-        </div>
-
-        {/* Category */}
-        <div className="space-y-1">
-          <Label className="text-xs">Kategori</Label>
-          <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {TX_CATS.map((c) => <SelectItem key={c} value={c}>{c.replace(/_/g, " ")}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Amount */}
-        <div className="space-y-1">
-          <Label className="text-xs">Jumlah (Rp)</Label>
-          <Input value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} placeholder="0" type="text" inputMode="numeric" className="rounded-xl text-lg font-bold" />
-          {amount && <div className="text-xs text-teal font-semibold">{formatRupiah(parseInt(amount, 10) || 0)}</div>}
-        </div>
-
-        {/* Description */}
-        <div className="space-y-1">
-          <Label className="text-xs">Deskripsi (opsional)</Label>
-          <Input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="cth: jual 5 pack keripik" className="rounded-xl" />
-        </div>
-
-        {/* Receipt photo */}
-        <div className="space-y-1">
-          <Label className="text-xs">Foto Struk (opsional)</Label>
-          <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handleFile} className="hidden" />
-          {preview ? (
-            <div className="relative inline-block">
-              <img src={preview} alt="Preview" className="h-24 rounded-xl border border-border object-cover" />
-              <button onClick={() => { setReceiptFile(null); setPreview(null); if (fileRef.current) fileRef.current.value = ""; }} className="absolute -top-1.5 -right-1.5 size-5 rounded-full bg-rose-500 text-white flex items-center justify-center"><X className="size-3" /></button>
-            </div>
-          ) : (
-            <button onClick={() => fileRef.current?.click()} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-border hover:border-teal/40 hover:bg-cream-50 transition-colors text-xs text-stone">
-              <Camera className="size-4" /> Tambah Foto Struk
-            </button>
-          )}
-        </div>
-
-        {/* Submit */}
-        <Button onClick={handleSubmit} disabled={loading || !amount} className="w-full rounded-xl py-5 bg-teal hover:bg-teal-600 gap-2">
-          {loading ? <><Loader2 className="size-4 animate-spin" /> Menyimpan...</> : <><Upload className="size-4" /> Simpan Transaksi</>}
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 const SECTION_KEYS = ["ringkasan", "transaksi", "proyeksi"] as const;
@@ -392,6 +244,12 @@ export function KeuanganSection() {
   const [period, setPeriod] = useState<PeriodKey>("month");
   const [expanded, setExpanded] = useState<Set<string>>(new Set(["ringkasan"]));
   const [addOpen, setAddOpen] = useState(false);
+  const qc = useQueryClient();
+
+  function onQuickCreated() {
+    qc.invalidateQueries({ queryKey: ["keuangan-summary"] });
+    qc.invalidateQueries({ queryKey: ["keuangan-recent-tx"] });
+  }
 
   function toggle(key: string) {
     setExpanded((prev) => {
@@ -409,6 +267,13 @@ export function KeuanganSection() {
   function collapseAll() {
     setExpanded(new Set());
   }
+
+  const { data: productsData } = useQuery<{ products: ProductLite[] }>({
+    queryKey: ["keuangan-products", activeBrand?.id],
+    queryFn: () => api(`/api/products?brandId=${activeBrand?.id}`),
+    enabled: !!activeBrand?.id,
+  });
+  const products = productsData?.products ?? [];
 
   if (!activeBrand) {
     return (
@@ -458,7 +323,13 @@ export function KeuanganSection() {
         <Plus className="size-7" />
       </button>
 
-      <QuickAddDialog brandId={activeBrand.id} open={addOpen} onClose={() => setAddOpen(false)} />
+      <AddTransactionDialog
+        brandId={activeBrand.id}
+        products={products}
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onCreated={onQuickCreated}
+      />
     </div>
   );
 }

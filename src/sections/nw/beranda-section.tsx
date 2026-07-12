@@ -8,7 +8,7 @@ import { PageHeader, StatCard, SectionCard, EmptyState } from "@/components/nw/p
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatRupiah, formatRupiahShort, timeAgo, type SectionKey } from "@/lib/constants";
+import { formatRupiah, formatRupiahShort, timeAgo, ORDER_STATUS, PAYMENT_STATUS, type SectionKey } from "@/lib/constants";
 import {
   Search,
   Package,
@@ -184,6 +184,217 @@ function GoalsWidget({ brandId }: { brandId: string }) {
   );
 }
 
+interface OrderItem {
+  productId: string;
+  name: string;
+  qty: number;
+  price: number;
+  type: string;
+}
+
+interface OrderRow {
+  id: string;
+  brandId: string;
+  customerId: string | null;
+  leadId: string | null;
+  items: string;
+  totalAmount: number;
+  status: string;
+  shippingCost: number | null;
+  resiNumber: string | null;
+  shippingCourier: string | null;
+  notes: string | null;
+  createdAt: string;
+  customer?: { id: string; name: string; phone: string } | null;
+  lead?: { id: string; name: string; phone: string } | null;
+  payments?: { id: string; method: string; amount: number; status: string }[];
+}
+
+interface TransactionRow {
+  id: string;
+  type: string;
+  category: string;
+  amount: number;
+  quantity: number | null;
+  unitPrice: number | null;
+  buyerName: string | null;
+  paymentMethod: string | null;
+  description: string | null;
+  date: string;
+  product?: { id: string; name: string; price: number } | null;
+  customer?: { id: string; name: string } | null;
+}
+
+interface FlatRow {
+  no: number;
+  tanggal: string;
+  namaProduk: string;
+  kuantitas: number;
+  hargaSatuan: number;
+  totalHarga: number;
+  namaPembeli: string;
+  metodeBayar: string;
+  status: string;
+  source: "order" | "manual";
+}
+
+function RecentSalesTable({ brandId, isLoading: dashLoading }: { brandId: string; isLoading: boolean }) {
+  const { setSection } = useAppStore();
+
+  const { data: ordersData, isLoading: ordersLoading } = useQuery<{ orders: OrderRow[] }>({
+    queryKey: ["orders", brandId],
+    queryFn: () => api(`/api/orders?brandId=${brandId}`),
+    enabled: !!brandId,
+  });
+
+  const { data: txData, isLoading: txLoading } = useQuery<{ transactions: TransactionRow[] }>({
+    queryKey: ["transactions", brandId, "income"],
+    queryFn: () => api(`/api/transactions?brandId=${brandId}&type=income&limit=50`),
+    enabled: !!brandId,
+  });
+
+  const isLoading = ordersLoading || txLoading;
+
+  function parseItems(s: string): OrderItem[] {
+    try { return JSON.parse(s); } catch { return []; }
+  }
+
+  function flattenOrders(): FlatRow[] {
+    const rows: FlatRow[] = [];
+    const orders = ordersData?.orders ?? [];
+    let no = 1;
+
+    for (const order of orders) {
+      const items = parseItems(order.items);
+      const buyerName = order.customer?.name ?? order.lead?.name ?? "Walk-in";
+      const paidMethods = (order.payments ?? [])
+        .filter((p) => p.status === "Diterima")
+        .map((p) => p.method);
+      const metodeBayar = paidMethods.length > 0 ? paidMethods.join(", ") : "-";
+
+      for (const item of items) {
+        rows.push({
+          no: no++,
+          tanggal: new Date(order.createdAt).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }),
+          namaProduk: item.name,
+          kuantitas: item.qty,
+          hargaSatuan: item.price,
+          totalHarga: item.price * item.qty,
+          namaPembeli: buyerName,
+          metodeBayar,
+          status: order.status,
+          source: "order",
+        });
+      }
+    }
+    return rows;
+  }
+
+  function flattenTransactions(startNo: number): FlatRow[] {
+    const rows: FlatRow[] = [];
+    const txs = txData?.transactions ?? [];
+    let no = startNo;
+
+    for (const tx of txs) {
+      const qty = tx.quantity ?? 1;
+      const price = tx.unitPrice ?? tx.amount / qty;
+      rows.push({
+        no: no++,
+        tanggal: new Date(tx.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }),
+        namaProduk: tx.product?.name ?? tx.description ?? tx.category,
+        kuantitas: qty,
+        hargaSatuan: price,
+        totalHarga: tx.amount,
+        namaPembeli: tx.buyerName ?? tx.customer?.name ?? "-",
+        metodeBayar: tx.paymentMethod ?? "Manual",
+        status: "Dicatat",
+        source: "manual",
+      });
+    }
+    return rows;
+  }
+
+  const orderRows = flattenOrders();
+  const manualRows = flattenTransactions(orderRows.length + 1);
+  const rows = [...orderRows, ...manualRows];
+
+  const statusColor = (s: string): string => {
+    const found = ORDER_STATUS.find((o) => o.key === s);
+    if (found) return found.color;
+    if (s === "Dicatat") return "bg-sky-100 text-sky-700 border-sky-200 border";
+    return "bg-stone-100 text-stone-600";
+  };
+
+  return (
+    <SectionCard
+      title="📋 Penjualan Terbaru"
+      desc="Informasi dasar penjualan brand ini (order + pencatatan manual)"
+      right={
+        rows.length > 0 ? (
+          <Button variant="ghost" size="sm" className="text-teal" onClick={() => setSection("toko")}>
+            Lihat semua <ArrowRight className="size-3.5" />
+          </Button>
+        ) : undefined
+      }
+      bodyClassName="p-0"
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-cream-100/60">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-stone uppercase tracking-wide">No</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-stone uppercase tracking-wide">Tanggal</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-stone uppercase tracking-wide">Nama Produk</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-stone uppercase tracking-wide">Kuantitas (Pcs)</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-stone uppercase tracking-wide">Harga Satuan (Rp)</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-stone uppercase tracking-wide">Total Harga (Rp)</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-stone uppercase tracking-wide">Nama Pembeli</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-stone uppercase tracking-wide">Metode Pembayaran</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-stone uppercase tracking-wide">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading || dashLoading ? (
+              <tr>
+                <td colSpan={9} className="px-4 py-8 text-center text-stone">Memuat data penjualan…</td>
+              </tr>
+            ) : rows.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="px-4 py-10 text-center">
+                  <div className="text-3xl mb-2">🛒</div>
+                  <div className="text-sm font-semibold text-ink">Belum ada penjualan</div>
+                  <p className="text-xs text-stone mt-1 mb-3">Buat order baru di Toko atau catat manual di Keuangan.</p>
+                  <Button size="sm" className="bg-teal hover:bg-teal-600" onClick={() => setSection("toko")}>
+                    Buka Toko <ArrowRight className="size-3.5" />
+                  </Button>
+                </td>
+              </tr>
+            ) : (
+              rows.map((r, i) => (
+                <tr key={i} className="border-b border-border last:border-0 hover:bg-cream-100/40 transition-colors">
+                  <td className="px-4 py-3 text-stone tabular-nums">{r.no}</td>
+                  <td className="px-4 py-3 text-stone whitespace-nowrap">{r.tanggal}</td>
+                  <td className="px-4 py-3 font-medium text-ink max-w-[200px] truncate">{r.namaProduk}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{r.kuantitas}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{formatRupiah(r.hargaSatuan)}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-ink tabular-nums">{formatRupiah(r.totalHarga)}</td>
+                  <td className="px-4 py-3 text-stone">{r.namaPembeli}</td>
+                  <td className="px-4 py-3 text-stone">{r.metodeBayar}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusColor(r.status)}`}>
+                      {r.status}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
+  );
+}
+
 interface DashboardData {
   stats: {
     research: number;
@@ -306,6 +517,9 @@ export function BerandaSection() {
           />
         </HeroStatCard>
       </div>
+
+      {/* Recent Sales Table */}
+      <RecentSalesTable brandId={activeBrand.id} isLoading={isLoading} />
 
       {/* Empty state if no research & no products */}
       {!isLoading && data && data.stats.research === 0 && data.stats.products === 0 && (

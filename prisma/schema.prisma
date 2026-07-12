@@ -43,7 +43,9 @@ model Brand {
   logoUrl      String?
   description  String?
   category     String
+  phone        String?  // nomor WhatsApp toko
   toneOfVoice  String   @default("santai_ramah")
+  storeSettings Json?    // { checkoutEnabled, paymentMethods: string[], minOrder, shippingEnabled }
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -75,6 +77,7 @@ model Product {
   type        String   // 'barang' | 'jasa'
   name        String
   price       Int      // harga jual
+  promoPrice  Int?     // harga promo/spesial
   costPrice   Int?     // harga modal → margin/laba otomatis
   stock       Int?     // sumber stok otoritatif (barang). NULL untuk jasa
   minStock    Int?
@@ -332,21 +335,24 @@ model CampaignRecipient {
 
 // ─── Keuangan ───────────────────────────────────────────────────────────────
 model Transaction {
-  id           String    @id @default(cuid())
-  userId       String
-  brandId      String
-  productId    String?
-  customerId   String?
-  orderId      String?
-  type         String    // income | expense
-  category     String    // penjualan | bahan_baku | operasional | marketing | gaji | lainnya
-  amount       Int
-  costAmount   Int?      // HPP snapshot (cost_price × qty)
-  quantity     Int?
-  description  String?
-  receiptUrl   String?   // foto struk (URL dari Supabase Storage)
-  date         DateTime  @default(now())
-  createdAt    DateTime  @default(now())
+  id             String    @id @default(cuid())
+  userId         String
+  brandId        String
+  productId      String?
+  customerId     String?
+  orderId        String?
+  type           String    // income | expense
+  category       String    // penjualan | bahan_baku | operasional | marketing | gaji | lainnya
+  amount         Int
+  costAmount     Int?      // HPP snapshot (cost_price × qty)
+  quantity       Int?
+  unitPrice      Int?      // harga satuan (manual entry)
+  buyerName      String?   // nama pembeli (manual entry)
+  paymentMethod  String?   // metode pembayaran: Tunai, Transfer, QRIS, COD, dll
+  description    String?
+  receiptUrl     String?   // foto struk (URL dari Supabase Storage)
+  date           DateTime  @default(now())
+  createdAt      DateTime  @default(now())
 
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   brand        Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)

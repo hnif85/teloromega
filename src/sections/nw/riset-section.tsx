@@ -133,6 +133,8 @@ export function RisetSection() {
     queryKey: ["research", activeBrand?.id],
     queryFn: () => api(`/api/research?brandId=${activeBrand?.id}`),
     enabled: !!activeBrand?.id,
+    staleTime: 30_000,
+    gcTime: 60_000,
   });
 
   const researchList = data?.research ?? [];
@@ -238,6 +240,19 @@ export function RisetSection() {
   // ─── Helpers ────────────────────────────────────────────────────────────────
   // runSearch is defined above in the useEffect block
 
+  if (isLoading) {
+    return (
+      <div>
+        <PageHeader title="Riset Pasar" subtitle="Memuat data riset..." icon="🔍" />
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   const showSidebar = researchList.length >= 1;
 
   return (
@@ -319,14 +334,10 @@ export function RisetSection() {
             <SectionCard bodyClassName="p-5 space-y-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-ink">
                 <RefreshCw className="size-4 animate-spin text-teal" />
-                {jobStatus ? (
-                  <span>
-                    {jobStatus.progressMessage}
-                    <span className="text-teal ml-1">({jobStatus.progress}%)</span>
-                  </span>
-                ) : (
-                  <span>Memulai riset...</span>
-                )}
+                <span>
+                  AI kami sedang melakukan riset untuk menjawab pertanyaan anda
+                  <span className="text-teal ml-1">({jobStatus?.progress ?? 0}%)</span>
+                </span>
               </div>
               {/* Progress bar */}
               <div className="h-2 rounded-full bg-cream-200 overflow-hidden">
@@ -338,10 +349,10 @@ export function RisetSection() {
               {/* Step indicators */}
               <div className="space-y-2">
                 {[
-                  { label: "Mencari data web (Tavily)", key: "searching", icon: Search },
-                  { label: "Menganalisis intent", key: "analyzing", icon: Swords },
-                  { label: "Mensintesis dengan AI", key: "synthesizing", icon: Sparkles },
-                  { label: "Menyimpan & membuat context", key: "completed", icon: Sparkles },
+                  { label: "Mencari data", key: "searching", icon: Search },
+                  { label: "Menganalisa", key: "analyzing", icon: Swords },
+                  { label: "Membuat laporan", key: "synthesizing", icon: Sparkles },
+                  { label: "Menyimpan", key: "completed", icon: Sparkles },
                 ].map((step) => {
                   const done =
                     jobStatus?.status === "completed" ||
@@ -1103,15 +1114,15 @@ function ExtrasCard({ extras }: { extras: Record<string, unknown> }) {
 // ─── Loading skeleton with pipeline steps ────────────────────────────────────
 function ResearchSkeleton({ query }: { query: string }) {
   const steps = [
-    { label: "Mengumpulkan data web", icon: Search },
-    { label: "Menganalisis kompetitor", icon: Swords },
-    { label: "Membuat 3 context", icon: Sparkles },
+    { label: "Mencari data", icon: Search },
+    { label: "Menganalisa", icon: Swords },
+    { label: "Membuat laporan", icon: Sparkles },
   ];
   return (
     <SectionCard bodyClassName="p-5 space-y-4">
       <div className="flex items-center gap-2 text-sm font-semibold text-ink">
         <RefreshCw className="size-4 animate-spin text-teal" />
-        Sedang meriset: <span className="text-teal truncate">"{query || '…'}"</span>
+        AI kami sedang melakukan riset untuk menjawab pertanyaan anda
       </div>
       <div className="space-y-2">
         {steps.map((s, i) => (

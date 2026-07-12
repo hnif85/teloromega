@@ -36,7 +36,7 @@ import {
 import { SectionCard, EmptyState } from "@/components/nw/primitives";
 import { useToast } from "@/hooks/use-toast";
 import { PAYMENT_STATUS, formatRupiah, timeAgo } from "@/lib/constants";
-import { CheckCircle2, XCircle, Plus, CreditCard, CheckCheck } from "lucide-react";
+import { CheckCircle2, XCircle, Plus, CreditCard, CheckCheck, ExternalLink, Sparkles, Loader2 } from "lucide-react";
 import type { Payment, Order, Customer } from "@/sections/nw/toko/types";
 
 interface PaymentRow extends Payment {
@@ -55,6 +55,8 @@ export function PaymentsTab({
   const [addOpen, setAddOpen] = useState<string | null>(null); // orderId
   const [addForm, setAddForm] = useState({ amount: 0, method: "transfer", proofImageUrl: "" });
   const [confirmAction, setConfirmAction] = useState<{ payment: PaymentRow; status: "Diterima" | "Ditolak" } | null>(null);
+  const [aiResult, setAiResult] = useState<{ paymentId: string; result: any } | null>(null);
+  const [aiVerifying, setAiVerifying] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<{ payments: PaymentRow[] }>({
     queryKey: ["payments", brandId],
@@ -141,6 +143,18 @@ export function PaymentsTab({
   });
 
   const pendingCount = payments.filter((p) => p.status === "Menunggu").length;
+
+  async function handleAiVerify(p: PaymentRow) {
+    setAiVerifying(p.id);
+    try {
+      const res = await api(`/api/payments/${p.id}/ai-verify`, { method: "POST" });
+      setAiResult({ paymentId: p.id, result: res });
+    } catch (e) {
+      toast({ title: "AI Verify gagal", description: e instanceof Error ? e.message : "Terjadi kesalahan", variant: "destructive" });
+    } finally {
+      setAiVerifying(null);
+    }
+  }
 
   return (
     <div>
@@ -236,7 +250,20 @@ export function PaymentsTab({
                         {formatRupiah(p.amount)}
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-xs text-stone">
-                        <Badge variant="outline" className="text-[10px]">{p.method}</Badge>
+                        <div className="flex items-center gap-1">
+                          <Badge variant="outline" className="text-[10px]">{p.method}</Badge>
+                          {p.proofImageUrl && (
+                            <a
+                              href={p.proofImageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="size-5 flex items-center justify-center rounded hover:bg-stone-100"
+                              title="Lihat bukti bayar"
+                            >
+                              <ExternalLink className="size-3 text-teal" />
+                            </a>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge className={meta.color}>{meta.label}</Badge>
@@ -247,6 +274,21 @@ export function PaymentsTab({
                       <TableCell className="text-right">
                         {p.status === "Menunggu" ? (
                           <div className="flex items-center justify-end gap-1">
+                            {p.proofImageUrl && (
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs bg-violet-600 hover:bg-violet-700 text-white"
+                                onClick={() => handleAiVerify(p)}
+                                disabled={aiVerifying === p.id}
+                              >
+                                {aiVerifying === p.id ? (
+                                  <Loader2 className="size-3 animate-spin" />
+                                ) : (
+                                  <Sparkles className="size-3" />
+                                )}
+                                AI
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               className="h-7 text-xs bg-success hover:bg-success/90"
@@ -391,6 +433,89 @@ export function PaymentsTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* AI Verify result dialog */}
+      <Dialog open={!!aiResult} onOpenChange={(v) => !v && setAiResult(null)}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          {aiResult && (() => {
+            const { extracted, amountOk, amountDetail, bankOk, bankDetail, confidence, suggestion } = aiResult.result as {
+              extracted: { bankName: string | null; accountNumber: string | null; accountName: string | null; amount: number | null; senderName: string | null };
+              amountOk: boolean; amountDetail: string;
+              bankOk: boolean; bankDetail: string;
+              confidence: "high" | "medium" | "low";
+              suggestion: "auto_accept" | "manual_review" | "reject";
+            };
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Sparkles className="size-5 text-violet-600" /> AI Verifikasi
+                  </DialogTitle>
+                  <DialogDescription>
+                    Hasil analisis bukti bayar oleh AI
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-3">
+                  <div className={`px-3 py-2 rounded-lg text-xs font-semibold ${
+                    suggestion === "auto_accept" ? "bg-green-50 text-green-700 border border-green-200" :
+                    suggestion === "reject" ? "bg-red-50 text-red-700 border border-red-200" :
+                    "bg-amber-50 text-amber-700 border border-amber-200"
+                  }`}>
+                    {suggestion === "auto_accept" ? "✅ AI menyarankan TERIMA OTOMATIS" :
+                     suggestion === "reject" ? "❌ AI menyarankan TOLAK" :
+                     "⚠️  Perlu review manual"}
+                  </div>
+
+                  <div className="rounded-lg border border-border bg-card p-3 space-y-1.5">
+                    <div className="text-xs font-semibold text-stone mb-1">Data Terbaca dari Gambar</div>
+                    <InfoRow label="Bank" value={extracted.bankName ?? "—"} />
+                    <InfoRow label="No. Rekening" value={extracted.accountNumber ?? "—"} />
+                    <InfoRow label="Atas Nama" value={extracted.accountName ?? "—"} />
+                    <InfoRow label="Jumlah" value={extracted.amount != null ? formatRupiah(extracted.amount) : "—"} />
+                    <InfoRow label="Pengirim" value={extracted.senderName ?? "—"} />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className={`flex items-start gap-2 p-2 rounded-lg text-xs ${amountOk ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                      <span>{amountOk ? "✅" : "❌"}</span>
+                      <span>{amountDetail}</span>
+                    </div>
+                    <div className={`flex items-start gap-2 p-2 rounded-lg text-xs ${bankOk ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                      <span>{bankOk ? "✅" : "❌"}</span>
+                      <span>{bankDetail}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <DialogFooter className="gap-2">
+                  <Button variant="outline" onClick={() => setAiResult(null)}>Tutup</Button>
+                  {suggestion !== "auto_accept" && (
+                    <Button
+                      className="bg-success hover:bg-success/90"
+                      onClick={() => {
+                        setConfirmAction({ payment: payments.find((p) => p.id === aiResult.paymentId)!, status: "Diterima" });
+                        setAiResult(null);
+                      }}
+                    >
+                      <CheckCircle2 className="size-3.5" /> Terima Manual
+                    </Button>
+                  )}
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="text-stone">{label}</span>
+      <span className="font-semibold text-ink text-right max-w-[60%] truncate">{value}</span>
     </div>
   );
 }

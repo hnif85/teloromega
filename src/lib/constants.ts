@@ -42,7 +42,8 @@ export type CreditActionKey =
   | "toko.ai_chat_reply"
   | "toko.campaign_wa"
   | "toko.campaign_email"
-  | "keuangan.proyeksi";
+  | "keuangan.proyeksi"
+  | "keuangan.import_template";
 
 export const CREDIT_RATES: {
   key: CreditActionKey;
@@ -61,6 +62,7 @@ export const CREDIT_RATES: {
   { key: "toko.campaign_wa", name: "Campaign WA Broadcast", cost: 8, module: "toko" },
   { key: "toko.campaign_email", name: "Campaign Email", cost: 10, module: "toko" },
   { key: "keuangan.proyeksi", name: "Proyeksi Keuangan", cost: 3, module: "keuangan" },
+  { key: "keuangan.import_template", name: "Import Transaksi (Template)", cost: 3, module: "keuangan" },
 ];
 
 export const CREDIT_COST: Record<CreditActionKey, number> = CREDIT_RATES.reduce(

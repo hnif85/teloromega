@@ -184,7 +184,7 @@ export async function GET(req: NextRequest) {
   const rows = await db.research.findMany({
     where: { brandId },
     orderBy: { createdAt: "desc" },
-    take: 50,
+    take: 20,
     include: {
       _count: { select: { contexts: true } },
     },

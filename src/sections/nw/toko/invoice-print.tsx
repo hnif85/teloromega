@@ -602,7 +602,7 @@ export function InvoicePrint({ order, brand, customer }: InvoicePrintProps) {
               fontWeight: 600,
             }}
           >
-            tokoku.usahaku.ai/{brand.slug}
+            usahaku.ai/t/{brand.slug}
           </div>
         )}
         <div

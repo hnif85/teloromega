@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/components/theme-provider";
 import { openCommandPalette } from "@/components/nw/command-palette";
 import { GlobalSearch, openGlobalSearch } from "@/components/nw/global-search";
 import { CREDIT_PACKAGES, formatRupiah } from "@/lib/constants";

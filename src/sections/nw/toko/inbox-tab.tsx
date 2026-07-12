@@ -87,7 +87,7 @@ export function InboxTab({
     mutationFn: (variables: { messageText: string }) =>
       api<{ reply: string; creditBalanceAfter: number }>(`/api/inbox/ai-reply`, {
         method: "POST",
-        json: { brandId, messageText: variables.messageText },
+        json: { brandId, messageText: variables.messageText, fromNumber: activeThread?.key },
       }),
     onSuccess: (res) => {
       setCredit(res.creditBalanceAfter);

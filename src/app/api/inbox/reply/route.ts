@@ -50,19 +50,47 @@ export async function POST(req: NextRequest) {
       )
       .join("\n");
 
+    // ── Look up customer by phone number and get their orders ──────────
+    const customerPhone = inbound.fromNumber?.replace(/[^0-9]/g, "");
+    const customer = customerPhone
+      ? await db.customer.findFirst({ where: { brandId, phone: { contains: customerPhone.slice(-10) } } })
+      : null;
+    const customerOrders = customer
+      ? await db.order.findMany({
+          where: { brandId, customerId: customer.id },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          select: { id: true, totalAmount: true, status: true, createdAt: true, items: true },
+        })
+      : [];
+
+    const ordersStr = customerOrders.length > 0
+      ? `\n📦 Order ${customer?.name ?? "pelanggan ini"}:\n${customerOrders.map((o) => {
+          const items = JSON.parse(o.items) as { name: string; qty: number }[];
+          const itemStr = items.map((i) => `${i.name} x${i.qty}`).join(", ");
+          return `  - #${o.id.slice(-8).toUpperCase()} | ${itemStr} | Rp ${o.totalAmount.toLocaleString("id-ID")} | Status: ${o.status} | ${new Date(o.createdAt).toLocaleDateString("id-ID")}`;
+        }).join("\n")}`
+      : "";
+
     const leadInfo = inbound.leadId
       ? await db.lead.findUnique({ where: { id: inbound.leadId } })
       : null;
 
     const systemPrompt = `Kamu adalah asisten penjual untuk brand "${brand.name}" (kategori: ${brand.category}, tone: ${brand.toneOfVoice}).
 Tugasmu: membalas chat pelanggan via WhatsApp dengan ramah, natural, ringkas (1-3 kalimat), dan dalam Bahasa Indonesia.
-Balas pertanyaan pelanggan dengan akurat berdasarkan info brand & katalog di bawah. Jika tidak tahu, arahkan pelanggan untuk chat admin.
+Balas pertanyaan pelanggan dengan akurat berdasarkan info di bawah. Jika tidak tahu, arahkan pelanggan untuk chat admin.
 
-Katalog produk:
+📋 Katalog produk:
 ${catalogStr || "(belum ada produk)"}
+${ordersStr}
+${leadInfo ? `\n👤 Konteks lead: nama ${leadInfo.name}, tahap ${leadInfo.stage}.` : ""}
+${brand.description ? `\n📌 Info brand: ${brand.description}` : ""}
 
-${leadInfo ? `Konteks lead: nama ${leadInfo.name}, tahap ${leadInfo.stage}.` : ""}
-${brand.description ? `Info brand: ${brand.description}` : ""}`;
+⚠️ GUARDRAILS:
+1. Jangan buat janji pengiriman — bilang "akan diproses"
+2. Untuk cek status pesanan, gunakan data ORDER di atas
+3. Jangan minta data sensitif (PIN, password, KTP)
+4. Jika tidak tahu, arahkan ke admin toko`;
 
     const userPrompt = `Pesan pelanggan: "${inbound.messageText}"\n\nTulis balasan ramah dalam Bahasa Indonesia:`;
 

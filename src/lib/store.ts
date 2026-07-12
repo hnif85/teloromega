@@ -22,7 +22,7 @@ export function pathToSection(path: string): SectionKey {
   const key = path.replace(/^\//, "").split("/")[0];
   // Validate it's a known section — fall back to beranda
   const known: SectionKey[] = [
-    "beranda", "insights", "produk", "riset", "konten", "toko",
+    "beranda", "insights", "produk", "riset", "konten", "toko", "aichat",
     "keuangan", "credit", "pengaturan", "bantuan", "aktivitas", "notifikasi",
   ];
   return known.includes(key as SectionKey) ? (key as SectionKey) : "beranda";

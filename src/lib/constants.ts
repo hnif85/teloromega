@@ -84,6 +84,7 @@ export type SectionKey =
   | "riset"
   | "konten"
   | "toko"
+  | "aichat"
   | "keuangan"
   | "kalender"
   | "credit"
@@ -99,6 +100,7 @@ export const NAV_ITEMS: { key: SectionKey; label: string; icon: string }[] = [
   { key: "riset", label: "Riset", icon: "🔍" },
   { key: "konten", label: "Konten", icon: "📝" },
   { key: "toko", label: "Toko", icon: "🛒" },
+  { key: "aichat", label: "AI Chat", icon: "💬" },
   { key: "keuangan", label: "Keuangan", icon: "💰" },
 ];
 

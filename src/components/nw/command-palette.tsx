@@ -28,6 +28,7 @@ import {
   Bell,
   HelpCircle,
   ClipboardList,
+  MessageCircle,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import type { SectionKey } from "@/lib/constants";
@@ -59,6 +60,7 @@ const NAV_ITEMS: { key: SectionKey; label: string; icon: typeof BarChart3 }[] = 
   { key: "riset", label: "Riset", icon: Search },
   { key: "konten", label: "Konten", icon: PenLine },
   { key: "toko", label: "Toko", icon: Store },
+  { key: "aichat", label: "AI Chat", icon: MessageCircle },
   { key: "keuangan", label: "Keuangan", icon: Wallet },
   { key: "credit", label: "Credit", icon: Zap },
   { key: "notifikasi", label: "Notifikasi", icon: Bell },

@@ -9,6 +9,7 @@ const TABS = [
   { key: "riset", label: "Riset", icon: "🔍" },
   { key: "konten", label: "Konten", icon: "📝" },
   { key: "toko", label: "Toko", icon: "🛒" },
+  { key: "aichat", label: "Chat", icon: "💬" },
   { key: "keuangan", label: "Uang", icon: "💰" },
 ] as const;
 

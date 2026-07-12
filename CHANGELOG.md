@@ -7,6 +7,13 @@
 
 ---
 
+## [0.12.0] — 2026-07-12
+
+### ✨ Added
+- auto-detect stuck research jobs, merge active jobs into list, polling every 10s
+
+
+
 ## [0.11.1] — 2026-07-12
 
 ### 🐛 Fixed

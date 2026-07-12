@@ -181,6 +181,17 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // ── Auto-clean stuck jobs (> 5 min in searching/analyzing/synthesizing) ──
+  const FIVE_MIN_AGO = new Date(Date.now() - 5 * 60 * 1000);
+  const stuckCount = await db.researchJob.updateMany({
+    where: {
+      brandId,
+      status: { in: ["queued", "searching", "analyzing", "synthesizing"] },
+      createdAt: { lt: FIVE_MIN_AGO },
+    },
+    data: { status: "failed", error: "Terhenti (timeout)." },
+  });
+
   const rows = await db.research.findMany({
     where: { brandId },
     orderBy: { createdAt: "desc" },
@@ -188,6 +199,17 @@ export async function GET(req: NextRequest) {
     include: {
       _count: { select: { contexts: true } },
     },
+  });
+
+  // Also fetch active (non-completed, non-failed) jobs to display as pending
+  const activeJobs = await db.researchJob.findMany({
+    where: {
+      brandId,
+      status: { notIn: ["completed", "failed"] },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    select: { id: true, query: true, status: true, progress: true, createdAt: true },
   });
 
   return NextResponse.json({
@@ -205,6 +227,8 @@ export async function GET(req: NextRequest) {
         extras,
       };
     }),
+    activeJobs,
+    stuckCleaned: stuckCount.count,
   });
 }
 

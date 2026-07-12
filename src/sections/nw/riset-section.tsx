@@ -133,20 +133,37 @@ export function RisetSection() {
   const [openId, setOpenId] = useState<string | null>(null);
 
   // Fetch research list
-  const { data, isLoading } = useQuery<{ research: ResearchItem[] }>({
+  const { data, isLoading } = useQuery<{ research: ResearchItem[]; activeJobs?: { id: string; query: string; status: string; progress: number; createdAt: string }[] }>({
     queryKey: ["research", activeBrand?.id],
     queryFn: () => api(`/api/research?brandId=${activeBrand?.id}`),
     enabled: !!activeBrand?.id,
     staleTime: 30_000,
     gcTime: 60_000,
+    refetchInterval: 10_000,
   });
 
   const researchList = data?.research ?? [];
+  // Merge active jobs as pseudo-research items so they show in the list with spinner
+  const activeJobs = data?.activeJobs ?? [];
+  const mergedList: ResearchItem[] = [
+    ...activeJobs.map((j) => ({
+      id: j.id,
+      query: j.query,
+      intent: null,
+      status: j.status,
+      createdAt: j.createdAt,
+      contextsCount: 0,
+      result: null,
+      summary: null,
+      extras: {},
+    })),
+    ...researchList,
+  ];
   const selected = useMemo(() => {
-    if (!researchList.length) return null;
-    if (selectedId) return researchList.find((r) => r.id === selectedId) ?? null;
-    return researchList[0];
-  }, [researchList, selectedId]);
+    if (!mergedList.length) return null;
+    if (selectedId) return mergedList.find((r) => r.id === selectedId) ?? null;
+    return mergedList[0];
+  }, [mergedList, selectedId]);
 
   // Job tracking for async research flow
   const [jobId, setJobId] = useState<string | null>(null);
@@ -243,6 +260,7 @@ export function RisetSection() {
   }
 
   const isGenerating = !!jobId || isSubmitting;
+  const selectedRunning = selected && !selected.result && selected.status !== "gagal" && selected.status !== "failed";
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
   // runSearch is defined above in the useEffect block
@@ -260,7 +278,7 @@ export function RisetSection() {
     );
   }
 
-  const showSidebar = researchList.length >= 1;
+  const showSidebar = mergedList.length >= 1;
 
   return (
     <div className="pb-28">
@@ -276,7 +294,7 @@ export function RisetSection() {
           <aside className="hidden lg:block lg:order-1">
             <SectionCard
               title="Histori Riset"
-              desc={`${researchList.length} riset`}
+              desc={`${mergedList.length} riset`}
               right={
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -299,7 +317,7 @@ export function RisetSection() {
               bodyClassName="p-0"
             >
               <div className="max-h-[600px] overflow-y-auto divide-y divide-border">
-                {researchList.map((r) => {
+                {mergedList.map((r) => {
                   const active = selected?.id === r.id;
                   return (
                     <button
@@ -310,7 +328,13 @@ export function RisetSection() {
                       }`}
                     >
                       <div className="flex items-center gap-2 mb-1">
-                        <History className="size-3.5 text-stone shrink-0" />
+                        {!r.result && r.status !== "completed" && r.status !== "gagal" && r.status !== "failed" ? (
+                          <RefreshCw className="size-3.5 text-teal shrink-0 animate-spin" />
+                        ) : r.status === "gagal" || r.status === "failed" ? (
+                          <AlertTriangle className="size-3.5 text-amber-600 shrink-0" />
+                        ) : (
+                          <History className="size-3.5 text-stone shrink-0" />
+                        )}
                         {r.intent && (
                           <Badge
                             variant="outline"
@@ -324,7 +348,12 @@ export function RisetSection() {
                         {r.query}
                       </div>
                       <div className="text-[11px] text-stone mt-1">
-                        {timeAgoShort(r.createdAt)} · {r.contextsCount} context
+                        {!r.result && r.status !== "completed" && r.status !== "gagal" && r.status !== "failed"
+                          ? "Mencari data..."
+                          : r.status === "gagal" || r.status === "failed"
+                          ? "Gagal"
+                          : `${timeAgoShort(r.createdAt)} · ${r.contextsCount} context`
+                        }
                       </div>
                     </button>
                   );
@@ -401,7 +430,20 @@ export function RisetSection() {
               have context to draw on. No shortcuts here on purpose: no
               suggestion chips, no composer below — just this one button,
               until that baseline exists. */}
-          {!isGenerating && !selected && (
+          {/* Pending view — research selected but still running (no result yet) */}
+          {!isGenerating && selectedRunning && (
+            <div className="rounded-2xl bg-amber-50/60 border border-amber-200 p-8 text-center">
+              <RefreshCw className="size-8 text-amber-500 mx-auto mb-3 animate-spin" />
+              <div className="text-sm font-semibold text-ink">Riset sedang berjalan</div>
+              <div className="text-xs text-stone mt-1 max-w-sm mx-auto">
+                AI sedang mencari data untuk: <span className="font-medium text-ink">"{selected?.query}"</span>
+              </div>
+              <p className="text-[11px] text-stone mt-2">Proses ini bisa memakan waktu 1-3 menit. Kamu bisa tetap melakukan riset baru — riset ini akan tetap berjalan.</p>
+            </div>
+          )}
+
+          {/* Empty state — no research at all */}
+          {!isGenerating && !selectedRunning && !selected && (
             <EmptyState
               icon="🔍"
               title="Belum ada riset untuk brand ini"
@@ -419,6 +461,19 @@ export function RisetSection() {
             />
           )}
 
+          {/* Failed view */}
+          {!isGenerating && selected && (selected.status === "gagal" || selected.status === "failed") && !selected.result && (
+            <div className="hidden lg:block rounded-2xl bg-red-50/60 border border-red-200 p-8 text-center">
+              <AlertTriangle className="size-8 text-red-500 mx-auto mb-3" />
+              <div className="text-sm font-semibold text-ink">Riset gagal</div>
+              <div className="text-xs text-stone mt-1 max-w-sm mx-auto">{selected.query}</div>
+              <p className="text-xs text-stone mt-2">Server mungkin restart atau terjadi kesalahan. Coba jalankan ulang riset.</p>
+              <Button className="mt-3" size="sm" onClick={() => runFirstResearch()}>
+                Ulangi Riset
+              </Button>
+            </div>
+          )}
+
           {/* Result view — desktop (single pane, driven by sidebar selection) */}
           {!isGenerating && selected && selected.result && (
             <div className="hidden lg:block">
@@ -432,9 +487,9 @@ export function RisetSection() {
 
           {/* Result view — mobile: histori + hasil sebagai accordion (single-open,
               default tertutup). Tap judul → hasil muncul ke bawah; tap lagi → tutup. */}
-          {!isGenerating && researchList.length > 0 && (
+          {!isGenerating && mergedList.length > 0 && (
             <div className="lg:hidden flex flex-col gap-3">
-              {researchList.map((r) => {
+              {mergedList.map((r) => {
                 const open = openId === r.id;
                 return (
                   <div key={r.id} className="rounded-2xl bg-card border border-border overflow-hidden">
@@ -443,8 +498,18 @@ export function RisetSection() {
                       aria-expanded={open}
                       className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-cream-100/50 transition-colors"
                     >
-                      <div className="size-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
-                        <Sparkles className="size-4" />
+                      <div className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${
+                        !r.result && r.status !== "completed" && r.status !== "gagal" && r.status !== "failed" ? "bg-amber-50 text-amber-600" :
+                        r.status === "gagal" || r.status === "failed" ? "bg-red-50 text-red-600" :
+                        "bg-teal-50 text-teal-600"
+                      }`}>
+                        {!r.result && r.status !== "completed" && r.status !== "gagal" && r.status !== "failed" ? (
+                          <RefreshCw className="size-4 animate-spin" />
+                        ) : r.status === "gagal" || r.status === "failed" ? (
+                          <AlertTriangle className="size-4" />
+                        ) : (
+                          <Sparkles className="size-4" />
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
@@ -453,7 +518,16 @@ export function RisetSection() {
                               {INTENT_LABEL[r.intent] ?? r.intent}
                             </Badge>
                           )}
-                          <span className="text-[11px] text-stone">{timeAgoShort(r.createdAt)}</span>
+                          {!r.result && r.status !== "completed" && r.status !== "gagal" && r.status !== "failed" && (
+                            <Badge className="text-[10px] py-0 h-4 bg-amber-100 text-amber-700">
+                              Mencari...
+                            </Badge>
+                          )}
+                          {(r.status === "gagal" || r.status === "failed") && (
+                            <Badge className="text-[10px] py-0 h-4 bg-red-100 text-red-700">
+                              Gagal
+                            </Badge>
+                          )}
                         </div>
                         <div className={cn("text-sm font-semibold text-ink leading-snug", !open && "line-clamp-2")}>
                           {r.query}

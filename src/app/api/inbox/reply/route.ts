@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
         (p) =>
           `- ${p.name} (${p.type}) — Rp ${p.price.toLocaleString("id-ID")}${
             p.type === "barang" && p.stock != null ? ` · stok ${p.stock}` : ""
-          }${p.description ? ` · ${p.description}` : ""}`
+          }${p.description ? ` · ${p.description.slice(0, 50)}${p.description.length > 50 ? "…" : ""}` : ""}`
       )
       .join("\n");
 
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       ? await db.order.findMany({
           where: { brandId, customerId: customer.id },
           orderBy: { createdAt: "desc" },
-          take: 5,
+          take: 3,
           select: { id: true, totalAmount: true, status: true, createdAt: true, items: true },
         })
       : [];

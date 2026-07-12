@@ -35,7 +35,7 @@ App **Next.js App Router multi-page** yang menggabungkan 4 aplikasi MWX lama (Sm
 │                                                                   │
 │  Setiap section adalah file page.tsx terpisah:                    │
 │  /beranda  /insights  /produk  /riset  /konten  /toko  /keuangan │
-│  /kalender /credit  /pengaturan  /bantuan  /aktivitas /notifikasi │
+│  /kalender /aichat /credit /pengaturan /bantuan /aktivitas/notifikasi │
 │                                                                   │
 │  Single Route Group: (dashboard)/layout.tsx → shared shell        │
 │  Root / → auth landing → redirect ke /beranda                     │
@@ -82,24 +82,28 @@ ONBOARDING ──► Brand ──► Produk ──► Beranda (Dashboard)
                                     │
                   ┌─────────────────┼──────────────────┐
                   ▼                 ▼                   ▼
-              ┌────────┐     ┌─────────┐       ┌──────────┐
-              │ RISET  │     │  TOKO   │       │ KEUANGAN  │
-              └───┬────┘     └────┬────┘       └────┬─────┘
-                  │               │                 │
-    ┌─────────────┼───────┐      │                 │
-    ▼             ▼       ▼      │                 │
- CONTEXT     CONTEXT  CONTEXT    │                 │
- (konten)    (toko)  (keuangan)  │                 │
-    │             │               │                 │
-    ▼             ▼               ▼                 ▼
- ┌────────┐ ┌─────────┐    ┌────────┐       ┌──────────┐
- │ KONTEN │ │  TOKO   │    │ ORDER  │       │TRANSAKSI  │
- │ (AI)   │ │ (Chat)  │    └───┬────┘       │ P&L, dll  │
- └────────┘ └─────────┘        │                 ▲
-                               ▼                 │
-                          ┌────────┐             │
-                          │PAYMENT │──Diterima──►┘
-                          └────────┘  auto-HPP
+              ┌────────┐     ┌──────────┐    ┌──────────┐
+              │ RISET  │     │ AI CHAT  │    │ KEUANGAN  │
+              └───┬────┘     └────┬─────┘    └────┬─────┘
+                  │               │               │
+    ┌─────────────┼───────┐      │    ┌──────────┘
+    ▼             ▼       ▼      ▼    ▼
+ CONTEXT     CONTEXT  CONTEXT  ┌─────────┐
+ (konten)    (toko)  (keuangan)│  TOKO   │
+    │             │            │(Orders, │
+    ▼             ▼            │ Stok,   │
+ ┌────────┐ ┌─────────┐       │Bayar)   │
+ │ KONTEN │ │ AI CHAT │       └────┬────┘
+ │ (AI)   │ │(Inbox,   │           │
+ └────────┘ │ Leads,   │      ┌────────┐
+            │ Campaign)│      │ ORDER  │
+            └────┬─────┘      └───┬────┘
+                 │                │
+                 │     ┌──────────┘
+                 ▼     ▼
+              ┌────────┐
+              │PAYMENT │──Diterima──► KEUANGAN
+              └────────┘  auto-HPP   (P&L, Transaksi)
 ```
 
 ### 2.2 Flow Per Modul (Detail)
@@ -175,12 +179,22 @@ ONBOARDING ──► Brand ──► Produk ──► Beranda (Dashboard)
    → On failure: refundCredit
 ```
 
-#### 🟢 **Flow B: Toko (Chat → Lead → Order → Payment → Transaction)**
+#### 🟢 **Flow B: AI Chat + Toko (Pemisahan 2 Halaman)**
 
 ```
-1. INBOX CHAT MASUK
+⚠️ AI CHAT dan TOKO adalah 2 halaman terpisah di sidebar:
+   /aichat  → Inbox, AI Chat, Leads, Campaign
+   /toko    → Orders, Stok, Pembayaran
+
+Namun secara DATA FLOW, mereka tetap satu kesatuan:
+```
+
+**Halaman AI Chat (`/aichat` — route: `(dashboard)/aichat/page.tsx`):**
+
+```
+1. INBOX CHAT MASUK (Tab: Inbox)
    GET /api/inbox?brandId=X
-   → List percakapan, unread badge
+   → List percakapan, unread badge (WA/Telegram)
    AI Reply: POST /api/inbox/ai-reply
    → chargeCredit("toko.ai_chat_reply", 1)
    → llmChat or fallback (detect keyword: harga/stok/ongkir/order)
@@ -188,34 +202,63 @@ ONBOARDING ──► Brand ──► Produk ──► Beranda (Dashboard)
 
 2. AUTO-LEAD dari Chat
    Sistem auto-create Lead dari inbound message:
-   Lead.stage = "Baru" (default)
-   Source dari channel (WA/Telegram)
+   Lead.stage = "Baru" (default), source dari channel
+   → Lead muncul di tab "Leads"
 
-3. LEAD PIPELINE (Kanban)
+3. LEAD PIPELINE (Tab: Leads)
    4 stages: Baru → Negosiasi → Deal → Closed
    Drag & drop (desktop) / sheet pindah (mobile)
    When "Deal":
    → Customer auto-created (or linked)
-   → Order auto-created (from lead context)
+   → Order auto-created (dengan status "Baru")
+   → Order bisa dilihat di /toko
 
-4. ORDER → PAYMENT
-   POST /api/orders
-   → stock decrement (barang only)
-   → db.order.create
+4. CAMPAIGN (Tab: Campaign, di /aichat)
+   POST /api/campaigns
+   → chargeCredit("toko.campaign_wa", 8) / campaign_email (10)
+   → Pilih recipient (customers + leads)
+   → Kirim broadcast (mock WA/email)
+
+5. AI CHAT TEMPLATE (Tab: AI Chat)
+   POST /api/inbox/ai-reply + GET /api/inbox/templates
+   → 5 template statis dengan tombol copy
+   → AI auto-reply generator (1 credit)
+```
+
+**Halaman Toko (`/toko` — route: `(dashboard)/toko/page.tsx`):**
+
+```
+1. ORDER MANAGEMENT (Tab: Orders)
+   POST /api/orders → stock decrement (barang only)
+   PATCH /api/orders/[id] → update status, shipping
+   → Invoice print (Invoice button per row)
+   → CSV export (15 kolom)
    
-   Payment verify: POST /api/payments/[id]/verify?action=accept
-   → stock NOT restored (income diakui)
-   → Auto-create Transaction:
-     type: "income"
-     costAmount: sum(item.qty × product.costPrice) → HPP snapshot
+2. PERSEDIAAN STOK (Tab: Stok)
+   GET /api/inventory?brandId=X
+   → Tabel stok dengan low-stock highlighting
+   → Inline edit dialog + riwayat pergerakan
 
-5. PAYMENT "DITERIMA" → KEUANGAN
-   Income transaction auto-created:
-   Pendapatan Rp 30.000
-   HPP: 2 × 9.000 = Rp 18.000
-   Laba Kotor: Rp 12.000 (40% margin)
-   → Kalender mendapat event payment
-   → Aktivitas mendapat entry payment
+3. PEMBAYARAN (Tab: Pembayaran)
+   GET /api/payments?orderId=X
+   → Verifikasi: POST /api/payments/[id]/verify?action=accept|reject
+   → AI Verify: POST /api/payments/[id]/ai-verify
+   → Auto-create Transaction saat Diterima:
+     type: "income", costAmount: HPP snapshot
+   → Bulk verify: "Terima Semua (N)" via Promise.allSettled
+
+4. STORE PREVIEW (Card info di atas tabs)
+   → Tampilkan link toko: tokoku.nextwhiz.id/{slug}
+   → Dialog preview toko online (mock storefront)
+
+5. FLOW: CHAT → ORDER → PAYMENT → KEUANGAN (lintas halaman)
+   /aichat (Inbox) → auto-lead → Deal → auto-order
+     ↓ (order muncul di)
+   /toko (Orders) → verifikasi pembayaran
+     ↓ (payment Diterima → auto-transaction)
+   /keuangan (Ringkasan) → P&L terupdate
+   
+   Pendapatan Rp 30.000 - HPP Rp 18.000 = Laba Kotor Rp 12.000
 ```
 
 #### 🟡 **Flow C: Keuangan (Transaksi → P&L → Proyeksi)**
@@ -583,7 +626,7 @@ export function registerNavigate(fn) { _navigate = fn; }
 export function pathToSection(path: string): SectionKey {
   const key = path.replace(/^\//, "").split("/")[0];
   const known: SectionKey[] = [
-    "beranda", "insights", "produk", "riset", "konten", "toko",
+    "beranda", "insights", "produk", "riset", "konten", "toko", "aichat",
     "keuangan", "credit", "pengaturan", "bantuan", "aktivitas", "notifikasi",
   ];
   return known.includes(key as SectionKey) ? (key as SectionKey) : "beranda";
@@ -684,23 +727,26 @@ src/
 │   │
 │   └── ui/                              # 48 shadcn/ui components (button, dialog, dll)
 │
-├── sections/nw/                          # 13 section components + sub-components
+├── sections/nw/                          # 14 section components + sub-components + shared toko/
 │   ├── beranda-section.tsx              # Dashboard (DashboardHero, stats, goals, recs)
 │   ├── insights-section.tsx             # Analytics (AI summary, 6 charts, metrics)
 │   ├── produk-section.tsx               # Product CRUD (grid, bulk, detail)
 │   ├── riset-section.tsx                # Research (search, pipeline, 4-tab result)
 │   ├── konten-section.tsx               # Content (generate 4 types, library)
-│   ├── toko-section.tsx                 # Toko shell (6 tabs)
-│   │   ├── inbox-tab.tsx
-│   │   ├── aichat-tab.tsx
-│   │   ├── leads-tab.tsx
+│   ├── toko-section.tsx                 # Toko shell (3 tabs: Orders, Stok, Pembayaran)
 │   │   ├── orders-tab.tsx
 │   │   ├── inventory-tab.tsx
-│   │   ├── campaigns-tab.tsx
-│   │   ├── customer-detail-dialog.tsx
+│   │   ├── payments-tab.tsx
+│   │   ├── store-preview.tsx
 │   │   ├── invoice-dialog.tsx
-│   │   ├── invoice-print.tsx
-│   │   └── store-preview.tsx
+│   │   └── invoice-print.tsx
+│   ├── aichat-section.tsx               # AI Chat shell (4 tabs: Inbox, AI Chat, Leads, Campaign)
+│   │   └── (shared dari toko/ — file FISIK di toko/ di-import oleh aichat-section)
+│   │       ├── inbox-tab.tsx             # Inbox chat + AI reply
+│   │       ├── aichat-tab.tsx            # AI Chat templates
+│   │       ├── leads-tab.tsx             # Lead pipeline (Kanban)
+│   │       ├── campaigns-tab.tsx         # Campaign broadcast
+│   │       └── customer-detail-dialog.tsx
 │   ├── keuangan-section.tsx             # Keuangan shell (5 tabs)
 │   │   ├── ringkasan-tab.tsx            # P&L, charts, tax
 │   │   ├── transaksi-tab.tsx            # Transactions CRUD
@@ -1059,25 +1105,35 @@ User (1) ───────────< Brand (N)
 | GET/DELETE | `/api/content/[id]` | Single / hard-delete |
 | PATCH | `/api/content/[id]` | Edit konten + regenerate |
 
-### 6.7 Toko (17 endpoints)
+### 6.7 AI Chat (shared sub-components — di bawah /aichat route)
+
+| Method | Path | Function | Shared dari Toko? |
+|--------|------|----------|-------------------|
+| GET/POST | `/api/inbox?brandId=X` | List messages / send | ✅ Ya |
+| POST | `/api/inbox/ai-reply` | AI auto-reply (1 credit) | ✅ Ya |
+| POST | `/api/inbox/reply` | Manual reply | ✅ Ya |
+| GET | `/api/inbox/templates` | Template statis AI Chat | ✅ Ya |
+| GET/POST | `/api/leads?brandId=X` | List / create lead | ✅ Ya |
+| PATCH | `/api/leads/[id]` | Update stage/notes | ✅ Ya |
+| GET/POST | `/api/campaigns?brandId=X` | List / create (8-10 credit) | ✅ Ya |
+| PATCH/DELETE | `/api/campaigns/[id]` | Update / delete | ✅ Ya |
+
+### 6.9 Toko (10 endpoints — terpisah dari AI Chat)
 
 | Method | Path | Function |
 |--------|------|----------|
-| GET/POST | `/api/inbox?brandId=X` | List messages / send |
-| POST | `/api/inbox/ai-reply` | AI auto-reply (1 credit) |
-| GET/POST | `/api/leads?brandId=X` | List / create lead |
-| PATCH | `/api/leads/[id]` | Update stage/notes |
 | GET/POST | `/api/orders?brandId=X` | List / create (stock decrement) |
 | PATCH | `/api/orders/[id]` | Update status, shipping |
 | GET/POST | `/api/payments?orderId=X` | List / create payment |
 | POST | `/api/payments/[id]/verify` | Accept/reject (auto-transaction) |
-| GET/POST | `/api/campaigns?brandId=X` | List / create (8-10 credit) |
-| GET/POST | `/api/customers?brandId=X` | List / create |
-| GET | `/api/customers/[id]` | Detail (orders, transactions, campaigns, receivables) |
+| POST | `/api/payments/[id]/ai-verify` | AI-powered payment verification |
 | GET/POST | `/api/inventory?brandId=X` | List / update stock |
 | GET/POST | `/api/shipping?brandId=X` | Shipping management |
+| GET/POST | `/api/customers?brandId=X` | List / create |
+| GET | `/api/customers/[id]` | Detail (orders, transactions, campaigns, receivables) |
+| GET/POST | `/api/shipping?brandId=X` | Shipping management |
 
-### 6.8 Keuangan (9 endpoints)
+### 6.11 Keuangan (12 endpoints)
 
 | Method | Path | Function |
 |--------|------|----------|
@@ -1090,8 +1146,11 @@ User (1) ───────────< Brand (N)
 | GET/POST | `/api/operational-costs?brandId=X` | List / create |
 | POST | `/api/keuangan/projection` | AI projection (3 credit) |
 | GET | `/api/keuangan/contexts?brandId=X` | List finance contexts |
+| POST | `/api/keuangan/extract-receipt` | OCR receipt dari foto (multimodal AI) |
+| GET | `/api/keuangan/import-template` | AI mapping CSV header → field |
+| POST | `/api/keuangan/import-template/confirm` | Confirm + execute import |
 
-### 6.9 Goals (3 endpoints)
+### 6.13 Goals (3 endpoints)
 
 | Method | Path | Function |
 |--------|------|----------|
@@ -1099,7 +1158,39 @@ User (1) ───────────< Brand (N)
 | PATCH/DELETE | `/api/goals/[id]` | Update / delete |
 | POST | `/api/goals/refresh` | Recompute `current` from actual data |
 
-### 6.10 Utility (7 endpoints)
+### 6.14 Analytics (4 endpoints)
+
+| Method | Path | Function |
+|--------|------|----------|
+| GET | `/api/analytics/clv?brandId=X` | Customer Lifetime Value analysis |
+| GET | `/api/analytics/cohort?brandId=X` | Cohort retention (M0-M6) |
+| GET | `/api/analytics/seasonal?brandId=X` | Seasonal/monthly trends |
+| GET | `/api/analytics/products?brandId=X` | Product performance (BCG matrix) |
+
+### 6.15 Brand Settings (2 endpoints)
+
+| Method | Path | Function |
+|--------|------|----------|
+| PATCH | `/api/brands/[id]/store-settings` | Update toko online settings |
+| POST | `/api/products/[id]/image` | Upload product image (Supabase Storage) |
+
+### 6.16 Public Store (4 endpoints — tanpa auth)
+
+| Method | Path | Function |
+|--------|------|----------|
+| GET | `/api/public/store/[slug]` | Get public brand + products |
+| GET | `/api/public/store/[slug]/settings` | Get store settings |
+| POST | `/api/public/order` | Create order from public store |
+| GET | `/api/public/order/[orderId]` | Get public order status |
+| POST | `/api/public/order/[orderId]/payment-proof` | Upload payment proof |
+
+| Method | Path | Function |
+|--------|------|----------|
+| GET/POST | `/api/goals?brandId=X` | List / create |
+| PATCH/DELETE | `/api/goals/[id]` | Update / delete |
+| POST | `/api/goals/refresh` | Recompute `current` from actual data |
+
+### 6.18 Utility (7 endpoints)
 
 | Method | Path | Function |
 |--------|------|----------|
@@ -1131,6 +1222,7 @@ src/app/
 │   ├── riset/page.tsx                          # Route: /riset
 │   ├── konten/page.tsx                         # Route: /konten
 │   ├── toko/page.tsx                           # Route: /toko
+│   ├── aichat/page.tsx                         # Route: /aichat
 │   ├── keuangan/page.tsx                       # Route: /keuangan
 │   ├── pengaturan/page.tsx                     # Route: /pengaturan
 │   ├── bantuan/page.tsx                        # Route: /bantuan
@@ -1155,12 +1247,13 @@ src/app/
 | 4 | `/riset` | `riset` | `(dashboard)/riset/page.tsx` | `<RisetSection />` | ✅ Primary #4 |
 | 5 | `/konten` | `konten` | `(dashboard)/konten/page.tsx` | `<KontenSection />` | ✅ Primary #5 |
 | 6 | `/toko` | `toko` | `(dashboard)/toko/page.tsx` | `<TokoSection />` | ✅ Primary #6 |
-| 7 | `/keuangan` | `keuangan` | `(dashboard)/keuangan/page.tsx` | `<KeuanganSection />` | ✅ Primary #7 |
-| 8 | `/credit` | `credit` | `(dashboard)/credit/page.tsx` | `<CreditSection />` | ⚡ Topbar |
-| 9 | `/notifikasi` | `notifikasi` | `(dashboard)/notifikasi/page.tsx` | `<NotifikasiSection />` | 🔔 Topbar |
-| 10 | `/pengaturan` | `pengaturan` | `(dashboard)/pengaturan/page.tsx` | `<PengaturanSection />` | Profile Menu |
-| 11 | `/bantuan` | `bantuan` | `(dashboard)/bantuan/page.tsx` | `<BantuanSection />` | Profile Menu |
-| 12 | `/aktivitas` | `aktivitas` | `(dashboard)/aktivitas/page.tsx` | `<AktivitasSection />` | Profile Menu |
+| 7 | `/aichat` | `aichat` | `(dashboard)/aichat/page.tsx` | `<AiChatSection />` | ✅ Primary #7 |
+| 8 | `/keuangan` | `keuangan` | `(dashboard)/keuangan/page.tsx` | `<KeuanganSection />` | ✅ Primary #8 |
+| 9 | `/credit` | `credit` | `(dashboard)/credit/page.tsx` | `<CreditSection />` | ⚡ Topbar |
+| 10 | `/notifikasi` | `notifikasi` | `(dashboard)/notifikasi/page.tsx` | `<NotifikasiSection />` | 🔔 Topbar |
+| 11 | `/pengaturan` | `pengaturan` | `(dashboard)/pengaturan/page.tsx` | `<PengaturanSection />` | Profile Menu |
+| 12 | `/bantuan` | `bantuan` | `(dashboard)/bantuan/page.tsx` | `<BantuanSection />` | Profile Menu |
+| 13 | `/aktivitas` | `aktivitas` | `(dashboard)/aktivitas/page.tsx` | `<AktivitasSection />` | Profile Menu |
 | — | *(Zustand only)* | `kalender` | *(tidak ada — via Zustand store)* | `<KalenderSection />` | ⚙️ Dalam menu |
 | — | `/t/[slug]` | *(toko publik)* | `t/[slug]/page.tsx` | `<StoreClient />` | ❌ Public |
 
@@ -1200,7 +1293,8 @@ export const NAV_ITEMS = [
   { key: "riset", label: "Riset", icon: "🔍" },          // #4
   { key: "konten", label: "Konten", icon: "📝" },       // #5
   { key: "toko", label: "Toko", icon: "🛒" },           // #6
-  { key: "keuangan", label: "Keuangan", icon: "💰" },   // #7
+  { key: "aichat", label: "AI Chat", icon: "💬" },      // #7
+  { key: "keuangan", label: "Keuangan", icon: "💰" },   // #8
 ];
 
 export const PROFILE_MENU = [

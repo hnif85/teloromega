@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   // ── Product knowledge ────────────────────────────────────────────────────
   const products = await db.product.findMany({
     where: { brandId, isActive: true },
-    take: 20,
+    take: 10,
     select: { name: true, price: true, promoPrice: true, type: true, stock: true, description: true },
   });
   const catalogStr = products.length > 0
@@ -53,8 +53,8 @@ export async function POST(req: NextRequest) {
           ? `Rp ${p.promoPrice.toLocaleString("id-ID")} (promo, normal Rp ${p.price.toLocaleString("id-ID")})`
           : `Rp ${p.price.toLocaleString("id-ID")}`;
         const stok = p.type === "barang" && p.stock != null ? ` · stok ${p.stock}` : "";
-        const deskripsi = p.description ? ` · ${p.description}` : "";
-        return `  - ${p.name}${harga}${stok}${deskripsi}`;
+        const deskripsi = p.description ? ` · ${p.description.slice(0, 50)}${p.description.length > 50 ? "…" : ""}` : "";
+        return `  - ${p.name} · ${harga}${stok}${deskripsi}`;
       }).join("\n")
     : "(belum ada produk)";
 
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       const customerOrders = await db.order.findMany({
         where: { brandId, customerId: customer.id },
         orderBy: { createdAt: "desc" },
-        take: 5,
+        take: 3,
         select: { id: true, totalAmount: true, status: true, createdAt: true, items: true },
       });
       if (customerOrders.length > 0) {

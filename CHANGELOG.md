@@ -7,6 +7,13 @@
 
 ---
 
+## [0.10.0] — 2026-07-12
+
+### ✨ Added
+- public order lookup — /t/[slug]/cek — customer checks orders by phone
+
+
+
 ## [0.9.1] — 2026-07-12
 
 ### ⚡ Performance

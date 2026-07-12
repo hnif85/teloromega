@@ -7,6 +7,13 @@
 
 ---
 
+## [0.10.1] — 2026-07-12
+
+### ♻️ Refactored
+- Beranda redesign — stat tiles with sparklines, insight panel, clean layout
+
+
+
 ## [0.10.0] — 2026-07-12
 
 ### ✨ Added

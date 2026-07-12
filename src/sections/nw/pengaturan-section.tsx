@@ -2434,6 +2434,8 @@ type StoreSettings = {
   minOrder: number;
   shippingEnabled: boolean;
   bankAccounts: BankAccount[];
+  theme: string;
+  themeColor: string | null;
 };
 
 const ALL_PAYMENT_OPTIONS = [
@@ -2442,12 +2444,25 @@ const ALL_PAYMENT_OPTIONS = [
   { id: "cod", label: "COD (Bayar di Tempat)", desc: "Bayar saat barang diterima" },
 ];
 
+// Preset warna toko — nilai `base` harus sama dengan STORE_THEME_PRESETS di
+// src/app/t/[slug]/theme.ts agar preview cocok dengan tampilan toko asli.
+const STORE_THEME_OPTIONS = [
+  { key: "green", label: "Hijau", base: "#16A34A" },
+  { key: "teal", label: "Tosca", base: "#0D9488" },
+  { key: "orange", label: "Oranye", base: "#EA580C" },
+  { key: "violet", label: "Ungu", base: "#7C3AED" },
+  { key: "blue", label: "Biru", base: "#2563EB" },
+  { key: "rose", label: "Merah", base: "#E11D48" },
+];
+
 const DEFAULT_STORE_SETTINGS: StoreSettings = {
   checkoutEnabled: true,
   paymentMethods: ["transfer", "cod", "qris"],
   minOrder: 0,
   shippingEnabled: false,
   bankAccounts: [],
+  theme: "green",
+  themeColor: null,
 };
 
 function StoreSettingsTab() {
@@ -2529,6 +2544,66 @@ function StoreSettingsTab() {
             <Copy className="size-3" /> Salin
           </Button>
         </div>
+      </SectionCard>
+
+      <SectionCard title="Tampilan Toko">
+        <p className="text-xs text-stone mb-3">
+          Warna tema untuk halaman toko online kamu (header, tombol, aksen)
+        </p>
+        <div className="flex flex-wrap gap-2.5">
+          {STORE_THEME_OPTIONS.map((opt) => {
+            const active = !settings.themeColor && settings.theme === opt.key;
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setSettings((s) => ({ ...s, theme: opt.key, themeColor: null }))}
+                className={`flex flex-col items-center gap-1 rounded-xl border-2 p-2 transition-colors ${
+                  active ? "border-ink" : "border-border hover:border-stone-300"
+                }`}
+              >
+                <span className="size-8 rounded-lg flex items-center justify-center" style={{ background: opt.base }}>
+                  {active && <Check className="size-4 text-white" />}
+                </span>
+                <span className="text-[10px] font-medium text-stone">{opt.label}</span>
+              </button>
+            );
+          })}
+
+          {/* Custom color */}
+          <label
+            className={`flex flex-col items-center gap-1 rounded-xl border-2 p-2 cursor-pointer transition-colors ${
+              settings.themeColor ? "border-ink" : "border-border hover:border-stone-300"
+            }`}
+          >
+            <span
+              className="size-8 rounded-lg flex items-center justify-center overflow-hidden ring-1 ring-border"
+              style={{ background: settings.themeColor ?? "conic-gradient(from 0deg, #ef4444, #eab308, #22c55e, #3b82f6, #a855f7, #ef4444)" }}
+            >
+              {settings.themeColor && <Check className="size-4 text-white" />}
+            </span>
+            <span className="text-[10px] font-medium text-stone">Custom</span>
+            <input
+              type="color"
+              value={settings.themeColor ?? "#16A34A"}
+              onChange={(e) => setSettings((s) => ({ ...s, themeColor: e.target.value }))}
+              className="sr-only"
+            />
+          </label>
+        </div>
+        {settings.themeColor && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-xs text-stone">Warna custom:</span>
+            <code className="text-xs font-mono px-2 py-0.5 rounded bg-cream-100 text-ink">{settings.themeColor.toUpperCase()}</code>
+            <button
+              type="button"
+              onClick={() => setSettings((s) => ({ ...s, themeColor: null }))}
+              className="text-xs text-stone hover:text-red-500 underline"
+            >
+              Pakai preset
+            </button>
+          </div>
+        )}
       </SectionCard>
 
       <SectionCard title="Checkout Online">

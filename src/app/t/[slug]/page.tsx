@@ -13,6 +13,8 @@ interface StoreSettings {
   paymentMethods: string[];
   minOrder: number;
   shippingEnabled: boolean;
+  theme?: string;
+  themeColor?: string;
 }
 
 export default async function StorePage({ params }: StorePageProps) {

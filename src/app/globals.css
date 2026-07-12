@@ -163,6 +163,15 @@
   }
 }
 
+/* Hide scrollbar (storefront category pills, etc.) */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Sidebar scrollbar — light text on dark bg */
 .sidebar-scroll::-webkit-scrollbar {
   width: 6px;

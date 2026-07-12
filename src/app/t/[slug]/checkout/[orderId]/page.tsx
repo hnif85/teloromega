@@ -18,6 +18,7 @@ import {
   X,
   CreditCard,
   Copy,
+  Search,
 } from "lucide-react";
 
 interface BankAccount {
@@ -435,6 +436,14 @@ ${items.map((i) => `<tr><td>${i.name}</td><td>${i.qty}</td><td style="text-align
               <MessageCircle className="size-5" /> Hubungi Toko via WhatsApp
             </Button>
           )}
+
+          <Button
+            variant="outline"
+            className="w-full gap-2"
+            onClick={() => router.push(`/t/${order.brand.slug}/cek`)}
+          >
+            <Search className="size-4" /> Simpan nomor HP — cek status lagi nanti
+          </Button>
 
           <Button
             variant="ghost"

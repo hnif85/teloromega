@@ -15,7 +15,7 @@ export async function PUT(
   if (!brand) return NextResponse.json({ error: "Toko tidak ditemukan" }, { status: 404 });
 
   const body = await req.json();
-  const { checkoutEnabled, paymentMethods, minOrder, shippingEnabled, bankAccounts } = body;
+  const { checkoutEnabled, paymentMethods, minOrder, shippingEnabled, bankAccounts, theme, themeColor } = body;
 
   const settings = {
     checkoutEnabled: checkoutEnabled ?? true,
@@ -23,6 +23,8 @@ export async function PUT(
     minOrder: minOrder ?? 0,
     shippingEnabled: shippingEnabled ?? false,
     bankAccounts: bankAccounts ?? [],
+    theme: theme ?? "green",
+    themeColor: themeColor ?? null,
   };
 
   await db.brand.update({
@@ -53,6 +55,8 @@ export async function GET(
     minOrder: 0,
     shippingEnabled: false,
     bankAccounts: [] as { bank: string; accountNumber: string; accountName: string }[],
+    theme: "green",
+    themeColor: null as string | null,
   };
 
   const stored = (brand.storeSettings ?? {}) as Record<string, unknown>;

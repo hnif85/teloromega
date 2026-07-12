@@ -7,6 +7,13 @@
 
 ---
 
+## [0.9.1] — 2026-07-12
+
+### ⚡ Performance
+- optimize AI context token size (10 products, 3 orders, 50 char desc)
+
+
+
 ## [0.9.0] — 2026-07-12
 
 ### ✨ Added

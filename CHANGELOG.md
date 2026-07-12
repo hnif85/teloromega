@@ -7,6 +7,13 @@
 
 ---
 
+## [0.7.0] — 2026-07-12
+
+### ✨ Added
+- public store commerce flow + AI payment verification
+
+
+
 ## [0.6.2] — 2026-07-12
 
 

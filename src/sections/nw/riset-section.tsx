@@ -38,6 +38,7 @@ import type {
   NormalizedContentRec,
 } from "@/lib/research-normalize";
 import { isContentBlockArray, type ContentBlock } from "@/lib/content-blocks";
+import { cn } from "@/lib/utils";
 import {
   Search,
   Sparkles,
@@ -51,6 +52,7 @@ import {
   Hash,
   Clock,
   ChevronRight,
+  ChevronDown,
   ArrowRight,
   CheckCircle2,
   Swords,
@@ -127,6 +129,8 @@ export function RisetSection() {
 
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Mobile accordion — which research is expanded (single-open). Null = all closed.
+  const [openId, setOpenId] = useState<string | null>(null);
 
   // Fetch research list
   const { data, isLoading } = useQuery<{ research: ResearchItem[] }>({
@@ -169,7 +173,10 @@ export function RisetSection() {
       // After research list refreshes, select the newest
       setTimeout(() => {
         const fresh = (qc.getQueryData(["research", activeBrand?.id]) as { research: ResearchItem[] } | undefined)?.research;
-        if (fresh?.length) setSelectedId(fresh[0].id);
+        if (fresh?.length) {
+          setSelectedId(fresh[0].id);
+          setOpenId(fresh[0].id); // auto-expand the new result on mobile
+        }
       }, 500);
     }
     if (jobStatus?.isFailed) {
@@ -266,7 +273,7 @@ export function RisetSection() {
       <div className={`grid gap-5 ${showSidebar ? "lg:grid-cols-[260px_1fr]" : ""}`}>
         {/* ─── Sidebar: history ─────────────────────────────────────────────── */}
         {showSidebar && (
-          <aside className="order-2 lg:order-1">
+          <aside className="hidden lg:block lg:order-1">
             <SectionCard
               title="Histori Riset"
               desc={`${researchList.length} riset`}
@@ -412,13 +419,68 @@ export function RisetSection() {
             />
           )}
 
-          {/* Result view */}
+          {/* Result view — desktop (single pane, driven by sidebar selection) */}
           {!isGenerating && selected && selected.result && (
-            <ResearchResultDispatcher
-              research={selected}
-              brandName={activeBrand.name}
-              setSection={setSection}
-            />
+            <div className="hidden lg:block">
+              <ResearchResultDispatcher
+                research={selected}
+                brandName={activeBrand.name}
+                setSection={setSection}
+              />
+            </div>
+          )}
+
+          {/* Result view — mobile: histori + hasil sebagai accordion (single-open,
+              default tertutup). Tap judul → hasil muncul ke bawah; tap lagi → tutup. */}
+          {!isGenerating && researchList.length > 0 && (
+            <div className="lg:hidden flex flex-col gap-3">
+              {researchList.map((r) => {
+                const open = openId === r.id;
+                return (
+                  <div key={r.id} className="rounded-2xl bg-card border border-border overflow-hidden">
+                    <button
+                      onClick={() => setOpenId(open ? null : r.id)}
+                      aria-expanded={open}
+                      className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-cream-100/50 transition-colors"
+                    >
+                      <div className="size-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+                        <Sparkles className="size-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          {r.intent && (
+                            <Badge variant="outline" className="text-[10px] py-0 h-4 border-teal/30 text-teal">
+                              {INTENT_LABEL[r.intent] ?? r.intent}
+                            </Badge>
+                          )}
+                          <span className="text-[11px] text-stone">{timeAgoShort(r.createdAt)}</span>
+                        </div>
+                        <div className={cn("text-sm font-semibold text-ink leading-snug", !open && "line-clamp-2")}>
+                          {r.query}
+                        </div>
+                      </div>
+                      <ChevronDown
+                        className={cn("size-4 text-stone shrink-0 mt-1 transition-transform", open && "rotate-180")}
+                      />
+                    </button>
+                    {open && (
+                      <div className="px-3 pb-3 pt-3 border-t border-border">
+                        {r.result ? (
+                          <ResearchResultDispatcher
+                            research={r}
+                            brandName={activeBrand.name}
+                            setSection={setSection}
+                            hideHeader
+                          />
+                        ) : (
+                          <div className="py-6 text-center text-sm text-stone">Hasil belum tersedia.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
 
           {/* ─── Composer — chatgpt-style input pinned to the bottom of this
@@ -514,6 +576,9 @@ interface ResearchViewProps {
   research: ResearchItem;
   brandName: string;
   setSection: (s: "konten" | "toko" | "keuangan") => void;
+  /** Suppress the internal query/title header — used by the mobile accordion,
+      where the accordion row already shows the query. */
+  hideHeader?: boolean;
 }
 
 const RESEARCH_RENDERERS: Record<string, ComponentType<ResearchViewProps>> = {
@@ -600,9 +665,11 @@ function BlockContentView({
   research,
   brandName,
   blocks,
+  hideHeader,
 }: ResearchViewProps & { blocks: ContentBlock[] }) {
   return (
     <div className="space-y-4">
+      {!hideHeader && (
       <div className="rounded-2xl bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 border border-teal/20 p-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="size-10 rounded-xl bg-teal text-white flex items-center justify-center shrink-0">
@@ -624,6 +691,7 @@ function BlockContentView({
           </div>
         </div>
       </div>
+      )}
 
       <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
         {blocks.map((block, i) => (
@@ -639,6 +707,7 @@ function ResearchViewImpl({
   research,
   brandName,
   setSection,
+  hideHeader,
 }: ResearchViewProps) {
   const r = research.result!;
   // Safe fallbacks for missing sub-objects in research result
@@ -659,6 +728,7 @@ function ResearchViewImpl({
   return (
     <div className="space-y-4">
       {/* Header bar */}
+      {!hideHeader && (
       <div className="rounded-2xl bg-gradient-to-br from-teal-100 via-cream-100 to-orange-100/40 border border-teal/20 p-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="size-10 rounded-xl bg-teal text-white flex items-center justify-center shrink-0">
@@ -692,6 +762,7 @@ function ResearchViewImpl({
           </div>
         )}
       </div>
+      )}
 
       {/* Summary — present across every result shape seen so far (legacy or
           agentic). Shown even when the structured fields below are sparse,

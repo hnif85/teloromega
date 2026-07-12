@@ -205,16 +205,30 @@ export function RisetSection() {
     }
   };
 
-  // Build suggestion chips from product names or brand category
+  // Build suggestion chips from brand category
   const suggestions = useMemo(() => {
     const subject = activeBrand?.category ?? "produk UMKM";
     return [
-      `Tren ${subject} 2025`,
+      `Tren ${subject} 2026`,
       `Harga pasaran ${subject}`,
       `Kompetitor ${subject} terdekat`,
       `Keyword viral ${subject}`,
     ];
   }, [activeBrand?.category]);
+
+  // First research: auto-generate comprehensive query from brand data
+  const firstResearchQuery = useMemo(() => {
+    if (!activeBrand) return "";
+    const parts = [`Riset pasar lengkap untuk ${activeBrand.name}`];
+    if (activeBrand.category) parts.push(`- ${activeBrand.category}`);
+    if (activeBrand.description) parts.push(`: ${activeBrand.description}`);
+    parts.push(". Cari tren pasar, hashtag trending, kompetitor, target audiens, strategi harga, dan rekomendasi konten.");
+    return parts.join(" ");
+  }, [activeBrand?.name, activeBrand?.category, activeBrand?.description]);
+
+  const runFirstResearch = () => {
+    if (firstResearchQuery) runSearch(firstResearchQuery);
+  };
 
   // ─── No active brand ────────────────────────────────────────────────────────
   if (!activeBrand) {
@@ -473,14 +487,15 @@ export function RisetSection() {
             <EmptyState
               icon="🔍"
               title="Belum ada riset untuk brand ini"
-              desc="Ketik topik di atas atau pilih salah satu saran. AI akan cari data web terbaru (90 hari) dan bikin strategi lengkap — audiens, SWOT, kompetitor, sampai rekomendasi harga."
+              desc={`AI akan riset ${activeBrand?.name ?? "brand"} secara otomatis — cari tren pasar, hashtag, kompetitor, target audiens, dan rekomendasi strategi.`}
               action={
                 <Button
                   className="bg-teal hover:bg-teal-600"
-                  onClick={() => runSearch(suggestions[0])}
+                  disabled={!firstResearchQuery}
+                  onClick={runFirstResearch}
                 >
                   <Sparkles className="size-4 mr-1" />
-                  Coba riset pertama
+                  Mulai riset {activeBrand?.name}
                 </Button>
               }
             />

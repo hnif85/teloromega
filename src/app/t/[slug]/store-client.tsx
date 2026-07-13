@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCart } from "./use-cart";
 import { resolveStoreTheme, type StoreSettings } from "./theme";
+import { StoreCustomerDialog } from "./store-customer-dialog";
 import {
   MessageCircle,
   Copy,
@@ -27,6 +28,16 @@ import {
   Truck,
   Sparkles,
 } from "lucide-react";
+
+interface CustomerData {
+  id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  totalOrders: number;
+  totalSpent: number;
+  lastOrderAt: string | null;
+}
 
 interface BrandData {
   id: string;
@@ -68,11 +79,16 @@ export function StoreClient({ brand, products, settings }: { brand: BrandData; p
   const [copied, setCopied] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [addedToast, setAddedToast] = useState<string | null>(null);
+  const [activeCustomer, setActiveCustomer] = useState<CustomerData | null>(null);
 
   const cart = useCart(brand.id);
   const theme = resolveStoreTheme(settings);
   const storeUrl = `usahaku.ai/t/${brand.slug}`;
   const waNumber = brand.phone?.replace(/[^0-9]/g, "");
+
+  const handleCustomerSelected = useCallback((customer: CustomerData | null) => {
+    setActiveCustomer(customer);
+  }, []);
 
   // Real filters: our data only has product type (barang/jasa). Build pills from
   // what actually exists so every pill filters something.
@@ -583,6 +599,9 @@ export function StoreClient({ brand, products, settings }: { brand: BrandData; p
           <Check className="size-4" /> {addedToast} ditambahkan
         </div>
       )}
+
+      {/* ══════════════ CUSTOMER IDENTIFICATION DIALOG ══════════════ */}
+      <StoreCustomerDialog brandId={brand.id} onCustomerSelected={handleCustomerSelected} />
 
       {/* ══════════════ MOBILE BOTTOM TAB BAR ══════════════ */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-stone-200 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]">

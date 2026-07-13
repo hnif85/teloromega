@@ -37,6 +37,14 @@ export function StoreCustomerDialog({ brandId, onCustomerSelected }: StoreCustom
   const [step, setStep] = useState<"phone" | "found">("phone");
   const [phone, setPhone] = useState("");
   const [foundCustomer, setFoundCustomer] = useState<CustomerData | null>(null);
+  const [storeSlug, setStoreSlug] = useState<string>("");
+
+  // Get slug from URL on mount
+  useEffect(() => {
+    const path = window.location.pathname;
+    const match = path.match(/\/t\/([^/]+)/);
+    if (match) setStoreSlug(match[1]);
+  }, []);
 
   // Check localStorage on mount
   useEffect(() => {
@@ -58,9 +66,9 @@ export function StoreCustomerDialog({ brandId, onCustomerSelected }: StoreCustom
   // Lookup mutation
   const lookupMutation = useMutation({
     mutationFn: () =>
-      api<{ found: boolean; customer?: CustomerData; phone: string }>("/api/customers", {
+      api<{ found: boolean; customer?: CustomerData; phone: string }>(`/api/store/${storeSlug}/customer`, {
         method: "POST",
-        json: { brandId, phone },
+        json: { phone },
       }),
     onSuccess: (res) => {
       if (res.found && res.customer) {

@@ -7,6 +7,13 @@
 
 ---
 
+## [0.14.0] — 2026-07-13
+
+### ✨ Added
+- integrate RajaOngkir shipping API
+
+
+
 ## [0.13.1] — 2026-07-13
 
 ### 📝 Documentation

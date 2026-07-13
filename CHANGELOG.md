@@ -7,6 +7,13 @@
 
 ---
 
+## [0.15.1] — 2026-07-13
+
+### 🐛 Fixed
+- remove auto-open customer identification dialog on Toko page
+
+
+
 ## [0.15.0] — 2026-07-13
 
 ### ✨ Added

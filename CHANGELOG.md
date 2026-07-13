@@ -7,6 +7,13 @@
 
 ---
 
+## [0.15.0] — 2026-07-13
+
+### ✨ Added
+- add shipping support fields to database
+
+
+
 ## [0.14.0] — 2026-07-13
 
 ### ✨ Added

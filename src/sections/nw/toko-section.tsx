@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAppStore, getActiveBrand } from "@/lib/store";
 import { PageHeader, EmptyState } from "@/components/nw/primitives";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -47,14 +47,6 @@ export function TokoSection() {
   const [identifyOpen, setIdentifyOpen] = useState(false);
   const [activeCustomer, setActiveCustomer] = useState<CustomerData | null>(null);
   const [shippingTab, setShippingTab] = useState<"calculator" | "tracker">("calculator");
-
-  // Auto-open identification dialog on first visit
-  useEffect(() => {
-    if (activeBrand && !activeCustomer) {
-      const timer = setTimeout(() => setIdentifyOpen(true), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [activeBrand, activeCustomer]);
 
   if (!activeBrand) {
     return (

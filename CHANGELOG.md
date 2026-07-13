@@ -7,6 +7,13 @@
 
 ---
 
+## [0.16.0] — 2026-07-13
+
+### ✨ Added
+- add customer identification dialog to storefront
+
+
+
 ## [0.15.1] — 2026-07-13
 
 ### 🐛 Fixed

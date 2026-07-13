@@ -10,17 +10,21 @@ import { OrdersTab } from "@/sections/nw/toko/orders-tab";
 import { InventoryTab } from "@/sections/nw/toko/inventory-tab";
 import { PaymentsTab } from "@/sections/nw/toko/payments-tab";
 import { CustomerIdentifyDialog } from "@/sections/nw/toko/customer-identify-dialog";
+import { ShippingCalculator } from "@/sections/nw/toko/shipping-calculator";
+import { ShippingTracker } from "@/sections/nw/toko/shipping-tracker";
 import {
   ShoppingCart,
   Package,
   CreditCard,
   UserCheck,
+  Truck,
 } from "lucide-react";
 
 const TABS = [
   { key: "orders", label: "Orders", icon: ShoppingCart },
   { key: "inventory", label: "Stok", icon: Package },
   { key: "payments", label: "Pembayaran", icon: CreditCard },
+  { key: "shipping", label: "Ongkir", icon: Truck },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -42,6 +46,7 @@ export function TokoSection() {
   const [tab, setTab] = useState<TabKey>("orders");
   const [identifyOpen, setIdentifyOpen] = useState(false);
   const [activeCustomer, setActiveCustomer] = useState<CustomerData | null>(null);
+  const [shippingTab, setShippingTab] = useState<"calculator" | "tracker">("calculator");
 
   // Auto-open identification dialog on first visit
   useEffect(() => {
@@ -127,6 +132,40 @@ export function TokoSection() {
         </TabsContent>
         <TabsContent value="payments" className="mt-4">
           <PaymentsTab brandId={activeBrand.id} user={user} />
+        </TabsContent>
+        <TabsContent value="shipping" className="mt-4">
+          <div className="space-y-4">
+            {/* Shipping sub-tabs */}
+            <div className="flex gap-2">
+              <Button
+                variant={shippingTab === "calculator" ? "default" : "outline"}
+                size="sm"
+                className={shippingTab === "calculator" ? "bg-teal hover:bg-teal-600" : ""}
+                onClick={() => setShippingTab("calculator")}
+              >
+                <Truck className="size-3.5 mr-1.5" />
+                Cek Ongkir
+              </Button>
+              <Button
+                variant={shippingTab === "tracker" ? "default" : "outline"}
+                size="sm"
+                className={shippingTab === "tracker" ? "bg-teal hover:bg-teal-600" : ""}
+                onClick={() => setShippingTab("tracker")}
+              >
+                <Package className="size-3.5 mr-1.5" />
+                Lacak Paket
+              </Button>
+            </div>
+
+            {/* Shipping content */}
+            <div className="rounded-xl border border-border bg-card p-4">
+              {shippingTab === "calculator" ? (
+                <ShippingCalculator originId={17473} weight={1000} />
+              ) : (
+                <ShippingTracker />
+              )}
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
 

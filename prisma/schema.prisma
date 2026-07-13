@@ -46,6 +46,12 @@ model Brand {
   phone        String?  // nomor WhatsApp toko
   toneOfVoice  String   @default("santai_ramah")
   storeSettings Json?    // { checkoutEnabled, paymentMethods: string[], minOrder, shippingEnabled }
+  // Store address for shipping
+  storeAddress  String?  // alamat lengkap toko
+  storeCity     String?  // kota/kabupaten
+  storeProvince String?  // provinsi
+  storeZip      String?  // kode pos
+  storeOriginId Int?     // ID RajaOngkir untuk origin
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -84,6 +90,7 @@ model Product {
   sku         String?
   description String?
   imageUrl    String?
+  weight      Int?     // berat dalam gram (untuk ongkir)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -202,6 +209,12 @@ model Customer {
   name          String
   phone         String
   email         String?
+  // Address for shipping
+  address       String?   // alamat lengkap
+  city          String?   // kota/kabupaten
+  province      String?   // provinsi
+  zip           String?   // kode pos
+  destinationId Int?      // ID RajaOngkir untuk destination
   firstOrderAt  DateTime?
   totalOrders   Int       @default(0)
   totalSpent    Int       @default(0)
@@ -270,6 +283,8 @@ model Order {
   resiNumber      String?
   shippingCourier String?
   shippingCost    Int?
+  shippingAddress String?   // alamat pengiriman (dari customer)
+  destinationId   Int?      // ID RajaOngkir untuk destination
   notes           String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

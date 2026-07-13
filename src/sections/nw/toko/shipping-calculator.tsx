@@ -32,14 +32,16 @@ interface ShippingResult {
 }
 
 interface ShippingCalculatorProps {
-  originId?: number;
-  weight?: number;
+  brandId: string;
+  destinationId?: number;
+  totalWeight?: number;
   onSelect?: (result: ShippingResult, destination: Destination) => void;
 }
 
 export function ShippingCalculator({
-  originId,
-  weight = 1000,
+  brandId,
+  destinationId,
+  totalWeight = 1000,
   onSelect,
 }: ShippingCalculatorProps) {
   const { toast } = useToast();
@@ -65,9 +67,9 @@ export function ShippingCalculator({
       api<{ results: ShippingResult[] }>("/api/shipping/cost", {
         method: "POST",
         json: {
-          origin: originId,
+          brandId,
           destination: selectedDest?.id,
-          weight: Number(weightInput) || 1000,
+          weight: Number(weightInput) || totalWeight,
           price: "lowest",
         },
       }),
@@ -99,7 +101,7 @@ export function ShippingCalculator({
     setSearchQuery(dest.label);
     setSelectedResult(null);
     // Auto-calculate cost
-    if (originId) {
+    if (brandId) {
       costMutation.mutate();
     }
   }
@@ -172,7 +174,7 @@ export function ShippingCalculator({
       )}
 
       {/* Calculate button */}
-      {selectedDest && originId && !costMutation.data && (
+      {selectedDest && brandId && !costMutation.data && (
         <Button
           onClick={() => costMutation.mutate()}
           disabled={costMutation.isPending}

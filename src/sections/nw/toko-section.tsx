@@ -160,7 +160,7 @@ export function TokoSection() {
             {/* Shipping content */}
             <div className="rounded-xl border border-border bg-card p-4">
               {shippingTab === "calculator" ? (
-                <ShippingCalculator originId={17473} weight={1000} />
+                <ShippingCalculator brandId={activeBrand.id} totalWeight={1000} />
               ) : (
                 <ShippingTracker />
               )}

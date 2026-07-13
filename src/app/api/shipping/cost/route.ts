@@ -1,6 +1,7 @@
 // /api/shipping/cost — proxy ke RajaOngkir domestic cost calculation
 import { NextRequest, NextResponse } from "next/server";
 import { getUserId } from "@/lib/auth";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +18,20 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { origin, destination, weight, couriers, price } = body;
+  const { brandId, destination, weight, couriers, price } = body;
 
-  if (!origin || !destination || !weight) {
-    return NextResponse.json({ error: "origin, destination, dan weight wajib" }, { status: 400 });
+  if (!brandId || !destination || !weight) {
+    return NextResponse.json({ error: "brandId, destination, dan weight wajib" }, { status: 400 });
+  }
+
+  // Get brand's origin ID
+  const brand = await db.brand.findUnique({ where: { id: brandId } });
+  if (!brand || brand.userId !== userId) {
+    return NextResponse.json({ error: "brand tidak ditemukan" }, { status: 404 });
+  }
+
+  if (!brand.storeOriginId) {
+    return NextResponse.json({ error: "Alamat toko belum diatur. Silakan set alamat toko terlebih dahulu." }, { status: 400 });
   }
 
   // Build courier string
@@ -30,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const formData = new URLSearchParams();
-    formData.append("origin", String(origin));
+    formData.append("origin", String(brand.storeOriginId));
     formData.append("destination", String(destination));
     formData.append("weight", String(weight));
     formData.append("courier", courierList);

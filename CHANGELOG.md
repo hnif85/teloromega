@@ -7,6 +7,13 @@
 
 ---
 
+## [0.16.1] — 2026-07-13
+
+### 🐛 Fixed
+- create public API for storefront customer lookup (no auth required)
+
+
+
 ## [0.16.0] — 2026-07-13
 
 ### ✨ Added

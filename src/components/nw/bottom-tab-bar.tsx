@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   { key: "beranda", label: "Beranda", icon: "📊" },
-  { key: "riset", label: "Riset", icon: "🔍" },
+  { key: "produk", label: "Produk", icon: "📦" },
   { key: "konten", label: "Konten", icon: "📝" },
   { key: "toko", label: "Toko", icon: "🛒" },
   { key: "aichat", label: "Chat", icon: "💬" },

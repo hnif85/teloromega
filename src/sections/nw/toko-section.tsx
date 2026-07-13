@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAppStore, getActiveBrand } from "@/lib/store";
 import { PageHeader, EmptyState } from "@/components/nw/primitives";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -9,10 +9,12 @@ import { StorePreview } from "@/sections/nw/toko/store-preview";
 import { OrdersTab } from "@/sections/nw/toko/orders-tab";
 import { InventoryTab } from "@/sections/nw/toko/inventory-tab";
 import { PaymentsTab } from "@/sections/nw/toko/payments-tab";
+import { CustomerIdentifyDialog } from "@/sections/nw/toko/customer-identify-dialog";
 import {
   ShoppingCart,
   Package,
   CreditCard,
+  UserCheck,
 } from "lucide-react";
 
 const TABS = [
@@ -23,10 +25,31 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
+interface CustomerData {
+  id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  totalOrders: number;
+  totalSpent: number;
+  lastOrderAt: string | null;
+  createdAt: string;
+}
+
 export function TokoSection() {
   const { user } = useAppStore();
   const activeBrand = getActiveBrand(useAppStore.getState());
   const [tab, setTab] = useState<TabKey>("orders");
+  const [identifyOpen, setIdentifyOpen] = useState(false);
+  const [activeCustomer, setActiveCustomer] = useState<CustomerData | null>(null);
+
+  // Auto-open identification dialog on first visit
+  useEffect(() => {
+    if (activeBrand && !activeCustomer) {
+      const timer = setTimeout(() => setIdentifyOpen(true), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [activeBrand, activeCustomer]);
 
   if (!activeBrand) {
     return (
@@ -49,6 +72,28 @@ export function TokoSection() {
         subtitle={`Kelola order, stok & pembayaran · ${activeBrand.name}`}
         icon="🛒"
       />
+
+      {/* Active customer indicator */}
+      {activeCustomer && (
+        <div className="mb-4 p-3 rounded-xl bg-teal-50 border border-teal-200 flex items-center gap-3">
+          <div className="size-9 rounded-full bg-teal text-white flex items-center justify-center text-sm font-bold shrink-0">
+            {activeCustomer.name[0]?.toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-ink truncate">{activeCustomer.name}</div>
+            <div className="text-xs text-stone">{activeCustomer.phone}</div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-teal gap-1.5"
+            onClick={() => setIdentifyOpen(true)}
+          >
+            <UserCheck className="size-3.5" />
+            Ganti
+          </Button>
+        </div>
+      )}
 
       {/* Store preview card */}
       <div className="mb-6">
@@ -84,6 +129,14 @@ export function TokoSection() {
           <PaymentsTab brandId={activeBrand.id} user={user} />
         </TabsContent>
       </Tabs>
+
+      {/* Customer identification dialog */}
+      <CustomerIdentifyDialog
+        open={identifyOpen}
+        onOpenChange={setIdentifyOpen}
+        brandId={activeBrand.id}
+        onCustomerSelected={(c) => setActiveCustomer(c)}
+      />
     </div>
   );
 }

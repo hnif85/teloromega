@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
     leadsCount,
     ordersPendingCount,
     contentCount,
+    customersMonthCount,
     recentResearch,
     contexts,
     lowStockProducts,
@@ -49,6 +50,7 @@ export async function GET(req: NextRequest) {
     db.lead.count({ where: { brandId, stage: { notIn: ["Closed", "Deal"] } } }),
     db.order.count({ where: { brandId, status: { in: ["Baru", "Diproses"] } } }),
     db.content.count({ where: { brandId } }),
+    db.customer.count({ where: { brandId, createdAt: { gte: startOfMonth } } }),
     db.research.findMany({
       where: { brandId },
       orderBy: { createdAt: "desc" },
@@ -175,6 +177,7 @@ export async function GET(req: NextRequest) {
       leads: leadsCount,
       orders: ordersPendingCount,
       content: contentCount,
+      customersMonth: customersMonthCount,
     },
     recentResearch: recentResearch.map((r) => ({
       id: r.id,

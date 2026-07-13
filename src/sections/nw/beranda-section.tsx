@@ -10,10 +10,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatRupiahShort, timeAgo } from "@/lib/constants";
 import {
   Search,
-  Zap,
-  Users,
-  ShoppingCart,
-  FileText,
   ArrowRight,
   Sparkles,
   CheckCircle2,
@@ -49,72 +45,6 @@ const GOAL_TYPE_META: Record<string, { icon: string; label: string }> = {
 function formatGoalValue(type: string, v: number): string {
   if (type === "revenue") return formatRupiahShort(v);
   return String(Math.round(v));
-}
-
-// ─── Sparkline (decorative trend line) ─────────────────────────
-function Sparkline({ color, points }: { color: string; points: number[] }) {
-  const w = 72;
-  const h = 34;
-  const max = Math.max(...points);
-  const min = Math.min(...points);
-  const range = max - min || 1;
-  const step = w / (points.length - 1);
-  const d = points
-    .map((p, i) => {
-      const x = i * step;
-      const y = h - ((p - min) / range) * (h - 8) - 4;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} fill="none" className="shrink-0" aria-hidden>
-      <path d={d} stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" opacity={0.9} />
-    </svg>
-  );
-}
-
-// ─── Stat tile ─────────────────────────────────────────────────
-function StatTile({
-  label,
-  value,
-  caption,
-  icon,
-  boxClass,
-  iconClass,
-  sparkColor,
-  points,
-  onClick,
-}: {
-  label: string;
-  value: React.ReactNode;
-  caption: string;
-  icon: React.ReactNode;
-  boxClass: string;
-  iconClass: string;
-  sparkColor: string;
-  points: number[];
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="text-left w-full rounded-2xl bg-card border border-border p-4 md:p-5 hover:shadow-md hover:border-stone-300 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-teal/40"
-    >
-      <div className="flex items-center gap-2.5 mb-3">
-        <div className={`size-9 md:size-10 rounded-xl flex items-center justify-center shrink-0 ${boxClass} ${iconClass}`}>
-          {icon}
-        </div>
-        <span className="text-sm font-medium text-stone truncate">{label}</span>
-      </div>
-      <div className="flex items-end justify-between gap-2">
-        <div className="min-w-0">
-          <div className="text-2xl md:text-3xl font-extrabold text-ink tabular-nums leading-none">{value}</div>
-          <div className="text-[11px] text-stone mt-1.5 truncate">{caption}</div>
-        </div>
-        <Sparkline color={sparkColor} points={points} />
-      </div>
-    </button>
-  );
 }
 
 // ─── Daily insight panel ───────────────────────────────────────
@@ -254,6 +184,7 @@ interface DashboardData {
     leads: number;
     orders: number;
     content: number;
+    customersMonth: number;
   };
   recentResearch: { id: string; query: string; intent: string | null; createdAt: string }[];
   recommendations: {
@@ -314,52 +245,39 @@ export function BerandaSection() {
         <p className="text-sm text-stone mt-0.5">Semangat! Kelola bisnismu hari ini</p>
       </div>
 
-      {/* Stat tiles */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <StatTile
-          label="Leads Aktif"
-          value={isLoading ? "…" : data?.stats.leads ?? 0}
-          caption="Calon pembeli aktif"
-          icon={<Users className="size-4 md:size-5" />}
-          boxClass="bg-emerald-50"
-          iconClass="text-emerald-600"
-          sparkColor="#10b981"
-          points={[3, 4, 3.5, 5, 4.5, 6, 5.5, 7]}
-          onClick={() => setSection("toko")}
-        />
-        <StatTile
-          label="Orders Pending"
-          value={isLoading ? "…" : data?.stats.orders ?? 0}
-          caption="Menunggu diproses"
-          icon={<ShoppingCart className="size-4 md:size-5" />}
-          boxClass="bg-orange-50"
-          iconClass="text-orange-600"
-          sparkColor="#f97316"
-          points={[4, 3, 5, 4, 6, 5, 6.5, 6]}
-          onClick={() => setSection("toko")}
-        />
-        <StatTile
-          label="Konten Dibuat"
-          value={isLoading ? "…" : data?.stats.content ?? 0}
-          caption="Total konten dibuat"
-          icon={<FileText className="size-4 md:size-5" />}
-          boxClass="bg-violet-50"
-          iconClass="text-violet-600"
-          sparkColor="#8b5cf6"
-          points={[2, 3, 2.5, 4, 3.5, 4.5, 5, 6]}
-          onClick={() => setSection("konten")}
-        />
-        <StatTile
-          label="Credit Tersisa"
-          value={user?.creditBalance ?? 0}
-          caption="Sisa credit"
-          icon={<Zap className="size-4 md:size-5 fill-current" />}
-          boxClass="bg-amber-50"
-          iconClass="text-amber-600"
-          sparkColor="#f59e0b"
-          points={[5, 4.5, 5.5, 5, 6, 5.5, 6.5, 6]}
-          onClick={() => setSection("credit")}
-        />
+      {/* Stat summary card */}
+      <div className="rounded-2xl bg-card border border-border p-4 md:p-5">
+        <div className="flex items-center gap-3">
+          <div className="size-10 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+            <span className="text-lg">📊</span>
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-semibold text-stone">Ringkasan Bulan Ini</div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-teal gap-1.5"
+            onClick={() => setSection("insights")}
+          >
+            Insights <ArrowRight className="size-3.5" />
+          </Button>
+        </div>
+        <div className="mt-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-stone">Penghasilan bulan ini</span>
+            <span className="text-lg font-extrabold text-ink tabular-nums">
+              {isLoading ? "…" : formatRupiahShort(data?.stats.salesMonth ?? 0)}
+            </span>
+          </div>
+          <div className="h-px bg-border" />
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-stone">Customer bulan ini</span>
+            <span className="text-lg font-extrabold text-ink tabular-nums">
+              {isLoading ? "…" : data?.stats.customersMonth ?? 0}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* 2-column: Recent research + Recommendations */}
